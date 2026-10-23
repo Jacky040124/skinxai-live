@@ -177,6 +177,10 @@ final class LiveMonitor: NSObject {
     fileprivate func runtimeEnded(_ session: WKExtendedRuntimeSession) {
         guard session === runtime, isRunning else { return }
         runtime = nil
+        // A runtime session lasts up to an hour; a new one can only start while the app is in front.
+        if WKApplication.shared().applicationState == .active, startRuntimeSession() {
+            return
+        }
         backing = .foreground
         onEvent?(.backingChanged(.foreground))
     }
