@@ -18,13 +18,13 @@ struct ScratchAlertView: View {
     var body: some View {
         GeometryReader { geo in
             let compact = geo.size.height < 175
-            let tile = min(84, geo.size.height * (compact ? 0.34 : 0.42))
+            let tile = min(78, geo.size.height * (compact ? 0.3 : 0.39))
             ZStack {
                 PulseGlow(born: born, answered: answered, reduceMotion: reduceMotion)
                     .frame(width: geo.size.width * 1.4, height: geo.size.width * 1.4)
                     .position(x: geo.size.width / 2, y: tile / 2 + 4)
                 VStack(spacing: 0) {
-                    PulseTile(born: born, answered: answered, reduceMotion: reduceMotion)
+                    PulseTile(born: born, answered: answered, reduceMotion: reduceMotion, radius: tile * 0.27)
                         .frame(width: tile, height: tile)
                         .scaleEffect(shown || reduceMotion ? 1 : 0.3)
                         .opacity(shown ? 1 : 0)
@@ -35,9 +35,15 @@ struct ScratchAlertView: View {
                         .multilineTextAlignment(.center)
                         .lineSpacing(-1)
                         .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, compact ? 9 : 13)
+                        .padding(.top, compact ? 8 : 11)
                         .watchRise(0.12, distance: 8)
                         .accessibilityAddTraits(.isHeader)
+                    Text(detail)
+                        .font(WatchFont.mono(compact ? 8.5 : 9.5))
+                        .tracking(0.5)
+                        .foregroundStyle(Twin.Palette.orange.opacity(0.9))
+                        .padding(.top, 3)
+                        .watchRise(0.18, distance: 6)
                     Spacer(minLength: 6)
                     HStack(spacing: 8) {
                         Button("No") { answer(false) }
@@ -81,6 +87,14 @@ struct ScratchAlertView: View {
         }
     }
 
+    /// What the watch measured, e.g. "4.3 HZ · JUST NOW".
+    private var detail: String {
+        let rate = alert.meanHz > 0 ? String(format: "%.1f HZ", alert.meanHz) : "RHYTHMIC"
+        let when = Date().timeIntervalSince(alert.start) < 120 ? "JUST NOW"
+            : alert.start.formatted(.dateTime.hour().minute()).uppercased()
+        return "\(rate) · \(when)"
+    }
+
     private func answer(_ yes: Bool) {
         guard answered == nil else { return }
         withAnimation(.spring(response: 0.32, dampingFraction: 0.55)) { answered = yes }
@@ -96,6 +110,8 @@ private struct PulseTile: View {
     var born: Date
     var answered: Bool?
     var reduceMotion: Bool
+    /// Corner radius (scales with the tile, 22 at full size).
+    var radius: CGFloat = 22
     private let period = 1.8
     @Environment(\.isLuminanceReduced) private var dimmed
 
@@ -105,17 +121,17 @@ private struct PulseTile: View {
             ZStack {
                 ForEach(0..<2, id: \.self) { i in
                     let phase = ((t / period) + Double(i) * 0.5).truncatingRemainder(dividingBy: 1)
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    RoundedRectangle(cornerRadius: radius, style: .continuous)
                         .stroke(Twin.Palette.orange, lineWidth: 2)
                         .scaleEffect(reduceMotion ? 1.12 : 1 + 0.62 * phase)
                         .opacity(answered != nil ? 0 : (reduceMotion ? 0.45 : 0.9) * (1 - phase))
                 }
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
                     .fill(fill)
-                    .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(.white, lineWidth: 2))
+                    .overlay(RoundedRectangle(cornerRadius: radius, style: .continuous).strokeBorder(.white, lineWidth: 2))
                     .scaleEffect(answered == nil ? 1 : 1.06)
                 Image(systemName: symbol)
-                    .font(.system(size: 38, weight: .bold))
+                    .font(.system(size: radius * 1.75, weight: .bold))
                     .foregroundStyle(Twin.Palette.ink)
                     .contentTransition(.symbolEffect(.replace.downUp))
                     .rotationEffect(.degrees(answered == nil && !reduceMotion ? wiggle(t) : 0), anchor: .bottom)
