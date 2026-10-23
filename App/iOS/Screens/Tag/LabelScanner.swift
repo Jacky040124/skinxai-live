@@ -1,4 +1,5 @@
 import SwiftUI
+import AVFoundation
 import PhotosUI
 import Vision
 import VisionKit
@@ -87,20 +88,30 @@ enum IrritantCheck {
 struct LabelScanView: View {
     var onResult: (LabelScanResult) -> Void
     @Environment(\.dismiss) private var dismiss
-
-    private var liveAvailable: Bool {
-        DataScannerViewController.isSupported && DataScannerViewController.isAvailable
-    }
+    /// nil while the camera permission is being asked (first use).
+    @State private var live: Bool? = LabelScanView.initialMode()
 
     var body: some View {
         Group {
-            if liveAvailable {
-                LiveScanScreen(finish: finish, cancel: { dismiss() })
-            } else {
-                PhotoScanScreen(finish: finish, cancel: { dismiss() })
+            switch live {
+            case .some(true): LiveScanScreen(finish: finish, cancel: { dismiss() })
+            case .some(false): PhotoScanScreen(finish: finish, cancel: { dismiss() })
+            case .none: Color.black.ignoresSafeArea()
             }
         }
         .preferredColorScheme(.light)
+        .task {
+            guard live == nil else { return }
+            // Ask for the camera first, then pick live scanning or the photo fallback.
+            _ = await AVCaptureDevice.requestAccess(for: .video)
+            live = DataScannerViewController.isSupported && DataScannerViewController.isAvailable
+        }
+    }
+
+    private static func initialMode() -> Bool? {
+        guard DataScannerViewController.isSupported else { return false }
+        if AVCaptureDevice.authorizationStatus(for: .video) == .notDetermined { return nil }
+        return DataScannerViewController.isAvailable
     }
 
     private func finish(_ result: LabelScanResult) {
