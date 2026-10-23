@@ -121,8 +121,12 @@ struct RunningExperimentView: View {
                         .riseIn(0.04 + 2 * Twin.Motion.stagger)
                 }
 
-                DemoControls(progress: progress)
-                    .riseIn(0.04 + 3 * Twin.Motion.stagger)
+                // Demo time travel only makes sense in the demo story: in real mode (Settings →
+                // Demo story off) a fast-forward would swap the user's own data for the demo.
+                if app.dataset.isDemo {
+                    DemoControls(progress: progress)
+                        .riseIn(0.04 + 3 * Twin.Motion.stagger)
+                }
                 Color.clear.frame(height: 1).id(ScrollHook.bottomID)
             }
             .onAppear {

@@ -68,7 +68,10 @@ final class DemoTour: ObservableObject {
     private func run(app: AppState, pace: Double, delay: Double) async {
         func wait(_ s: Double) async throws { try await Task.sleep(nanoseconds: UInt64(s * pace * 1_000_000_000)) }
         func tap(_ target: String, fallback: String?) async throws {
-            touch = Touch(primary: target, fallback: fallback)
+            // Pick the spot once, when the finger lands: if the marked view then leaves the screen
+            // (the page changes), the ripple ends there instead of jumping to the fallback.
+            let spot = targets.contains(target) ? target : (fallback ?? target)
+            touch = Touch(primary: spot, fallback: nil)
             try await Task.sleep(nanoseconds: 420_000_000)
         }
 
@@ -89,8 +92,9 @@ final class DemoTour: ObservableObject {
             try await tap("claudeCard", fallback: "tab.insight")
             app.select(.insight)
 
-            // 2. Insight: thinking → typed summary → suspects fly in → evidence arc.
-            try await wait(6.8)
+            // 2. Insight: thinking → typed summary → suspects fly in → evidence arc. The reveal
+            //    reaches the last card after ~7 s and the #1 timeline lands its "+2 DAYS" ~2 s later.
+            try await wait(9.6)
             try await tap("startTest", fallback: "tab.experiment")
             app.startExperiment()
 

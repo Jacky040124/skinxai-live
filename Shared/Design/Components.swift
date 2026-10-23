@@ -34,7 +34,9 @@ struct Sticker: View {
     var body: some View {
         HStack(spacing: 5) {
             if let icon {
-                if icon.unicodeScalars.first.map({ $0.properties.isEmojiPresentation }) == true {
+                // SF Symbol names are plain ASCII, so anything else is an emoji, including the
+                // text-style ones (🏋️ ✈️ ✳️ 🌡) that would otherwise render as a blank symbol.
+                if icon.unicodeScalars.contains(where: { !$0.isASCII }) {
                     Text(icon).font(.system(size: 11))
                 } else {
                     Image(systemName: icon).font(.system(size: 10, weight: .bold))

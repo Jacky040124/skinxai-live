@@ -43,7 +43,8 @@ struct TodayScreen: View {
                     .buttonStyle(PressableStyle())
                     .accessibilityHint("Shows today's episodes")
             }
-            section(1) { claudeCard(snap) }
+            // The demo tour (`-autoplay tour`) shows its touch ripple on this card.
+            section(1) { claudeCard(snap).tourTarget("claudeCard") }
             section(2) {
                 HStack(alignment: .top, spacing: Twin.Space.m) {
                     sleepCard(snap)
