@@ -60,6 +60,7 @@ final class InsightSession: ObservableObject {
     /// Skip to the end (e.g. a tap on the thinking card).
     func finishNow(app: AppState) {
         guard phase != .done, !isAsking else { return }
+        Haptics.tap()
         task?.cancel()
         withAnimation(Twin.Motion.spring) {
             typedWords = Int.max

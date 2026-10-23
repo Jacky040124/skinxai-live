@@ -269,7 +269,7 @@ struct EvidenceTimeline: View {
                     VStack(spacing: 0) {
                         Spacer(minLength: 0)
                         RoundedRectangle(cornerRadius: 2, style: .continuous)
-                            .fill(hot ? Twin.Palette.orange : Twin.Palette.ink.opacity(0.14))
+                            .fill(hot ? Twin.Palette.orange : Twin.Palette.ink.opacity(0.17))
                             .overlay(RoundedRectangle(cornerRadius: 2, style: .continuous)
                                 .strokeBorder(Twin.Palette.ink.opacity(hot ? 1 : 0), lineWidth: 1))
                             .frame(height: grown ? barH(i) : 0)
@@ -311,7 +311,7 @@ struct EvidenceTimeline: View {
 
                 // Tiles.
                 Text(emoji)
-                    .font(.system(size: 15))
+                    .font(.system(size: 17))
                     .frame(width: tile, height: tile)
                     .sticker(Twin.Palette.pink)
                     .scaleEffect(startIn ? 1 : 0.2)

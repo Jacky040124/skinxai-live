@@ -91,18 +91,25 @@ struct InsightScreen: View {
         let start = cal.startOfDay(for: caseFile.windowStart), end = cal.startOfDay(for: caseFile.windowEnd)
         var days = app.dataset.days.filter { $0.day >= start && $0.day <= end }
         if days.count < 3 { days = Array(app.dataset.days.suffix(14)) }
-        let stats = StatsEngine.analyze(days)
-        return EvidenceWindow(days: days.map(\.day), minutes: days.map(\.scratchMinutes), threshold: stats.thresholdMinutes)
+        let minutes = days.map(\.scratchMinutes)
+        let threshold = StatsEngine.threshold(baseline: StatsEngine.baseline(minutes))
+        return EvidenceWindow(days: days.map(\.day), minutes: minutes, threshold: threshold)
     }
 }
 
 // MARK: - Screenshot hook
 
-/// `-scrollTo bottom` (launch argument) scrolls a screen to its end once it has settled, so scripts/shot
-/// can capture the lower half. No effect otherwise.
+/// `-scrollTo bottom` (launch argument, Debug builds) scrolls a screen to its end once it has settled, so
+/// scripts/shot can capture the lower half. No effect otherwise.
 enum ScrollHook {
     static let bottomID = "screen-bottom"
-    static var wanted: Bool { UserDefaults.standard.string(forKey: "scrollTo") == "bottom" }
+    static var wanted: Bool {
+        #if DEBUG
+        UserDefaults.standard.string(forKey: "scrollTo") == "bottom"
+        #else
+        false
+        #endif
+    }
     static func scrollIfAsked(_ proxy: ScrollViewProxy, after delay: Double = 0.8) {
         guard wanted else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + delay) {

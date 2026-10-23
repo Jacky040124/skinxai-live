@@ -52,13 +52,18 @@ struct ExperimentScreen: View {
     }
 }
 
-/// `-autoAdvance 1` (launch argument): fast-forward a day every 1.8 s until day 10, to record the
-/// progression and the result moment without touching the screen. No effect otherwise.
+/// `-autoAdvance 1` (launch argument, Debug builds): fast-forward a day every 1.8 s until day 10, to record
+/// the progression and the result moment without touching the screen. No effect otherwise.
 @MainActor
 enum AutoAdvance {
     private static var started = false
     static func startIfAsked(app: AppState) {
-        guard !started, UserDefaults.standard.integer(forKey: "autoAdvance") > 0 else { return }
+        #if DEBUG
+        let asked = UserDefaults.standard.integer(forKey: "autoAdvance") > 0
+        #else
+        let asked = false
+        #endif
+        guard !started, asked else { return }
         started = true
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 2_400_000_000)
