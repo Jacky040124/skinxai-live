@@ -58,13 +58,17 @@ struct TimeTravelCard: View {
             HStack(spacing: 10) {
                 if data.position != .flare(StoryPoint.flareLength) {
                     Button { commit(.flare(StoryPoint.flareLength)) } label: {
-                        Label("Back to day \(StoryPoint.flareLength)", systemImage: "arrow.uturn.backward")
+                        Label("Day \(StoryPoint.flareLength)", systemImage: "arrow.uturn.backward")
+                            .lineLimit(1)
                     }
                     .buttonStyle(TwinButtonStyle(fill: Twin.Palette.paper, height: 42, fullWidth: false))
+                    .accessibilityLabel("Back to day \(StoryPoint.flareLength)")
                     .transition(.scale(scale: 0.8).combined(with: .opacity))
                 }
                 Button(action: playTour) {
                     Label("Play the demo tour", systemImage: "play.fill")
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
                 }
                 .buttonStyle(TwinButtonStyle(fill: Twin.Palette.pink, height: 42))
             }

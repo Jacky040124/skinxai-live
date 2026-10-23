@@ -12,11 +12,18 @@ struct TourTargetKey: PreferenceKey {
     }
 }
 
+/// The ids of the targets currently on screen (so the tour knows which touches it can show).
+struct TourTargetIDsKey: PreferenceKey {
+    static var defaultValue: Set<String> = []
+    static func reduce(value: inout Set<String>, nextValue: () -> Set<String>) { value.formUnion(nextValue()) }
+}
+
 extension View {
     /// Optional: lets the `-autoplay tour` show its touch on this view.
     /// Known ids: "claudeCard" (Today), "startTest" (Insight), "fastForward" (Test), "tab.<tab>".
     func tourTarget(_ id: String) -> some View {
         anchorPreference(key: TourTargetKey.self, value: .bounds) { [id: $0] }
+            .preference(key: TourTargetIDsKey.self, value: [id])
     }
 }
 
@@ -36,6 +43,8 @@ final class DemoTour: ObservableObject {
 
     @Published private(set) var isRunning = false
     @Published private(set) var touch: Touch?
+    /// Targets currently marked on screen (updated by the root view).
+    var targets: Set<String> = []
     private var task: Task<Void, Never>?
 
     /// Starts (or restarts) the tour after `delay` seconds.
@@ -76,24 +85,29 @@ final class DemoTour: ObservableObject {
             try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
 
             // 1. Today: how bad is it right now?
-            try await wait(3.3)
+            try await wait(3.1)
             try await tap("claudeCard", fallback: "tab.insight")
             app.select(.insight)
 
             // 2. Insight: thinking → typed summary → suspects fly in → evidence arc.
-            try await wait(7.0)
+            try await wait(6.8)
             try await tap("startTest", fallback: "tab.experiment")
             app.startExperiment()
 
-            // 3. The test: day 1, then fast-forward to the result.
-            try await wait(1.7)
+            // 3. The test: day 1, then fast-forward to the result (a touch on the
+            //    fast-forward button when the Test screen marks it, else just the days ticking).
+            try await wait(1.3)
             for day in 2...10 {
-                try await tap("fastForward", fallback: nil)
+                if targets.contains("fastForward") {
+                    try await tap("fastForward", fallback: nil)
+                    try await wait(0.1)
+                } else {
+                    try await wait(0.32)
+                }
                 app.setExperimentDay(day)
-                if day < 10 { try await wait(0.08) }
             }
             // Result moment (card flip, burst, success haptic) belongs to the Test screen.
-            try await wait(3.6)
+            try await wait(3.2)
 
             // 4. Trends: the whole story, flare and recovery.
             try await tap("tab.trends", fallback: nil)

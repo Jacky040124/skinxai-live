@@ -9,12 +9,16 @@ final class ShellServices: ObservableObject {
     let data = DataModeController()
     let access = DeviceAccess()
     let watch = WatchLink()
+    let alerts = FlareAlerts()
     private var attached = false
 
     func attach(_ app: AppState) {
         guard !attached else { return }
         attached = true
         watch.activate()
+        alerts.install()
+        alerts.onOpen = { [weak app] in app?.select(.insight) }
+        data.alerts = alerts
         data.attach(app, toasts: toasts, watch: watch, access: access)
         Task { await access.refresh() }
         Self.firstLaunch(app)

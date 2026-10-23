@@ -24,6 +24,8 @@ final class DataModeController: ObservableObject {
 
     private weak var app: AppState?
     private weak var toasts: ToastCenter?
+    /// Real-mode flare heads-up (set by `ShellServices`).
+    var alerts: FlareAlerts?
     private var access: DeviceAccess?
     private var saved = RealStore.loadSaved()
     private var bag = Set<AnyCancellable>()
@@ -77,10 +79,18 @@ final class DataModeController: ObservableObject {
             }
             .store(in: &bag)
 
+        // Launch arguments for demo time travel always mean the demo story.
+        let storyArg = UserDefaults.standard.integer(forKey: "storyDay")
+        if app.experimentDay != nil || storyArg > 0, mode == .real { setMode(.demo, rebuild: false) }
+
         if mode == .real {
-            if app.dataset.isDemo, app.experimentDay == nil { app.update { $0 = Self.storedRealDataset() } }
+            if app.dataset.isDemo { app.update { $0 = Self.storedRealDataset() } }
             Task { await refreshReal() }
         } else {
+            if app.experimentDay == nil, (1..<StoryPoint.flareLength).contains(storyArg) {
+                // `-storyDay N`: start on day N of the flare story.
+                travel(to: .flare(storyArg))
+            }
             applyLiveOverlay(to: app.dataset)
         }
     }
@@ -133,6 +143,7 @@ final class DataModeController: ObservableObject {
         guard mode == .real, let app, !app.dataset.isDemo else { return }
         let rebuilt = RealDataBuilder.build(episodes: RealStore.loadEpisodes(), saved: saved)
         if rebuilt != app.dataset { app.update { $0 = rebuilt } }
+        alerts?.check(app.dataset)
     }
 
     // MARK: Inputs
@@ -146,6 +157,7 @@ final class DataModeController: ObservableObject {
         guard !mergeable.isEmpty else { return }
         var added = 0
         app.update { added = EpisodeMerge.apply(mergeable, to: &$0) }
+        if mode == .real { alerts?.check(app.dataset) }
         if added > 0 {
             Haptics.soft()
             toasts?.show(added == 1 ? "New scratch episode from your watch" : "\(added) scratch episodes from your watch",

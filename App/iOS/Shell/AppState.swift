@@ -23,6 +23,8 @@ enum Tab: String, CaseIterable, Identifiable {
 /// Launch arguments (used by scripts/shot and for the demo):
 ///   -screen today|trends|insight|experiment|tag|onboarding|report|settings
 ///   -expDay 1...10      start in the experiment story at that day (demo time travel)
+///   -storyDay 1...13    start on that day of the flare story (shell; no case file before day 14)
+///   -dataMode real|demo use your own data (watch, Health, weather) or the demo story (shell)
 ///   -autoplay tour      run the scripted demo tour (owned by the shell agent)
 @MainActor
 final class AppState: ObservableObject {

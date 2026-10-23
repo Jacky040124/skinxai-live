@@ -119,12 +119,29 @@ struct TagSheet: View {
                         toggle(kind)
                     }
                     // Only the entrance (fade + rise) is animated, never the chip's layout position.
-                    .animation(Twin.Motion.spring.delay(0.1 + Double(i) * 0.025)) { chip in
+                    .animation(Twin.Motion.spring.delay(0.06 + Double(i) * 0.02)) { chip in
                         chip.opacity(shown ? 1 : 0).offset(y: shown || reduceMotion ? 0 : 12)
                     }
                 }
             }
             .padding(.top, 18)
+
+            if !logged.isEmpty {
+                HStack(spacing: 7) {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 7, weight: .black))
+                        .foregroundStyle(Twin.Palette.ink)
+                        .frame(width: 13, height: 13)
+                        .sticker(Twin.Palette.lime)
+                    Text("Already in today's log")
+                        .font(Twin.Typeface.sans(12))
+                        .foregroundStyle(Twin.Palette.inkHint)
+                }
+                .padding(.top, 12)
+                .opacity(shown ? 1 : 0)
+                .animation(Twin.Motion.spring.delay(0.35), value: shown)
+                .accessibilityHidden(true)
+            }
 
             if let scan {
                 ScanResultCard(result: scan) {

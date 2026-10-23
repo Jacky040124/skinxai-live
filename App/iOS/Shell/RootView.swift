@@ -47,6 +47,7 @@ struct RootView: View {
         .overlayPreferenceValue(TourTargetKey.self) { anchors in
             TourTouchLayer(anchors: anchors)
         }
+        .onPreferenceChange(TourTargetIDsKey.self) { ids in services.tour.targets = ids }
         .sheet(isPresented: $app.showReport) {
             ReportScreen()
                 .shellEnvironment(app, services)
