@@ -1,7 +1,20 @@
 import SwiftUI
 import EczemaKit
 
-/// PLACEHOLDER — replaced by the agent that owns App/iOS/Screens/Onboarding.
+/// Shows onboarding above the whole app (first launch, `-screen onboarding`, Settings → Replay).
+struct OnboardingHost: View {
+    @EnvironmentObject var app: AppState
+    var body: some View {
+        ZStack {
+            if app.showOnboarding {
+                OnboardingScreen()
+                    .transition(.opacity)
+            }
+        }
+        .animation(Twin.Motion.slide, value: app.showOnboarding)
+    }
+}
+
 struct OnboardingScreen: View {
     @EnvironmentObject var app: AppState
     var body: some View {
