@@ -28,6 +28,8 @@ final class DataModeController: ObservableObject {
     var alerts: FlareAlerts?
     private var access: DeviceAccess?
     private var saved = RealStore.loadSaved()
+    /// Every episode received from the watch (30 days), mirrored from `RealStore`.
+    private var received = RealStore.loadEpisodes()
     private var bag = Set<AnyCancellable>()
     private var lastWeatherFetch: Date?
 
@@ -103,7 +105,7 @@ final class DataModeController: ObservableObject {
         guard rebuild, let app else { return }
         switch new {
         case .real:
-            app.update { $0 = RealDataBuilder.build(episodes: RealStore.loadEpisodes(), saved: saved) }
+            app.update { $0 = RealDataBuilder.build(episodes: received, saved: saved) }
             Task { await refreshReal(force: true) }
         case .demo:
             storyDay = StoryPoint.flareLength
@@ -141,7 +143,7 @@ final class DataModeController: ObservableObject {
         RealStore.save(saved)
         lastRefresh = Date()
         guard mode == .real, let app, !app.dataset.isDemo else { return }
-        let rebuilt = RealDataBuilder.build(episodes: RealStore.loadEpisodes(), saved: saved)
+        let rebuilt = RealDataBuilder.build(episodes: received, saved: saved)
         if rebuilt != app.dataset { app.update { $0 = rebuilt } }
         alerts?.check(app.dataset)
     }
@@ -150,7 +152,7 @@ final class DataModeController: ObservableObject {
 
     /// Watch episodes arrived (contract: transferUserInfo ["kind": "episodes", "data": ...]).
     private func receive(_ episodes: [ScratchEpisode]) {
-        RealStore.storeEpisodes(episodes)
+        received = RealStore.storeEpisodes(episodes)
         guard let app else { return }
         let shown = Set(app.dataset.episodes.map(\.id))
         let mergeable = mode == .real ? episodes : episodes.filter { isLiveToday($0) || shown.contains($0.id) }
@@ -193,7 +195,7 @@ final class DataModeController: ObservableObject {
     /// Demo mode: today's live watch episodes stay on top of whatever story day is shown.
     private func applyLiveOverlay(to d: TwinDataset) {
         let shown = Set(d.episodes.map(\.id))
-        let missing = RealStore.loadEpisodes().filter { isLiveToday($0) && !shown.contains($0.id) }
+        let missing = received.filter { isLiveToday($0) && !shown.contains($0.id) }
         guard !missing.isEmpty else { return }
         DispatchQueue.main.async { [weak self] in
             guard let app = self?.app, app.dataset.isDemo else { return }

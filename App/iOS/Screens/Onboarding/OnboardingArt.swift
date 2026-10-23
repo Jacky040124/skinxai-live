@@ -68,14 +68,22 @@ struct WatchDiaryArt: View {
                     .font(Twin.Typeface.mono(10, bold: true))
                     .tracking(0.8)
                     .foregroundStyle(Twin.Palette.frameInk)
-                ForEach(notes.reversed()) { note in
-                    DiaryNote(note: note)
-                        .transition(reduceMotion ? .opacity : .asymmetric(
-                            insertion: .offset(x: -110, y: 30).combined(with: .scale(scale: 0.3, anchor: .leading)).combined(with: .opacity),
-                            removal: .opacity))
+                // Three diary lines: dashed until a scratch fills them, oldest first.
+                ForEach(0..<max(3, source.count), id: \.self) { i in
+                    ZStack(alignment: .leading) {
+                        RoundedRectangle(cornerRadius: Twin.Radius.sticker, style: .continuous)
+                            .strokeBorder(Twin.Palette.ink.opacity(0.3), style: StrokeStyle(lineWidth: 1.2, dash: [4, 3]))
+                            .frame(width: DiaryNote.width, height: 31)
+                        if i < notes.count {
+                            DiaryNote(note: notes[i])
+                                .transition(reduceMotion ? .opacity : .asymmetric(
+                                    insertion: .offset(x: -120, y: 0).combined(with: .scale(scale: 0.3, anchor: .leading)).combined(with: .opacity),
+                                    removal: .opacity))
+                        }
+                    }
                 }
             }
-            .frame(width: 128, alignment: .leading)
+            .frame(width: DiaryNote.width + 4, alignment: .leading)
             .frame(height: 220, alignment: .center)
         }
         .onChange(of: active, initial: true) { _, isActive in
@@ -139,17 +147,17 @@ struct WatchDiaryArt: View {
             withAnimation(.easeOut(duration: 0.6)) { count = total; notes = script }
             return
         }
-        withAnimation(.easeOut(duration: 1.0).delay(0.2)) { count = start }
-        try? await Task.sleep(nanoseconds: 1_100_000_000)
+        withAnimation(.easeOut(duration: 0.8).delay(0.1)) { count = start }
+        try? await Task.sleep(nanoseconds: 650_000_000)
         for note in script {
             guard !Task.isCancelled, active else { return }
             scratch += 1
             Haptics.soft()
-            try? await Task.sleep(nanoseconds: 650_000_000)
+            try? await Task.sleep(nanoseconds: 560_000_000)
             guard !Task.isCancelled else { return }
             withAnimation(Twin.Motion.bouncy) { notes.append(note) }
             withAnimation(.easeOut(duration: 0.6)) { count += note.minutes }
-            try? await Task.sleep(nanoseconds: 900_000_000)
+            try? await Task.sleep(nanoseconds: 850_000_000)
         }
         withAnimation(.easeOut(duration: 0.4)) { count = total }
     }
@@ -219,9 +227,11 @@ private struct DiaryNote: View {
         }
         .foregroundStyle(Twin.Palette.ink)
         .padding(.horizontal, 9)
-        .padding(.vertical, 7)
+        .frame(width: Self.width, height: 31, alignment: .leading)
         .sticker(note?.intense == true ? Twin.Palette.orange : Twin.Palette.paper)
     }
+
+    static let width: CGFloat = 126
 
     /// 24-hour "03:12" (machine time, mono).
     static let clock: DateFormatter = {
