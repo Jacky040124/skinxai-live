@@ -102,13 +102,19 @@ struct SettingsScreen: View {
 
     private var profile: some View {
         HStack(spacing: 14) {
-            Text(String(name.trimmingCharacters(in: .whitespaces).first ?? "D").uppercased())
-                .font(Twin.Typeface.sans(20, .bold))
-                .foregroundStyle(Twin.Palette.ink)
-                .frame(width: 48, height: 48)
-                .sticker(Twin.Palette.pink)
-                .contentTransition(.numericText())
-                .animation(Twin.Motion.bouncy, value: name.first)
+            Group {
+                if let first = name.trimmingCharacters(in: .whitespaces).first {
+                    Text(String(first).uppercased())
+                        .font(Twin.Typeface.sans(20, .bold))
+                        .contentTransition(.numericText())
+                } else {
+                    Image(systemName: "person.fill").font(.system(size: 18, weight: .semibold))
+                }
+            }
+            .foregroundStyle(Twin.Palette.ink)
+            .frame(width: 48, height: 48)
+            .sticker(Twin.Palette.pink)
+            .animation(Twin.Motion.bouncy, value: name.first)
             VStack(alignment: .leading, spacing: 2) {
                 TextField("Your name", text: $name)
                     .font(Twin.Typeface.sans(18, .bold))

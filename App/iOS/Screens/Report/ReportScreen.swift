@@ -249,7 +249,9 @@ enum ReportPDF {
         renderer.proposedSize = ProposedViewSize(ReportPage.size)
 
         let day = facts.generated.formatted(.iso8601.year().month().day())
-        let who = facts.name.trimmingCharacters(in: .whitespaces).isEmpty ? "" : " - \(facts.name)"
+        let safeName = facts.name.components(separatedBy: CharacterSet(charactersIn: "/:\\?%*|\"<>")).joined()
+            .trimmingCharacters(in: .whitespaces)
+        let who = safeName.isEmpty ? "" : " - \(safeName.prefix(40))"
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("Eczema Twin report\(who) - \(day).pdf")
         try? FileManager.default.removeItem(at: url)
 
