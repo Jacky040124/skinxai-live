@@ -103,13 +103,16 @@ struct TrendsSnapshot {
 
     func bars(calendar: Calendar = .current) -> [DailyScratchChart.Bar] {
         let compact = range == .week
+        // Month captions where the range starts and where a new month begins; the first one is
+        // dropped when a new month begins right after it (they would run into each other).
+        var months = Set(visibleRange.filter { calendar.component(.day, from: days[$0].day) == 1 })
+        if let next = months.min(), next - visibleStart < 3 {} else { months.insert(visibleStart) }
         return visibleRange.map { i in
             let d = days[i]
-            // Weekday over each day for 7 days; otherwise the month where it starts or changes.
+            // Weekday over each day for 7 days; otherwise the month captions above.
             let caption: String? = compact
                 ? TodayTrends.Format.weekday(d.day).uppercased()
-                : (i == visibleStart || calendar.component(.day, from: d.day) == 1)
-                    ? d.day.formatted(.dateTime.month(.abbreviated)).uppercased() : nil
+                : months.contains(i) ? d.day.formatted(.dateTime.month(.abbreviated)).uppercased() : nil
             let m = Int(d.scratchMinutes.rounded())
             let toneText: String = switch tones[i] { case .flare: "flare day"; case .improving: "improving"; case .normal: "normal day" }
             return DailyScratchChart.Bar(
