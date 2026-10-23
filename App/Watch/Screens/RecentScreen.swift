@@ -152,6 +152,9 @@ private struct StatusCard: View {
             StatusLine(symbol: "sparkles", fill: Twin.Palette.cyan, title: "Learning from you",
                        detail: m.answerCount == 0 ? "ANSWER AN ALERT TO TEACH IT"
                                                   : "\(m.answerCount) \(m.answerCount == 1 ? "ANSWER" : "ANSWERS") · \(m.confirmedCount) YES · \(m.rejectedCount) NO")
+            if case let .on(_, backing) = model.live {
+                StatusLine(symbol: "waveform", fill: Twin.Palette.cyan, title: "Live detection", detail: Self.detail(backing))
+            }
             switch model.recorderStatus {
             case .unavailable:
                 EmptyView()
@@ -187,6 +190,18 @@ private struct StatusCard: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Detection goes back to its starting settings.")
+        }
+    }
+}
+
+extension StatusCard {
+    /// What keeps live detection running, in plain words.
+    static func detail(_ backing: LiveMonitor.Backing) -> String {
+        switch backing {
+        case .workout: "WORKOUT SESSION · WORKS WITH THE SCREEN OFF"
+        case .extendedRuntime: "RUNS UP TO AN HOUR IN THE BACKGROUND"
+        case .foreground: "ONLY WHILE TWIN IS ON SCREEN"
+        case .simulated: "SIMULATED WRIST · NO SENSOR IN THE SIMULATOR"
         }
     }
 }

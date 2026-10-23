@@ -167,7 +167,8 @@ struct StatsRow: View {
                 Text("\(intense)")
                     .contentTransition(.numericText(value: Double(intense)))
             }
-            .foregroundStyle(Twin.Palette.orange)
+            // Orange only when there is something intense to flag.
+            .foregroundStyle(intense > 0 ? Twin.Palette.orange : Twin.Palette.nightMuted)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("\(intense) intense")
         }
