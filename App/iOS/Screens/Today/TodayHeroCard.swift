@@ -37,14 +37,17 @@ struct TodayHeroCard: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            HourlyScratchChart(minutes: snap.day.scratchMinutesByHour,
-                               hot: snap.pattern.hot,
-                               accent: snap.accent,
-                               now: snap.nowHour,
-                               scaleMax: snap.hourScaleMax,
-                               plotHeight: 88,
-                               delay: 0.3)
-                .padding(.top, 4)
+            // The "now" marker creeps along while the app stays open.
+            TimelineView(.everyMinute) { context in
+                HourlyScratchChart(minutes: snap.day.scratchMinutesByHour,
+                                   hot: snap.pattern.hot,
+                                   accent: snap.accent,
+                                   now: snap.isToday ? snap.hours(at: context.date) : nil,
+                                   scaleMax: snap.hourScaleMax,
+                                   plotHeight: 88,
+                                   delay: 0.3)
+            }
+            .padding(.top, 4)
         }
         .twinCard()
         .contentShape(RoundedRectangle(cornerRadius: Twin.Radius.card, style: .continuous))

@@ -174,6 +174,11 @@ struct TodaySnapshot {
         nowHour = isToday ? now.timeIntervalSince(cal.startOfDay(for: now)) / 3600 : nil
     }
 
+    /// Hours since the start of the day for `date` (e.g. 15.5 at 3:30 pm).
+    func hours(at date: Date, calendar: Calendar = .current) -> Double {
+        min(max(date.timeIntervalSince(calendar.startOfDay(for: day.day)) / 3600, 0), 24)
+    }
+
     /// Ring progress: today ÷ (3 × usual).
     var ringProgress: Double { usual > 0 ? minutes / (3 * usual) : 0 }
     var accent: Color { level == .above ? Twin.Palette.orange : Twin.Palette.lime }
