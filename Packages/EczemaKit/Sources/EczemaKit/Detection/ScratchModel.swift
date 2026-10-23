@@ -32,6 +32,24 @@ public struct ScratchModel: Codable, Hashable, Sendable {
 
     public var answerCount: Int { confirmedCount + rejectedCount }
 
+    private enum CodingKeys: String, CodingKey {
+        case weights, confirmedCount, rejectedCount, updatedAt, learningRate, priorPull
+    }
+
+    /// Tolerant decoding: a file from another version (wrong number of weights, missing fields)
+    /// falls back to the starting weights instead of breaking the detector.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let w = (try? c.decode([Double].self, forKey: .weights)) ?? []
+        let valid = w.count == Self.featureNames.count + 1 && w.allSatisfy(\.isFinite)
+        weights = valid ? w : Self.startingWeights
+        confirmedCount = valid ? ((try? c.decode(Int.self, forKey: .confirmedCount)) ?? 0) : 0
+        rejectedCount = valid ? ((try? c.decode(Int.self, forKey: .rejectedCount)) ?? 0) : 0
+        updatedAt = valid ? (try? c.decodeIfPresent(Date.self, forKey: .updatedAt)) ?? nil : nil
+        learningRate = (try? c.decode(Double.self, forKey: .learningRate)) ?? 0.3
+        priorPull = (try? c.decode(Double.self, forKey: .priorPull)) ?? 0.02
+    }
+
     /// 0...1. Windows that did not pass the movement gate are never scratching.
     public func probability(_ f: WindowFeatures) -> Double {
         guard f.moving else { return 0 }

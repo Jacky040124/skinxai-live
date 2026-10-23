@@ -5,6 +5,9 @@ import EczemaKit
 struct RingScreen: View {
     @EnvironmentObject var model: WatchModel
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Tap the ring: the middle flips to "3.2× your usual" for a moment and the usual tick pops.
+    @State private var showRatio = false
+    @State private var flipBack: Task<Void, Never>?
 
     var body: some View {
         let today = model.today
@@ -15,11 +18,13 @@ struct RingScreen: View {
             let ring = min(geo.size.width * 0.64, geo.size.height - 26 - 10 - 36 - 2)
             VStack(spacing: 0) {
                 WatchRing(progress: today.progress, startProgress: from?.progress, usualMark: today.usualMark,
-                          color: today.aboveUsual ? Twin.Palette.orange : Twin.Palette.lime, lineWidth: 14) {
-                    RingCenter(minutes: today.minutes, from: from?.minutes)
+                          color: today.aboveUsual ? Twin.Palette.orange : Twin.Palette.lime, lineWidth: 14,
+                          highlightMark: showRatio) {
+                    RingCenter(minutes: today.minutes, from: from?.minutes, ratio: today.ratio, showRatio: showRatio)
                 }
                 .frame(width: ring, height: ring)
                 .contentShape(Circle())
+                .onTapGesture { flip() }
                 .onLongPressGesture(minimumDuration: 0.8) { model.presentDemoAlert() }
                 .accessibilityElement(children: .ignore)
                 .accessibilityLabel("Scratching today")
@@ -28,15 +33,33 @@ struct RingScreen: View {
 
                 StatsRow(episodes: today.episodes, intense: today.intense)
                     .padding(.top, 6)
-                    .riseIn(from == nil ? 0.45 : 0.05, distance: 8)
+                    .watchRise(from == nil ? 0.45 : 0.05, distance: 8)
 
                 Spacer(minLength: 6)
 
                 LiveControl()
                     .frame(maxWidth: 172)
-                    .riseIn(from == nil ? 0.6 : 0.12, distance: 10)
+                    .watchRise(from == nil ? 0.6 : 0.12, distance: 10)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .task {
+            // `-showRatio 1`: flip to the ratio once after the entrance (screenshots).
+            guard UserDefaults.standard.bool(forKey: "showRatio") else { return }
+            try? await Task.sleep(for: .seconds(1.6))
+            flip()
+        }
+    }
+
+    private func flip() {
+        Haptics.tap()
+        flipBack?.cancel()
+        withAnimation(Twin.Motion.bouncy) { showRatio.toggle() }
+        guard showRatio else { return }
+        flipBack = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            withAnimation(Twin.Motion.spring) { showRatio = false }
         }
     }
 
@@ -47,22 +70,47 @@ struct RingScreen: View {
     }
 }
 
-/// The counted number and its unit inside the ring.
+/// The counted number and its unit inside the ring; flips to the ratio against your usual.
 private struct RingCenter: View {
     var minutes: Double
     var from: Double?
+    var ratio: Double
+    var showRatio: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
-        VStack(spacing: 0) {
-            WatchCountUp(value: minutes.rounded(), from: from?.rounded(), font: WatchFont.sans(42, .bold),
-                         delay: 0.2, duration: 1.2)
-                .tracking(-1.6)
-                .lineLimit(1)
-                .minimumScaleFactor(0.6)
-            Text("MIN TODAY")
-                .font(WatchFont.mono(9.5))
-                .tracking(0.6)
-                .foregroundStyle(Twin.Palette.nightMuted)
-                .offset(y: -2)
+        ZStack {
+            VStack(spacing: 0) {
+                WatchCountUp(value: minutes.rounded(), from: from?.rounded(), font: WatchFont.sans(42, .bold),
+                             delay: 0.2, duration: 1.2)
+                    .tracking(-1.6)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                Text("MIN TODAY")
+                    .font(WatchFont.mono(9.5))
+                    .tracking(0.6)
+                    .foregroundStyle(Twin.Palette.nightMuted)
+                    .offset(y: -2)
+            }
+            .opacity(showRatio ? 0 : 1)
+            .scaleEffect(showRatio && !reduceMotion ? 0.7 : 1)
+            .blur(radius: showRatio ? 4 : 0)
+
+            VStack(spacing: 0) {
+                Text(ratio.formatted(.number.precision(.fractionLength(1))) + "×")
+                    .font(WatchFont.sans(36, .bold))
+                    .tracking(-1.4)
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.6)
+                Text("YOUR USUAL")
+                    .font(WatchFont.mono(9.5))
+                    .tracking(0.6)
+                    .foregroundStyle(Twin.Palette.nightMuted)
+            }
+            .opacity(showRatio ? 1 : 0)
+            .scaleEffect(showRatio || reduceMotion ? 1 : 1.3)
+            .blur(radius: showRatio ? 0 : 4)
         }
         .padding(.horizontal, 18)
     }
@@ -178,21 +226,21 @@ private struct LiveRunning: View {
 /// orange when the window counted as scratching.
 struct LiveStrip: View {
     var ticks: [WatchModel.LiveTick]
-    private let slots = 12
+    private let slots = 10
     var body: some View {
-        HStack(alignment: .center, spacing: 2) {
+        HStack(alignment: .center, spacing: 2.5) {
             ForEach(0..<max(0, slots - ticks.count), id: \.self) { _ in
-                RoundedRectangle(cornerRadius: 1).fill(.white.opacity(0.18)).frame(width: 3, height: 3)
+                RoundedRectangle(cornerRadius: 1).fill(.white.opacity(0.2)).frame(width: 4, height: 4)
             }
             ForEach(ticks) { t in
                 RoundedRectangle(cornerRadius: 1, style: .continuous)
-                    .fill(t.scratch ? Twin.Palette.orange : Twin.Palette.cyan.opacity(0.45 + 0.55 * t.level))
-                    .frame(width: 3, height: 3 + 15 * min(1, max(0, t.level)))
+                    .fill(t.scratch ? Twin.Palette.orange : Twin.Palette.cyan.opacity(0.5 + 0.5 * t.level))
+                    .frame(width: 4, height: 4 + 16 * min(1, max(0, t.level)))
                     .transition(.asymmetric(insertion: .scale(scale: 0.2, anchor: .center).combined(with: .opacity),
                                             removal: .opacity))
             }
         }
-        .frame(height: 18)
+        .frame(height: 20)
         .accessibilityHidden(true)
     }
 }

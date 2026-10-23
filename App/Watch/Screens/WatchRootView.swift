@@ -6,6 +6,7 @@ import EczemaKit
 /// of them and cross-fades between "Twin" and "Recent", like a watchOS navigation title.
 struct WatchRootView: View {
     @EnvironmentObject var model: WatchModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         GeometryReader { geo in
@@ -17,8 +18,8 @@ struct WatchRootView: View {
                         PageFrame(bottomMargin: 10) {
                             ScratchAlertView(alert: alert)
                         }
-                        .transition(.asymmetric(insertion: .opacity,
-                                                removal: .scale(scale: 0.84).combined(with: .opacity)))
+                        .transition(reduceMotion ? .opacity : .asymmetric(insertion: .opacity,
+                                                                          removal: .scale(scale: 0.84).combined(with: .opacity)))
                         .zIndex(1)
                     } else {
                         TabView(selection: $model.page) {
@@ -28,8 +29,8 @@ struct WatchRootView: View {
                                 .tag(WatchModel.Page.recent)
                         }
                         .tabViewStyle(.verticalPage)
-                        .transition(.asymmetric(insertion: .scale(scale: 1.08).combined(with: .opacity),
-                                                removal: .opacity))
+                        .transition(reduceMotion ? .opacity : .asymmetric(insertion: .scale(scale: 1.08).combined(with: .opacity),
+                                                                          removal: .opacity))
                     }
                 }
                 .frame(width: geo.size.width, height: geo.size.height)

@@ -1,5 +1,5 @@
 import Foundation
-import CoreMotion
+@preconcurrency import CoreMotion
 import EczemaKit
 
 /// All-day detection without keeping the app awake: `CMSensorRecorder` records the accelerometer

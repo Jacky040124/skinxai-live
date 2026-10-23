@@ -35,7 +35,7 @@ struct ScratchAlertView: View {
                         .lineSpacing(-1)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 13)
-                        .riseIn(0.12, distance: 8)
+                        .watchRise(0.12, distance: 8)
                         .accessibilityAddTraits(.isHeader)
                     Spacer(minLength: 6)
                     HStack(spacing: 8) {
@@ -48,7 +48,7 @@ struct ScratchAlertView: View {
                     }
                     .disabled(answered != nil)
                     .padding(.horizontal, 10)
-                    .riseIn(0.22, distance: 12)
+                    .watchRise(0.22, distance: 12)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
             }
@@ -94,9 +94,10 @@ private struct PulseTile: View {
     var answered: Bool?
     var reduceMotion: Bool
     private let period = 1.8
+    @Environment(\.isLuminanceReduced) private var dimmed
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 60, paused: answered != nil)) { context in
+        TimelineView(.animation(minimumInterval: 1 / 60, paused: answered != nil || dimmed)) { context in
             let t = max(0, context.date.timeIntervalSince(born))
             ZStack {
                 ForEach(0..<2, id: \.self) { i in
@@ -151,9 +152,10 @@ private struct PulseGlow: View {
     var born: Date
     var answered: Bool?
     var reduceMotion: Bool
+    @Environment(\.isLuminanceReduced) private var dimmed
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 30, paused: answered != nil || reduceMotion)) { context in
+        TimelineView(.animation(minimumInterval: 1 / 30, paused: answered != nil || reduceMotion || dimmed)) { context in
             let t = max(0, context.date.timeIntervalSince(born))
             let phase = (t / 1.8).truncatingRemainder(dividingBy: 1)
             let strength = answered != nil ? 0 : (reduceMotion ? 0.3 : 0.2 + 0.32 * pow(1 - phase, 2))

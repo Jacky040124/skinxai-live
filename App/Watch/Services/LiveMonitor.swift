@@ -69,10 +69,15 @@ final class LiveMonitor: NSObject {
         var chosen: Backing = .foreground
         if await startWorkout() {
             chosen = .workout
-        } else if startRuntimeSession() {
+        }
+        guard isRunning, self.pipe === pipe else {
+            // Stopped (or restarted) while HealthKit was asking: don't leave a session behind.
+            if let w = workout { workout = nil; w.end() }
+            return
+        }
+        if chosen != .workout, startRuntimeSession() {
             chosen = .extendedRuntime
         }
-        guard isRunning else { return }                    // stopped while asking HealthKit
         startMotion(pipe)
         began(chosen)
     }

@@ -239,6 +239,14 @@ import Testing
         #expect(r.weights == ScratchModel.startingWeights && r.answerCount == 0)
     }
 
+    @Test func brokenModelFileFallsBackToStartingWeights() throws {
+        let json = #"{"weights":[1,2,3],"confirmedCount":9,"rejectedCount":2,"learningRate":0.3,"priorPull":0.02}"#
+        var m = try JSONDecoder().decode(ScratchModel.self, from: Data(json.utf8))
+        #expect(m.weights == ScratchModel.startingWeights && m.answerCount == 0)
+        m.learn(from: borderline(), scratching: true)                // must not crash
+        #expect(m.answerCount == 1)
+    }
+
     @Test func stillWindowsNeverScore() {
         let f = FeatureExtractor().features(x: .init(repeating: 0.1, count: 150), y: .init(repeating: -0.2, count: 150),
                                             z: .init(repeating: -0.97, count: 150), start: 0)

@@ -170,7 +170,8 @@ final class WatchModel: ObservableObject {
             list = dataset.episodes.filter { $0.start <= now }
                 + extraEpisodes.filter { $0.source == .demo && $0.label != .rejected }
         }
-        let latest = list.sorted { $0.start > $1.start }.prefix(limit)
+        let skip = max(0, UserDefaults.standard.integer(forKey: "recentSkip"))   // `-recentSkip N` (screenshots)
+        let latest = list.sorted { $0.start > $1.start }.dropFirst(skip).prefix(limit)
         var days: [EpisodeDay] = []
         for e in latest {
             let day = calendar.startOfDay(for: e.start)
@@ -192,6 +193,29 @@ final class WatchModel: ObservableObject {
     }
 
     var answersLearned: Int { personal.answerCount }
+
+    /// All-day recorder state for the status card.
+    enum RecorderStatus: Equatable { case unavailable, denied, off, on(until: Date) }
+    var recorderStatus: RecorderStatus {
+        guard BackgroundRecorder.isAvailable else { return .unavailable }
+        if BackgroundRecorder.isDenied { return .denied }
+        if let until = store.book.recorderArmedUntil, until > Date() { return .on(until: until) }
+        return .off
+    }
+
+    /// When episodes last went to the iPhone, and how many are still waiting.
+    var lastSentAt: Date? { store.book.lastSentAt }
+    var waitingForPhone: Int { store.unsent(excluding: alert?.id).count }
+
+    /// Forget what the model learned (back to the hand-set weights).
+    func resetLearning() {
+        var m = personal
+        m.reset()
+        withAnimation(Twin.Motion.spring) { personal = m }
+        store.setModel(m)
+        monitor.update(model: m)
+        WatchHaptic.play(.directionDown)
+    }
 
     // MARK: - Lifecycle
 

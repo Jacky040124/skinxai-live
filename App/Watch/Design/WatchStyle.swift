@@ -29,11 +29,12 @@ struct WatchButtonStyle: ButtonStyle {
     var foreground: Color = Twin.Palette.ink
     var height: CGFloat = 40
     var radius: CGFloat = 12
+    var fontSize: CGFloat = 16
 
     func makeBody(configuration: Configuration) -> some View {
         let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
         configuration.label
-            .font(WatchFont.sans(16, .bold))
+            .font(WatchFont.sans(fontSize, .bold))
             .foregroundStyle(foreground)
             .frame(maxWidth: .infinity, minHeight: height)
             .background(fill, in: shape)
@@ -124,8 +125,9 @@ struct LiveDot: View {
     var size: CGFloat = 8
     var color: Color = Twin.Palette.cyan
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.isLuminanceReduced) private var dimmed
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1 / 30, paused: false)) { context in
+        TimelineView(.animation(minimumInterval: 1 / 30, paused: dimmed)) { context in
             let t = context.date.timeIntervalSinceReferenceDate
             let phase = (t / 1.6).truncatingRemainder(dividingBy: 1)
             ZStack {
@@ -167,5 +169,21 @@ struct WatchCountUp: View {
             .onChange(of: value) { _, new in
                 withAnimation(.easeOut(duration: duration)) { shown = new }
             }
+    }
+}
+
+/// `.riseIn` that keeps only the fade when Reduce Motion is on.
+struct WatchRise: ViewModifier {
+    var delay: Double
+    var distance: CGFloat
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    func body(content: Content) -> some View {
+        content.riseIn(delay, distance: reduceMotion ? 0 : distance)
+    }
+}
+
+extension View {
+    func watchRise(_ delay: Double = 0, distance: CGFloat = 10) -> some View {
+        modifier(WatchRise(delay: delay, distance: distance))
     }
 }

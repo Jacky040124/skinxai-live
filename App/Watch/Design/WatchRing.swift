@@ -9,6 +9,8 @@ struct WatchRing<Center: View>: View {
     var color: Color
     var lineWidth: CGFloat = 14
     var delay: Double = 0.15
+    /// Pops the usual tick (while the middle shows the ratio).
+    var highlightMark = false
     @ViewBuilder var center: () -> Center
 
     @State private var shown: Double
@@ -19,12 +21,13 @@ struct WatchRing<Center: View>: View {
 
     /// `startProgress`: where the ring stands when it appears (nil = empty, then it fills).
     init(progress: Double, startProgress: Double? = nil, usualMark: Double?, color: Color, lineWidth: CGFloat = 14,
-         delay: Double = 0.15, @ViewBuilder center: @escaping () -> Center) {
+         delay: Double = 0.15, highlightMark: Bool = false, @ViewBuilder center: @escaping () -> Center) {
         self.progress = progress
         self.usualMark = usualMark
         self.color = color
         self.lineWidth = lineWidth
         self.delay = delay
+        self.highlightMark = highlightMark
         self.center = center
         _shown = State(initialValue: startProgress ?? 0)
         _markShown = State(initialValue: startProgress != nil)
@@ -53,13 +56,14 @@ struct WatchRing<Center: View>: View {
                 if let usualMark {
                     let angle = Angle.degrees(clamp(usualMark) * 360 - 90)
                     RoundedRectangle(cornerRadius: 1.2, style: .continuous)
-                        .fill(Color.white)
+                        .fill(highlightMark ? Twin.Palette.yellow : Color.white)
                         .overlay(RoundedRectangle(cornerRadius: 1.2, style: .continuous).strokeBorder(Color.black, lineWidth: 1.2))
-                        .frame(width: lineWidth + 5, height: 4)
+                        .frame(width: lineWidth + 5, height: highlightMark ? 6 : 4)
+                        .scaleEffect(markShown ? 1 : 0.2)
                         .rotationEffect(angle)
                         .offset(x: r * cos(angle.radians), y: r * sin(angle.radians))
-                        .scaleEffect(markShown ? 1 : 0.2)
                         .opacity(markShown ? 1 : 0)
+                        .animation(Twin.Motion.bouncy, value: highlightMark)
                 }
                 center()
             }
