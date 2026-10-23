@@ -57,14 +57,26 @@ struct ScreenScaffold<Trailing: View, Content: View>: View {
     }
 }
 
-/// Square initial avatar (the user), used in top bars.
+/// Square initial avatar (the user), used in top bars. Opens Settings.
 struct UserAvatar: View {
     @EnvironmentObject var app: AppState
+    /// Settings → name (default: Douglas, the demo story).
+    @AppStorage("profileName") private var name = "Douglas"
+    private var initial: String? {
+        name.trimmingCharacters(in: .whitespaces).first.map { String($0).uppercased() }
+    }
     var body: some View {
         Button { app.showSettings = true } label: {
-            Text("D").font(Twin.Typeface.sans(15, .bold)).foregroundStyle(Twin.Palette.ink)
-                .frame(width: 36, height: 36)
-                .sticker(Twin.Palette.pink)
+            Group {
+                if let initial {
+                    Text(initial).font(Twin.Typeface.sans(15, .bold))
+                } else {
+                    Image(systemName: "person.fill").font(.system(size: 14, weight: .semibold))
+                }
+            }
+            .foregroundStyle(Twin.Palette.ink)
+            .frame(width: 36, height: 36)
+            .sticker(Twin.Palette.pink)
         }
         .buttonStyle(PressableStyle())
         .accessibilityLabel("Settings")
