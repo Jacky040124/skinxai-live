@@ -62,10 +62,7 @@ struct RootView: View {
             services.attach(app)
         }
         .onChange(of: app.tab) { old, new in turnPage(from: old, to: new) }
-        .simultaneousGesture(TapGesture().onEnded {
-            // Any real touch ends an autoplaying tour.
-            if services.tour.isRunning { services.tour.stop(app: app, toasts: services.toasts) }
-        })
+        .modifier(TourStopper(tour: services.tour, app: app, toasts: services.toasts))
     }
 
     @ViewBuilder private func page(_ tab: Tab) -> some View {
@@ -104,6 +101,19 @@ extension View {
             .environmentObject(services.data)
             .environmentObject(services.access)
             .environmentObject(services.watch)
+    }
+}
+
+/// Any real touch ends an autoplaying tour. The gesture only exists while a tour runs, so it
+/// never competes with normal taps.
+private struct TourStopper: ViewModifier {
+    @ObservedObject var tour: DemoTour
+    let app: AppState
+    let toasts: ShellToasts
+    func body(content: Content) -> some View {
+        content.simultaneousGesture(
+            TapGesture().onEnded { tour.stop(app: app, toasts: toasts) },
+            including: tour.isRunning ? .all : .subviews)
     }
 }
 

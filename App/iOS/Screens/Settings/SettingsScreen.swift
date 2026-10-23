@@ -202,6 +202,7 @@ private struct DataSourceCard: View {
             }
         }
         .twinCard()
+        .task { await access.refresh() }
         .onChange(of: access.location) { _, state in
             if state == .on { Task { await data.refreshReal(force: true) } }
         }
