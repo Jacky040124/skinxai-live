@@ -86,7 +86,8 @@ struct TodayHeroCard: View {
     }
 
     private var countsLine: String {
-        let e = TodayTrends.Format.count(snap.episodeCount, "episode")
+        // Non-breaking space keeps "41 episodes" on one line.
+        let e = TodayTrends.Format.count(snap.episodeCount, "episode").replacingOccurrences(of: " ", with: "\u{00A0}")
         if snap.episodeCount == 0 { return "No episodes yet." }
         return snap.intenseCount == 0 ? "\(e), none intense." : "\(e), \(snap.intenseCount) intense."
     }

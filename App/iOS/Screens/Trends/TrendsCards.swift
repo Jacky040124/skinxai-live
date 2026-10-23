@@ -25,6 +25,7 @@ struct TrendsDayDetail: View {
                         .transition(.scale(scale: 0.6).combined(with: .opacity))
                 } else {
                     toneSticker(snap.tones[index])
+                        .id(snap.tones[index])
                         .transition(.scale(scale: 0.6).combined(with: .opacity))
                 }
             }

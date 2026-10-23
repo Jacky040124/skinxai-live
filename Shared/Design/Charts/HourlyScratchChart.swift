@@ -92,7 +92,7 @@ struct HourlyScratchChart: View {
         let x = m.x(now)
         return ZStack(alignment: .top) {
             Rectangle()
-                .fill(Twin.Palette.ink)
+                .fill(Twin.Palette.seam)
                 .frame(width: 1.5)
                 .padding(.top, 4)
                 .scaleEffect(x: 1, y: nowShown ? 1 : 0, anchor: .bottom)

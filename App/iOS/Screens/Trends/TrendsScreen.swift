@@ -32,10 +32,13 @@ struct TrendsScreen: View {
                             ChartRangePicker(options: TrendsRange.allCases, selection: rangeBinding(range), title: \.title)
                         }
                         section(1) { mainCard(snap, selectedIndex: selectedIndex) }
+                            .id("trends-chart")
                         if !snap.changes.isEmpty || !snap.routine.isEmpty {
                             section(2) {
                                 TrendsChangesCard(changes: snap.changes, routine: snap.routine, days: snap.days) { change in
+                                    // Show that day on the chart, and bring the chart into view.
                                     select(change.startIndex, in: snap)
+                                    withAnimation(Twin.Motion.slide) { proxy.scrollTo("trends-chart", anchor: .top) }
                                 }
                             }
                         }
@@ -60,8 +63,8 @@ struct TrendsScreen: View {
         let steps: [(Double, () -> Void)] = [
             (2.4, { select(firstChange, in: snap) }),
             (1.4, { select(firstFlare, in: snap) }),
-            (1.6, { withAnimation(Twin.Motion.spring) { rangeBinding(chosenRange ?? .twoWeeks).wrappedValue = .week } }),
-            (1.8, { withAnimation(Twin.Motion.spring) { chosenRange = nil } }),
+            (1.6, { withAnimation(Twin.Motion.spring) { setRange(.week) } }),
+            (1.8, { withAnimation(Twin.Motion.spring) { setRange(nil) } }),
             (1.4, { select(snap.days.count - 1, in: snap) }),
         ]
         for (wait, step) in steps {
@@ -85,12 +88,14 @@ struct TrendsScreen: View {
     }
 
     private func rangeBinding(_ current: TrendsRange) -> Binding<TrendsRange> {
-        Binding(get: { current }, set: { new in
-            chosenRange = new
-            // Keep the selected day only while the new range still shows it.
-            let snap = TrendsSnapshot(dataset: app.dataset, range: new)
-            if let i = snap.index(of: chosenDay), !snap.visibleRange.contains(i) { chosenDay = nil }
-        })
+        Binding(get: { current }, set: { setRange($0) })
+    }
+
+    /// Changes the range; the selected day stays selected only while the new range shows it.
+    private func setRange(_ new: TrendsRange?) {
+        chosenRange = new
+        let snap = TrendsSnapshot(dataset: app.dataset, range: new ?? (app.dataset.experiment != nil ? .all : .twoWeeks))
+        if let i = snap.index(of: chosenDay), !snap.visibleRange.contains(i) { chosenDay = nil }
     }
 
     private func selectionBinding(_ snap: TrendsSnapshot, _ index: Int?) -> Binding<Date?> {

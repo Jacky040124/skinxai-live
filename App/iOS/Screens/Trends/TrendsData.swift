@@ -105,12 +105,17 @@ struct TrendsSnapshot {
         let compact = range == .week
         return visibleRange.map { i in
             let d = days[i]
+            // Weekday over each day for 7 days; otherwise the month where it starts or changes.
+            let caption: String? = compact
+                ? TodayTrends.Format.weekday(d.day).uppercased()
+                : (i == visibleStart || calendar.component(.day, from: d.day) == 1)
+                    ? d.day.formatted(.dateTime.month(.abbreviated)).uppercased() : nil
             let m = Int(d.scratchMinutes.rounded())
             let toneText: String = switch tones[i] { case .flare: "flare day"; case .improving: "improving"; case .normal: "normal day" }
             return DailyScratchChart.Bar(
                 id: d.day, value: d.scratchMinutes, tone: tones[i],
                 label: d.day.formatted(.dateTime.day()),
-                caption: compact ? TodayTrends.Format.weekday(d.day).uppercased() : nil,
+                caption: caption,
                 isToday: i == days.count - 1,
                 accessibility: "\(TodayTrends.Format.day(d.day)), \(m) minutes, \(toneText)")
         }
