@@ -8,6 +8,9 @@ import EczemaKit
 ///   onboarding  show onboarding, page through it, finish (frame folds into the top bar)
 ///   report      open "Share with my doctor"
 ///   settings    open Settings, time travel to test day 6 and back
+///   sheetToast  open Settings and raise a toast (it must show above the sheet)
+///   keychain    save / update / read / delete a throwaway value with the Settings Keychain item
+///               (skipped when a real key is stored)
 ///   watch       a live scratch episode arrives from the watch (merge + toast)
 ///   scan        open the tag sheet, open the label scanner, read the sample label, use it
 @MainActor
@@ -55,6 +58,23 @@ enum ShellDemoScript {
             services.data.travel(to: .test(6))
             try await pause(2.4)
             services.data.travel(to: .flare(StoryPoint.flareLength))
+        case "sheetToast":
+            try await pause(0.8)
+            app.showSettings = true
+            try await pause(1.6)
+            services.toasts.show("Toasts show above sheets", mood: .info)
+        case "keychain":
+            try await pause(1.0)
+            guard SettingsKeychain.read() == nil else {
+                services.toasts.show("A key is stored · check skipped", mood: .info)
+                return
+            }
+            let saved = SettingsKeychain.save("qa-placeholder-one") && SettingsKeychain.read() == "qa-placeholder-one"
+            let updated = SettingsKeychain.save("qa-placeholder-two") && SettingsKeychain.read() == "qa-placeholder-two"
+            let deleted = SettingsKeychain.delete() && SettingsKeychain.read() == nil && !SettingsKeychain.hasKey
+            let ok = saved && updated && deleted
+            services.toasts.show(ok ? "Keychain check passed" : "Keychain unavailable (OSStatus \(SettingsKeychain.probe()))",
+                                 mood: ok ? .done : .warning, seconds: 6)
         case "scan":
             try await pause(1.0)
             withAnimation(TagSheetHost.openAnimation(false)) { app.showTagSheet = true }

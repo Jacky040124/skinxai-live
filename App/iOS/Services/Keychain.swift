@@ -66,6 +66,19 @@ enum SettingsKeychain {
         return SecItemAdd(add as CFDictionary, nil) == errSecSuccess
     }
 
+    /// OSStatus of a raw add + delete of a throwaway item under another account (diagnostics only).
+    static func probe() -> OSStatus {
+        let item: [String: Any] = [kSecClass as String: kSecClassGenericPassword,
+                                   kSecAttrService as String: service,
+                                   kSecAttrAccount as String: "qa-probe",
+                                   kSecValueData as String: Data("x".utf8)]
+        let status = SecItemAdd(item as CFDictionary, nil)
+        SecItemDelete([kSecClass as String: kSecClassGenericPassword,
+                       kSecAttrService as String: service,
+                       kSecAttrAccount as String: "qa-probe"] as CFDictionary)
+        return status
+    }
+
     @discardableResult
     static func delete() -> Bool {
         let status = SecItemDelete(base as CFDictionary)

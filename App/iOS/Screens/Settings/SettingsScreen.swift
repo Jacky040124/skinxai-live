@@ -62,6 +62,8 @@ struct SettingsScreen: View {
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(Twin.Radius.dialog)
         .presentationBackground(Twin.Palette.paper)
+        // Toasts raised while this sheet is up show here (the root's host is behind the sheet).
+        .overlay(alignment: .top) { ShellToastHost() }
     }
 
     private var header: some View {

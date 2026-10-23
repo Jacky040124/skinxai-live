@@ -45,6 +45,8 @@ struct ReportScreen: View {
         .presentationCornerRadius(Twin.Radius.dialog)
         .presentationBackground(Twin.Palette.paper)
         .quickLookPreview($fullScreen)
+        // Toasts raised while this sheet is up show here (the root's host is behind the sheet).
+        .overlay(alignment: .top) { ShellToastHost() }
         .task { await printOut() }
     }
 
