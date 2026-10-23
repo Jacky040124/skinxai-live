@@ -36,5 +36,6 @@ final class ShellServices: ObservableObject {
 
     enum Keys {
         static let launchedBefore = "et.launchedBefore"
+        static let didOnboard = "et.didOnboard"
     }
 }
