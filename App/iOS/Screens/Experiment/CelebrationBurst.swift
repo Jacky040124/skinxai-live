@@ -40,7 +40,7 @@ struct CelebrationBurst: View {
                 guard let start else { return }
                 let t = timeline.date.timeIntervalSince(start)
                 guard t < duration else { return }
-                let origin = CGPoint(x: size.width / 2, y: size.height * 0.42)
+                let origin = CGPoint(x: size.width / 2, y: size.height * 0.45)
                 let gravity = 1100.0
                 for p in Self.particles {
                     let tt = t - p.delay

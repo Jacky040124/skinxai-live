@@ -42,6 +42,9 @@ final class InsightSession: ObservableObject {
     /// The Insight screen appeared: reveal once per launch.
     func appear(app: AppState, reduceMotion: Bool) {
         guard phase == .idle else { return }
+        #if DEBUG
+        DebugHooks.prepare(app: app)
+        #endif
         if let cf = app.dataset.caseFile, !cf.producedBy.localizedCaseInsensitiveContains("bundled") {
             source = .live(cf.producedBy.components(separatedBy: " · ").first ?? cf.producedBy)
         }
@@ -77,7 +80,10 @@ final class InsightSession: ObservableObject {
     }
 
     private func run(app: AppState, reduceMotion: Bool, live: Bool) async {
-        let apiKey = live ? InsightCredentials.apiKey() : nil
+        var apiKey = live ? InsightCredentials.apiKey() : nil
+        #if DEBUG
+        if live, apiKey == nil, let fake = DebugHooks.testKey { apiKey = fake }
+        #endif
         let model = InsightCredentials.model()
         let dataset = app.dataset
         let days = apiKey != nil ? dataset.days.count
@@ -119,6 +125,10 @@ final class InsightSession: ObservableObject {
             source = outcome.isLive ? .live(model) : outcome.source == .bundled(.offline) ? .bundled(.offline) : .bundled(.failed)
             if !outcome.isLive { Haptics.warning() }
         } else if live {
+            // No key: replay the bundled analysis (and put it back if a live one was showing).
+            if app.dataset.caseFile?.producedBy.localizedCaseInsensitiveContains("bundled") != true {
+                app.update { $0.caseFile = InsightService.bundledCaseFile(for: $0) }
+            }
             source = .bundled(.noKey)
         }
         let minimum = reduceMotion ? 0.6 : 2.2
@@ -166,5 +176,26 @@ final class InsightSession: ObservableObject {
         // 4. The rest of the case file.
         if !(await pause(0.35)) { return }
         withAnimation(Twin.Motion.spring) { phase = .done }
+        #if DEBUG
+        if !live, DebugHooks.autoRerun, await pause(1.5) { rerun(app: app, reduceMotion: reduceMotion) }
+        #endif
     }
 }
+
+#if DEBUG
+/// Launch arguments for checking paths that need a tap or a key, in Debug builds only:
+///   -insightTestKey 1    re-run uses a deliberately invalid key (exercises the live call + fallback)
+///   -insightAutoRerun 1  re-run once by itself after the first reveal
+///   -insightRedFlags 1   add a red flag to the case file
+enum DebugHooks {
+    static var testKey: String? { UserDefaults.standard.bool(forKey: "insightTestKey") ? "invalid-test-key" : nil }
+    static var autoRerun: Bool { UserDefaults.standard.bool(forKey: "insightAutoRerun") }
+    @MainActor static func prepare(app: AppState) {
+        if UserDefaults.standard.bool(forKey: "insightRedFlags"), app.dataset.caseFile?.redFlags.isEmpty == true {
+            app.update { $0.caseFile?.redFlags = [
+                "Your last note says the patches are weeping yellow fluid with honey-coloured crusts, and you feel feverish (38.4 °C). That can be an infection."
+            ] }
+        }
+    }
+}
+#endif

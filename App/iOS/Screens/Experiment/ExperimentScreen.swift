@@ -98,7 +98,8 @@ struct RunningExperimentView: View {
                     if progress.isFinished { ResultFace(progress: progress) }
                 }
                 .scaleEffect(pop ? 1.035 : 1)
-                .overlay { CelebrationBurst(trigger: burst).allowsHitTesting(false) }
+                // The burst canvas reaches past the card so the stickers can fly out of it.
+                .overlay { CelebrationBurst(trigger: burst).padding(-140).allowsHitTesting(false) }
                 .background(alignment: .top) { Color.clear.frame(height: 1).offset(y: -Twin.Space.l).id("hero") }
                 .riseIn(0.04)
 
@@ -269,12 +270,14 @@ struct ResultFace: View {
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
 
+            Spacer(minLength: 0)
+
             DayTiles(day: progress.day, length: progress.length, finished: true, bob: false)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 2)
         }
         .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .background(confirmed ? Twin.Palette.limeSoft : Twin.Palette.orangeSoft,
                     in: RoundedRectangle(cornerRadius: Twin.Radius.card, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: Twin.Radius.card, style: .continuous)
@@ -287,7 +290,7 @@ struct ResultFace: View {
         let pct = abs(progress.percentLess ?? 0)
         let still = stillThere
         if confirmed {
-            return "Scratching fell \(pct)%, from \(before) to \(during) min a day, once you paused it\(still.map { ", \($0)" } ?? ""). Keep it out of your routine."
+            return "Scratching fell \(pct)%, from \(before) to \(during) min a day, once you paused it\(still.map { ", \($0)" } ?? "")."
         }
         let change = (progress.percentLess ?? 0) >= 0 ? "fell only \(pct)%" : "rose \(pct)%"
         return "Scratching \(change) (\(before) → \(during) min a day) while you paused it. Claude will look at the next suspect."
@@ -429,7 +432,7 @@ struct ComparisonCard: View {
                            beforeLabel: withLabel, duringLabel: pausedLabel)
 
             HStack(alignment: .center, spacing: 10) {
-                ChangeSticker(percentLess: progress.percentLess)
+                ChangeSticker(percentLess: progress.percentLess, final: progress.isFinished)
                 Spacer(minLength: 4)
                 Text(caption)
                     .font(Twin.Typeface.sans(13))
@@ -537,6 +540,7 @@ private struct Line: Shape {
 /// "▼ 30% less so far" (lime) / "▲ 5% more so far" (orange) / "Day 1" (paper).
 struct ChangeSticker: View {
     var percentLess: Int?
+    var final = false
     var body: some View {
         Group {
             if let p = percentLess {
@@ -545,7 +549,7 @@ struct ChangeSticker: View {
                         .font(.system(size: 9, weight: .bold))
                     HStack(spacing: 0) {
                         CountUp(value: Double(abs(p)), font: Twin.Typeface.sans(13, .bold), delay: 0.5, duration: 0.9)
-                        Text(p >= 0 ? "% less so far" : "% more so far").font(Twin.Typeface.sans(13, .bold))
+                        Text((p >= 0 ? "% less" : "% more") + (final ? "" : " so far")).font(Twin.Typeface.sans(13, .bold))
                     }
                 }
                 .foregroundStyle(Twin.Palette.ink)

@@ -156,7 +156,8 @@ struct SuspectCard: View {
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
 
-            if let window, let started = suspect.startedOn, let flare = suspect.flareOn, flare > started {
+            if let window, window.minutes.count >= 2, window.minutes.count == window.days.count,
+               let started = suspect.startedOn, let flare = suspect.flareOn, flare > started {
                 EvidenceTimeline(window: window, startedOn: started, flareOn: flare,
                                  emoji: suspect.kind?.emoji ?? "✳️", instant: instant)
                     .padding(.top, 4)
@@ -349,11 +350,11 @@ struct EvidenceTimeline: View {
                     .position(x: 22, y: axisY + 11)
             }
             if width - (startCenter + labelWidth / 2) > 44 {
-                Text("TODAY")
+                Text(lastLabel)
                     .font(Twin.Typeface.mono(9))
                     .foregroundStyle(Twin.Palette.inkHint)
                     .fixedSize()
-                    .position(x: width - 16, y: axisY + 11)
+                    .position(x: width - 20, y: axisY + 11)
             }
             Text(started)
                 .font(Twin.Typeface.mono(9, bold: true))
@@ -362,6 +363,12 @@ struct EvidenceTimeline: View {
                 .position(x: startCenter, y: axisY + 11)
                 .opacity(startIn ? 1 : 0)
         }
+    }
+
+    private var lastLabel: String {
+        guard let last = window.days.last else { return "" }
+        if Calendar.current.isDateInToday(last) { return "TODAY" }
+        return last.formatted(.dateTime.month(.abbreviated).day()).uppercased()
     }
 
     private func index(of date: Date) -> Int {
@@ -503,7 +510,7 @@ struct InsightActions: View {
             }
             .buttonStyle(TwinButtonStyle(fill: Twin.Palette.paper, height: 48))
 
-            HStack(spacing: 10) {
+            VStack(spacing: 4) {
                 Button(action: rerun) {
                     HStack(spacing: 6) {
                         if asking {
@@ -516,20 +523,18 @@ struct InsightActions: View {
                             .underline(!asking, color: Twin.Palette.inkFaint)
                     }
                     .foregroundStyle(Twin.Palette.ink)
-                    .padding(.vertical, 8)
+                    .padding(.vertical, 6)
+                    .padding(.horizontal, 10)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(PressableStyle())
                 .disabled(asking)
 
-                Rectangle().fill(Twin.Palette.hairline).frame(width: 1, height: 14)
-
                 Text(source.note.uppercased())
                     .font(Twin.Typeface.mono(10))
                     .tracking(0.6)
                     .foregroundStyle(Twin.Palette.inkHint)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+                    .multilineTextAlignment(.center)
                     .contentTransition(.opacity)
             }
             .frame(maxWidth: .infinity)
