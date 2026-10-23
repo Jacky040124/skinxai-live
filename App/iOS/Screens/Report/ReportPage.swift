@@ -15,25 +15,17 @@ struct ReportPage: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
-            VStack(alignment: .leading, spacing: 12) {
-                stats.modifier(PageRise(on: on, delay: 0.15, animated: animated))
-                chart.modifier(PageRise(on: on, delay: 0.3, animated: animated))
-                HStack(alignment: .top, spacing: 18) {
-                    suspects.frame(width: 312, alignment: .topLeading)
-                    VStack(alignment: .leading, spacing: 14) {
-                        vitals
-                        changes
-                    }
-                    .frame(maxWidth: .infinity, alignment: .topLeading)
-                }
-                .modifier(PageRise(on: on, delay: 0.45, animated: animated))
-                testBlock.modifier(PageRise(on: on, delay: 0.6, animated: animated))
-                Spacer(minLength: 0)
-                footer.modifier(PageRise(on: on, delay: 0.7, animated: animated))
+            // Long case files (live model) still fit one page: the first layout that fits wins.
+            ViewThatFits(in: .vertical) {
+                content(.regular)
+                content(.snug)
+                content(.compact)
+                content(.tight)
             }
             .padding(.horizontal, margin)
             .padding(.top, 13)
             .padding(.bottom, 22)
+            .frame(maxHeight: .infinity, alignment: .top)
         }
         .frame(width: Self.size.width, height: Self.size.height, alignment: .top)
         .background(Color.white)
@@ -41,6 +33,38 @@ struct ReportPage: View {
         .onAppear {
             guard animated else { return }
             withAnimation(.easeOut(duration: 0.01)) { shown = true }
+        }
+    }
+
+    /// How tightly a page is set.
+    struct Density {
+        let spacing: CGFloat
+        let chartHeight: CGFloat
+        let statHeight: CGFloat
+        let evidenceLines: Int?
+        let noteLines: Int?
+        static let regular = Density(spacing: 12, chartHeight: 126, statHeight: 58, evidenceLines: nil, noteLines: nil)
+        static let snug = Density(spacing: 10, chartHeight: 110, statHeight: 56, evidenceLines: nil, noteLines: nil)
+        static let compact = Density(spacing: 8, chartHeight: 100, statHeight: 54, evidenceLines: 3, noteLines: 2)
+        static let tight = Density(spacing: 6, chartHeight: 88, statHeight: 50, evidenceLines: 2, noteLines: 2)
+    }
+
+    private func content(_ d: Density) -> some View {
+        VStack(alignment: .leading, spacing: d.spacing) {
+            stats(d).modifier(PageRise(on: on, delay: 0.15, animated: animated))
+            chart(d).modifier(PageRise(on: on, delay: 0.3, animated: animated))
+            HStack(alignment: .top, spacing: 18) {
+                suspects(d).frame(width: 312, alignment: .topLeading)
+                VStack(alignment: .leading, spacing: d.spacing + 2) {
+                    vitals
+                    changes
+                }
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+            }
+            .modifier(PageRise(on: on, delay: 0.45, animated: animated))
+            testBlock.modifier(PageRise(on: on, delay: 0.6, animated: animated))
+            Spacer(minLength: 0)
+            footer.modifier(PageRise(on: on, delay: 0.7, animated: animated))
         }
     }
 
@@ -97,24 +121,24 @@ struct ReportPage: View {
 
     // MARK: Numbers
 
-    private var stats: some View {
+    private func stats(_ d: Density) -> some View {
         HStack(spacing: 8) {
-            stat("TODAY", value: Self.minutes(facts.todayMinutes), unit: "min",
+            stat("TODAY", minHeight: d.statHeight, value: Self.minutes(facts.todayMinutes), unit: "min",
                  note: facts.todayRatio >= 1.5 ? "\(Self.ratio(facts.todayRatio)) usual"
                      : (facts.todayRatio < 0.67 ? "below usual" : "about usual"),
                  tint: facts.todayRatio >= 1.5 ? Twin.Palette.orange : nil)
-            stat("LAST 7 DAYS", value: Self.minutes(facts.weekAverage), unit: "min/day",
+            stat("LAST 7 DAYS", minHeight: d.statHeight, value: Self.minutes(facts.weekAverage), unit: "min/day",
                  note: facts.weekChange.map { ($0 >= 0 ? "▲ " : "▼ ") + Self.percent(abs($0)) + " vs. week before" } ?? "no data the week before",
                  tint: (facts.weekChange ?? 0) > 0.5 ? Twin.Palette.orange : nil)
-            stat("USUAL", value: Self.minutes(facts.usual), unit: "min/day",
+            stat("USUAL", minHeight: d.statHeight, value: Self.minutes(facts.usual), unit: "min/day",
                  note: facts.usualIsEstimate ? "starting estimate" : "median of calm days", tint: nil)
-            stat("WORST HOURS", value: facts.worstHours ?? "—", unit: "",
+            stat("WORST HOURS", minHeight: d.statHeight, value: facts.worstHours ?? "—", unit: "",
                  note: "\(Self.count(facts.totalEpisodes, "episode")), \(facts.intenseEpisodes) intense in 7 days", tint: nil)
         }
         .fixedSize(horizontal: false, vertical: true)
     }
 
-    private func stat(_ label: String, value: String, unit: String, note: String, tint: Color?) -> some View {
+    private func stat(_ label: String, minHeight: CGFloat, value: String, unit: String, note: String, tint: Color?) -> some View {
         VStack(alignment: .leading, spacing: 3) {
             Text(label)
                 .font(Twin.Typeface.mono(7, bold: true))
@@ -142,13 +166,13 @@ struct ReportPage: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(8)
-        .frame(maxWidth: .infinity, minHeight: 58, maxHeight: .infinity, alignment: .topLeading)
+        .frame(maxWidth: .infinity, minHeight: minHeight, maxHeight: .infinity, alignment: .topLeading)
         .overlay(RoundedRectangle(cornerRadius: 5).strokeBorder(Twin.Palette.hairline, lineWidth: 0.75))
     }
 
     // MARK: Chart
 
-    private var chart: some View {
+    private func chart(_ d: Density) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text("MINUTES OF SCRATCHING PER DAY")
@@ -170,7 +194,7 @@ struct ReportPage: View {
                 }
             }
             ReportBars(facts: facts, grown: on, animated: animated)
-                .frame(height: 126)
+                .frame(height: d.chartHeight)
                 .overlay {
                     if facts.trackedDays < 3 {
                         Text("Only \(Self.count(facts.trackedDays, "full day")) tracked so far. Wear the watch at night to fill this chart.")
@@ -195,7 +219,7 @@ struct ReportPage: View {
 
     // MARK: Suspects
 
-    private var suspects: some View {
+    private func suspects(_ d: Density) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack {
                 Text("LIKELY TRIGGERS")
@@ -213,12 +237,13 @@ struct ReportPage: View {
             }
             if let c = facts.caseFile, !c.suspects.isEmpty {
                 ForEach(Array(c.suspects.prefix(3).enumerated()), id: \.offset) { i, s in
-                    suspectRow(i, s)
+                    suspectRow(i, s, d)
                 }
                 if let note = c.cannotSeparate.first {
                     Text(note)
                         .font(Twin.Typeface.sans(8))
                         .foregroundStyle(Twin.Palette.inkMuted)
+                        .lineLimit(d.noteLines)
                         .padding(.leading, 6)
                         .overlay(alignment: .leading) { Rectangle().fill(Twin.Palette.orange).frame(width: 1.5) }
                         .fixedSize(horizontal: false, vertical: true)
@@ -236,7 +261,7 @@ struct ReportPage: View {
         }
     }
 
-    private func suspectRow(_ i: Int, _ s: Suspect) -> some View {
+    private func suspectRow(_ i: Int, _ s: Suspect, _ d: Density) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .center, spacing: 6) {
                 Text("\(i + 1)")
@@ -275,6 +300,7 @@ struct ReportPage: View {
                 .font(Twin.Typeface.sans(8))
                 .foregroundStyle(Twin.Palette.inkMuted)
                 .lineSpacing(0.5)
+                .lineLimit(d.evidenceLines)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(7)
