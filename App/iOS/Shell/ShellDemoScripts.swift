@@ -3,7 +3,7 @@ import EczemaKit
 
 /// Scripted interactions for visual QA and recordings (`scripts/video shell ios today 12 -shellDemo tag`).
 /// Does nothing unless the `-shellDemo <name>` launch argument is present. Each script drives the
-/// same code paths a person would (buttons post the same commands, the watch path is WatchLink's).
+/// same code paths a person would (buttons post the same commands, the watch path is WatchInbox's).
 ///   tag         open the quick-tag sheet, pick three chips, save (toast)
 ///   onboarding  show onboarding, page through it, finish (frame folds into the top bar)
 ///   report      open "Share with my doctor"

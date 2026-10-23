@@ -2,7 +2,7 @@ import SwiftUI
 
 /// App-wide HUD toast ("Saved · Claude will include it"). Dark Raft HUD, drops in from the top.
 @MainActor
-final class ToastCenter: ObservableObject {
+final class ShellToasts: ObservableObject {
     struct Toast: Identifiable, Equatable {
         enum Mood: Equatable { case done, info, warning }
         let id = UUID()
@@ -32,8 +32,8 @@ final class ToastCenter: ObservableObject {
     }
 }
 
-struct ToastHost: View {
-    @EnvironmentObject var toasts: ToastCenter
+struct ShellToastHost: View {
+    @EnvironmentObject var toasts: ShellToasts
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
@@ -54,7 +54,7 @@ struct ToastHost: View {
 }
 
 private struct ToastView: View {
-    let toast: ToastCenter.Toast
+    let toast: ShellToasts.Toast
     @State private var tick = false
 
     var body: some View {

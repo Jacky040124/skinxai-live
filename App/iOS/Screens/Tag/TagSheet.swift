@@ -70,7 +70,7 @@ struct TagSheet: View {
     /// Home-indicator inset: the panel reaches the screen bottom, its content stays above it.
     var bottomInset: CGFloat = 0
     @EnvironmentObject var app: AppState
-    @EnvironmentObject var toasts: ToastCenter
+    @EnvironmentObject var toasts: ShellToasts
     @EnvironmentObject var data: DataModeController
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 

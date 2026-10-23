@@ -5,7 +5,7 @@ import EczemaKit
 
 /// The whole demo story as a strip of bars (14 flare-story days, then the 10-day test).
 /// Tap or slide across it to make that day "today"; a yellow sticker marks where you are.
-struct TimeTravelCard: View {
+struct StoryScrubberCard: View {
     var playTour: () -> Void
     @EnvironmentObject var data: DataModeController
     @EnvironmentObject var app: AppState
@@ -211,9 +211,9 @@ struct TimeTravelCard: View {
 // MARK: - Claude
 
 /// Model (OpenRouter slug, UserDefaults "aiModel") and API key (Keychain). See `SettingsAI`.
-struct ClaudeCard: View {
+struct ClaudeSettingsCard: View {
     @AppStorage(SettingsAI.modelKey) private var model = SettingsAI.defaultModel
-    @EnvironmentObject var toasts: ToastCenter
+    @EnvironmentObject var toasts: ShellToasts
     @Namespace private var ns
     @State private var otherSelected = false
     @State private var draft = ""

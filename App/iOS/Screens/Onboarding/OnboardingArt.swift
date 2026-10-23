@@ -370,7 +370,7 @@ private struct AutoTile: View {
 struct PermissionCards: View {
     var active: Bool
     @EnvironmentObject var access: DeviceAccess
-    @EnvironmentObject var watch: WatchLink
+    @EnvironmentObject var watch: WatchInbox
     @State private var shown = false
 
     var body: some View {

@@ -56,7 +56,7 @@ final class DemoTour: ObservableObject {
         }
     }
 
-    func stop(app: AppState, toasts: ToastCenter?) {
+    func stop(app: AppState, toasts: ShellToasts?) {
         guard isRunning else { return }
         task?.cancel()
         task = nil

@@ -4,11 +4,11 @@ import EczemaKit
 /// Owns the app-frame services and wires them to `AppState` once, when the root view appears.
 @MainActor
 final class ShellServices: ObservableObject {
-    let toasts = ToastCenter()
+    let toasts = ShellToasts()
     let tour = DemoTour()
     let data = DataModeController()
     let access = DeviceAccess()
-    let watch = WatchLink()
+    let watch = WatchInbox()
     let alerts = FlareAlerts()
     private var attached = false
 

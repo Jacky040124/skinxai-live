@@ -5,7 +5,7 @@ import EczemaKit
 /// "Share with my doctor": the one-page report, printed out in the app, exported as a PDF.
 struct ReportScreen: View {
     @EnvironmentObject var app: AppState
-    @EnvironmentObject var toasts: ToastCenter
+    @EnvironmentObject var toasts: ShellToasts
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("profileName") private var name = "Douglas"

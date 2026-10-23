@@ -7,7 +7,7 @@ struct SettingsScreen: View {
     @EnvironmentObject var app: AppState
     @EnvironmentObject var data: DataModeController
     @EnvironmentObject var tour: DemoTour
-    @EnvironmentObject var toasts: ToastCenter
+    @EnvironmentObject var toasts: ShellToasts
     @Environment(\.dismiss) private var dismiss
     @AppStorage("profileName") private var name = "Douglas"
 
@@ -23,11 +23,11 @@ struct SettingsScreen: View {
                 section("Data", index: 2) { DataSourceCard() }
                 if app.dataset.isDemo {
                     section("Time travel", index: 3) {
-                        TimeTravelCard(playTour: playTour)
+                        StoryScrubberCard(playTour: playTour)
                     }
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
-                section("Claude", index: 4) { ClaudeCard() }
+                section("Claude", index: 4) { ClaudeSettingsCard() }
                     .id("claude")
                 section("Units", index: 5) { UnitsCard() }
                     .id("units")
@@ -161,8 +161,8 @@ private struct DataSourceCard: View {
     @EnvironmentObject var app: AppState
     @EnvironmentObject var data: DataModeController
     @EnvironmentObject var access: DeviceAccess
-    @EnvironmentObject var watch: WatchLink
-    @EnvironmentObject var toasts: ToastCenter
+    @EnvironmentObject var watch: WatchInbox
+    @EnvironmentObject var toasts: ShellToasts
 
     var body: some View {
         let demo = data.mode == .demo
@@ -182,7 +182,7 @@ private struct DataSourceCard: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            .toggleStyle(TwinToggleStyle())
+            .toggleStyle(SettingsSwitchStyle())
 
             if !demo {
                 VStack(spacing: 0) {
@@ -285,7 +285,7 @@ private struct DataSourceCard: View {
 // MARK: - Raft switch
 
 /// Switches may be round (Raft). On = yellow track ("selected"), ink edges, springy knob.
-struct TwinToggleStyle: ToggleStyle {
+private struct SettingsSwitchStyle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
         HStack(alignment: .center, spacing: 14) {
             configuration.label

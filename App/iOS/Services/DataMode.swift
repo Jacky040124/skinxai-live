@@ -23,7 +23,7 @@ final class DataModeController: ObservableObject {
     @Published private(set) var environment: EnvironmentReport?
 
     private weak var app: AppState?
-    private weak var toasts: ToastCenter?
+    private weak var toasts: ShellToasts?
     /// Real-mode flare heads-up (set by `ShellServices`).
     var alerts: FlareAlerts?
     private var access: DeviceAccess?
@@ -50,7 +50,7 @@ final class DataModeController: ObservableObject {
         environment = saved.environment
     }
 
-    func attach(_ app: AppState, toasts: ToastCenter, watch: WatchLink, access: DeviceAccess) {
+    func attach(_ app: AppState, toasts: ShellToasts, watch: WatchInbox, access: DeviceAccess) {
         self.app = app
         self.toasts = toasts
         self.access = access

@@ -42,7 +42,7 @@ struct RootView: View {
         }
         .ignoresSafeArea(.keyboard)
         .overlay { TagSheetHost() }
-        .overlay(alignment: .top) { ToastHost() }
+        .overlay(alignment: .top) { ShellToastHost() }
         .overlay { OnboardingHost() }
         .overlayPreferenceValue(TourTargetKey.self) { anchors in
             TourTouchLayer(anchors: anchors)

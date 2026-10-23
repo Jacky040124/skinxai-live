@@ -8,7 +8,7 @@ import EczemaKit
 /// where `data` is `JSONEncoder().encode([ScratchEpisode])`. The same payload is also accepted as a
 /// message, an application context, or a transferred file whose metadata has `"kind": "episodes"`.
 @MainActor
-final class WatchLink: NSObject, ObservableObject {
+final class WatchInbox: NSObject, ObservableObject {
     enum Status: Equatable {
         case unsupported            // iPad / no WatchConnectivity
         case connecting
@@ -50,7 +50,7 @@ final class WatchLink: NSObject, ObservableObject {
     }
 }
 
-extension WatchLink: WCSessionDelegate {
+extension WatchInbox: WCSessionDelegate {
     nonisolated func session(_ session: WCSession, activationDidCompleteWith activationState: WCSessionActivationState, error: Error?) {
         let paired = session.isPaired
         let installed = session.isWatchAppInstalled
@@ -97,7 +97,7 @@ extension WatchLink: WCSessionDelegate {
     }
 
     nonisolated private func receive(_ payload: [String: Any]) {
-        guard let episodes = WatchLink.decode(payload) else { return }
+        guard let episodes = WatchInbox.decode(payload) else { return }
         Task { @MainActor in self.deliver(episodes) }
     }
 }
