@@ -148,7 +148,8 @@ final class DataModeController: ObservableObject {
         app.update { added = EpisodeMerge.apply(mergeable, to: &$0) }
         if added > 0 {
             Haptics.soft()
-            toasts?.show(added == 1 ? "New scratch episode from your watch" : "\(added) scratch episodes from your watch", mood: .info)
+            toasts?.show(added == 1 ? "New scratch episode from your watch" : "\(added) scratch episodes from your watch",
+                         mood: .info, symbol: "applewatch")
         }
     }
 

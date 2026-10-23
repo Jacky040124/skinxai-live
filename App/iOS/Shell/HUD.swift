@@ -8,14 +8,16 @@ final class ToastCenter: ObservableObject {
         let id = UUID()
         var text: String
         var mood: Mood
+        /// SF Symbol shown in the tile (defaults per mood).
+        var symbol: String?
     }
 
     @Published private(set) var current: Toast?
     private var hideTask: Task<Void, Never>?
 
-    func show(_ text: String, mood: Toast.Mood = .done, seconds: Double = 2.0) {
+    func show(_ text: String, mood: Toast.Mood = .done, symbol: String? = nil, seconds: Double = 2.0) {
         hideTask?.cancel()
-        withAnimation(Twin.Motion.bouncy) { current = Toast(text: text, mood: mood) }
+        withAnimation(Twin.Motion.bouncy) { current = Toast(text: text, mood: mood, symbol: symbol) }
         UIAccessibility.post(notification: .announcement, argument: text)
         hideTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
@@ -88,7 +90,8 @@ private struct ToastView: View {
         }
     }
     private var symbol: String {
-        switch toast.mood {
+        if let s = toast.symbol { return s }
+        return switch toast.mood {
         case .done: "checkmark"
         case .info: "info"
         case .warning: "exclamationmark"

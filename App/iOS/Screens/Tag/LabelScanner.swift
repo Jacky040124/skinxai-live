@@ -52,6 +52,8 @@ enum IrritantCheck {
         ("Propolis", ["propolis"]),
     ]
 
+    static var groupNames: [String] { groups.map(\.name) }
+
     static func check(_ texts: [String]) -> LabelScanResult {
         let raw = texts.joined(separator: " ")
         // Undo OCR line-break hyphenation, unify spacing and case.
@@ -230,10 +232,7 @@ private struct PhotoScanScreen: View {
                     .buttonStyle(TwinButtonStyle(fill: Twin.Palette.pink, height: 52))
                     .riseIn(0.12)
 
-                    Button {
-                        let r = IrritantCheck.check(IrritantCheck.sampleLabel)
-                        withAnimation(Twin.Motion.bouncy) { result = r; failed = false }
-                    } label: {
+                    Button(action: useSample) {
                         Label("Try a sample body-wash label", systemImage: "doc.text.magnifyingglass")
                     }
                     .buttonStyle(TwinButtonStyle(fill: Twin.Palette.paper, height: 50))
@@ -260,6 +259,25 @@ private struct PhotoScanScreen: View {
                     if let result {
                         ScanFindingsPanel(result: result, live: false) { finish(result) }
                             .transition(.scale(scale: 0.95, anchor: .top).combined(with: .opacity))
+                    } else {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Eyebrow(text: "What it looks for")
+                            WrapRows(items: IrritantCheck.groupNames.map { ScanTerm(name: $0) }) { term in
+                                Text(term.name)
+                                    .font(Twin.Typeface.sans(13, .semibold))
+                                    .foregroundStyle(Twin.Palette.ink)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 5)
+                                    .sticker(Twin.Palette.paper)
+                            }
+                            Text("Common contact irritants in skin care. A match is a hint for Claude, not a diagnosis.")
+                                .font(Twin.Typeface.sans(12))
+                                .foregroundStyle(Twin.Palette.inkHint)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(.top, 8)
+                        .riseIn(0.26)
+                        .transition(.opacity)
                     }
                 }
                 .padding(Twin.Space.screen)
@@ -267,10 +285,23 @@ private struct PhotoScanScreen: View {
             .scrollIndicators(.hidden)
         }
         .background(Twin.Palette.paper)
+        .onReceive(NotificationCenter.default.publisher(for: .shellDemo)) { note in
+            switch note.object as? String {
+            case "scan.sample": useSample()
+            case "scan.use": if let result { finish(result) }
+            default: break
+            }
+        }
         .onChange(of: pick) { _, item in
             guard let item else { return }
             Task { await read(item) }
         }
+    }
+
+    private func useSample() {
+        let r = IrritantCheck.check(IrritantCheck.sampleLabel)
+        Haptics.success()
+        withAnimation(Twin.Motion.bouncy) { result = r; failed = false }
     }
 
     private func read(_ item: PhotosPickerItem) async {
@@ -404,6 +435,11 @@ struct ScanResultCard: View {
         }
         .twinCard(fill: Twin.Palette.cream, padding: 14)
     }
+}
+
+private struct ScanTerm: Identifiable {
+    let name: String
+    var id: String { name }
 }
 
 /// Minimal wrapping row for a few stickers.

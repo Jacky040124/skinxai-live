@@ -118,9 +118,10 @@ struct TagSheet: View {
                     TagChip(kind: kind, selected: selected.contains(kind), logged: logged.contains(kind)) {
                         toggle(kind)
                     }
-                    .opacity(shown ? 1 : 0)
-                    .offset(y: shown || reduceMotion ? 0 : 12)
-                    .animation(Twin.Motion.spring.delay(0.08 + Double(i) * 0.025), value: shown)
+                    // Only the entrance (fade + rise) is animated, never the chip's layout position.
+                    .animation(Twin.Motion.spring.delay(0.1 + Double(i) * 0.025)) { chip in
+                        chip.opacity(shown ? 1 : 0).offset(y: shown || reduceMotion ? 0 : 12)
+                    }
                 }
             }
             .padding(.top, 18)
@@ -176,7 +177,15 @@ struct TagSheet: View {
                 .padding(.bottom, -400)
         }
         .contentShape(Rectangle())
-        .onAppear { shown = true }
+        .onAppear { DispatchQueue.main.async { shown = true } }
+        .onReceive(NotificationCenter.default.publisher(for: .shellDemo)) { note in
+            guard let command = note.object as? String else { return }
+            if command == "tag.save" { save() }
+            if command == "tag.scan" { scanning = true }
+            if command.hasPrefix("tag.toggle:"), let kind = ExposureKind(rawValue: String(command.dropFirst("tag.toggle:".count))) {
+                toggle(kind)
+            }
+        }
         .fullScreenCover(isPresented: $scanning) {
             LabelScanView { result in
                 withAnimation(Twin.Motion.spring) {
@@ -188,8 +197,10 @@ struct TagSheet: View {
         }
     }
 
-    /// Selected kinds that are not in today's log yet.
-    private var newKinds: [ExposureKind] { selected.filter { !logged.contains($0) } }
+    /// Selected kinds that are not in today's log yet (a scanned label is always a new product).
+    private var newKinds: [ExposureKind] {
+        selected.filter { !logged.contains($0) || ($0 == .newProduct && scan != nil) }
+    }
 
     private func toggle(_ kind: ExposureKind) {
         Haptics.tap()

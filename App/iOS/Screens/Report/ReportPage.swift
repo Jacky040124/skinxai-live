@@ -100,14 +100,16 @@ struct ReportPage: View {
     private var stats: some View {
         HStack(spacing: 8) {
             stat("TODAY", value: Self.minutes(facts.todayMinutes), unit: "min",
-                 note: facts.todayRatio >= 1.5 ? "\(Self.ratio(facts.todayRatio)) usual" : "about usual",
+                 note: facts.todayRatio >= 1.5 ? "\(Self.ratio(facts.todayRatio)) usual"
+                     : (facts.todayRatio < 0.67 ? "below usual" : "about usual"),
                  tint: facts.todayRatio >= 1.5 ? Twin.Palette.orange : nil)
             stat("LAST 7 DAYS", value: Self.minutes(facts.weekAverage), unit: "min/day",
-                 note: facts.weekChange.map { ($0 >= 0 ? "▲ " : "▼ ") + Self.percent(abs($0)) + " vs. week before" } ?? "first week",
+                 note: facts.weekChange.map { ($0 >= 0 ? "▲ " : "▼ ") + Self.percent(abs($0)) + " vs. week before" } ?? "no data the week before",
                  tint: (facts.weekChange ?? 0) > 0.5 ? Twin.Palette.orange : nil)
-            stat("USUAL", value: Self.minutes(facts.usual), unit: "min/day", note: "median of calm days", tint: nil)
+            stat("USUAL", value: Self.minutes(facts.usual), unit: "min/day",
+                 note: facts.usualIsEstimate ? "starting estimate" : "median of calm days", tint: nil)
             stat("WORST HOURS", value: facts.worstHours ?? "—", unit: "",
-                 note: "\(facts.totalEpisodes) episodes, \(facts.intenseEpisodes) intense in 7 days", tint: nil)
+                 note: "\(Self.count(facts.totalEpisodes, "episode")), \(facts.intenseEpisodes) intense in 7 days", tint: nil)
         }
         .fixedSize(horizontal: false, vertical: true)
     }
@@ -169,6 +171,17 @@ struct ReportPage: View {
             }
             ReportBars(facts: facts, grown: on, animated: animated)
                 .frame(height: 126)
+                .overlay {
+                    if facts.trackedDays < 3 {
+                        Text("Only \(Self.count(facts.trackedDays, "full day")) tracked so far. Wear the watch at night to fill this chart.")
+                            .font(Twin.Typeface.sans(9, .semibold))
+                            .foregroundStyle(Twin.Palette.inkMuted)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Twin.Palette.cream)
+                            .overlay(Rectangle().strokeBorder(Twin.Palette.hairline, lineWidth: 0.75))
+                    }
+                }
         }
     }
 
@@ -461,6 +474,7 @@ struct ReportPage: View {
     // MARK: Formatting
 
     static func minutes(_ v: Double) -> String { v.formatted(.number.precision(.fractionLength(0))) }
+    static func count(_ n: Int, _ noun: String) -> String { "\(n) \(noun)\(n == 1 ? "" : "s")" }
     static func ratio(_ v: Double) -> String { v.formatted(.number.precision(.fractionLength(1))) + "×" }
     static func percent(_ v: Double) -> String { (v * 100).formatted(.number.precision(.fractionLength(0))) + "%" }
 }

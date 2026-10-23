@@ -69,6 +69,10 @@ struct OnboardingScreen: View {
             }
         }
         .accessibilityAddTraits(.isModal)
+        .onReceive(NotificationCenter.default.publisher(for: .shellDemo)) { note in
+            guard note.object as? String == "onboarding.next" else { return }
+            if page < count - 1 { go(to: page + 1) } else { finish() }
+        }
     }
 
     // MARK: Layout
@@ -263,7 +267,7 @@ struct OnboardingScreen: View {
         withAnimation(reduceMotion ? .easeOut(duration: 0.3) : .spring(response: 0.5, dampingFraction: 0.9)) {
             phase = .leaving
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + (reduceMotion ? 0.3 : 0.5)) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + (reduceMotion ? 0.3 : 0.4)) {
             app.showOnboarding = false
         }
     }

@@ -43,6 +43,8 @@ struct ReportFacts {
     let todayMinutes: Double
     let todayRatio: Double
     let usual: Double
+    /// Full days the watch tracked (real mode can have few).
+    let trackedDays: Int
     let weekAverage: Double
     let previousWeekAverage: Double?
     let worstHours: String?
@@ -58,6 +60,9 @@ struct ReportFacts {
     let experiment: Experiment?
     let experimentDay: Int
     let experimentAfter: Double?
+
+    /// "Your usual" is only the starting estimate until the watch has tracked 3 full days.
+    var usualIsEstimate: Bool { trackedDays < 3 }
 
     var weekChange: Double? {
         guard let prev = previousWeekAverage, prev > 0 else { return nil }
@@ -81,6 +86,7 @@ struct ReportFacts {
         windowEnd = lastDay
         dayCount = days.count
         usual = baseline
+        trackedDays = days.dropLast().filter { $0.episodeCount > 0 }.count
         todayMinutes = d.today?.scratchMinutes ?? 0
         todayRatio = d.todayRatio
 
@@ -88,7 +94,8 @@ struct ReportFacts {
         let last7 = minutes.suffix(7)
         weekAverage = last7.isEmpty ? 0 : last7.reduce(0, +) / Double(last7.count)
         let prev7 = minutes.dropLast(7).suffix(7)
-        previousWeekAverage = prev7.isEmpty ? nil : prev7.reduce(0, +) / Double(prev7.count)
+        let prevAverage = prev7.isEmpty ? 0 : prev7.reduce(0, +) / Double(prev7.count)
+        previousWeekAverage = prevAverage > 0 ? prevAverage : nil
 
         // The two night hours with the most scratching over the last week.
         var byHour = [Double](repeating: 0, count: 24)

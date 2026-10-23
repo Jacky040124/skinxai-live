@@ -21,6 +21,7 @@ final class ShellServices: ObservableObject {
         if UserDefaults.standard.string(forKey: "autoplay") == "tour" {
             tour.start(app: app, delay: 0.3)
         }
+        ShellDemoScript.runIfRequested(app: app, services: self)
     }
 
     /// Contract: onboarding auto-shows only on the very first launch AND only without `-screen`.
