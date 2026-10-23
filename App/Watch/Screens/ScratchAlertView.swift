@@ -26,7 +26,7 @@ struct ScratchAlertView: View {
                 VStack(spacing: 0) {
                     PulseTile(born: born, answered: answered, reduceMotion: reduceMotion)
                         .frame(width: tile, height: tile)
-                        .scaleEffect(shown ? 1 : 0.3)
+                        .scaleEffect(shown || reduceMotion ? 1 : 0.3)
                         .opacity(shown ? 1 : 0)
                         .padding(.top, 4)
                     Text("Were you\nscratching?")

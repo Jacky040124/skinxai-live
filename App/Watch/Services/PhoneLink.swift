@@ -27,14 +27,21 @@ final class PhoneLink: NSObject, WCSessionDelegate {
         if session.activationState != .activated { session.activate() } else { activated = true }
     }
 
-    /// Hands the episodes to WatchConnectivity. Returns false when it could not (yet).
+    /// Hands the episodes to WatchConnectivity (in batches of 200, so a long offline stretch never
+    /// becomes one huge transfer). Returns false when it could not (yet).
     @discardableResult
     func send(_ episodes: [ScratchEpisode]) -> Bool {
         guard !episodes.isEmpty, WCSession.isSupported() else { return false }
         let session = WCSession.default
         guard session.activationState == .activated else { activate(); return false }
-        guard let data = try? JSONEncoder().encode(episodes) else { return false }
-        session.transferUserInfo(["kind": "episodes", "data": data])
+        let encoder = JSONEncoder()
+        var start = 0
+        while start < episodes.count {
+            let batch = Array(episodes[start..<min(episodes.count, start + 200)])
+            guard let data = try? encoder.encode(batch) else { return false }
+            session.transferUserInfo(["kind": "episodes", "data": data])
+            start += 200
+        }
         return true
     }
 

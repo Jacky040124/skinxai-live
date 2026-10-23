@@ -42,7 +42,6 @@ struct WatchRootView: View {
             }
         }
         .background(Color.black.ignoresSafeArea())
-        .overlay(alignment: .topLeading) { DebugLayout() }
     }
 
     private var title: String {
@@ -75,19 +74,4 @@ enum WatchLayout {
     /// Content starts this far below the middle of the clock row.
     static let belowClock: CGFloat = 14
     static let titleLeading: CGFloat = 16
-}
-
-/// `-debugLayout 1` draws the safe-area insets (used while calibrating the title row).
-private struct DebugLayout: View {
-    var body: some View {
-        if UserDefaults.standard.bool(forKey: "debugLayout") {
-            GeometryReader { geo in
-                Text("T\(Int(geo.safeAreaInsets.top)) B\(Int(geo.safeAreaInsets.bottom)) L\(Int(geo.safeAreaInsets.leading)) R\(Int(geo.safeAreaInsets.trailing)) \(Int(geo.size.width))x\(Int(geo.size.height))")
-                    .font(.system(size: 9))
-                    .foregroundStyle(.green)
-                    .padding(.top, 60)
-                    .border(Color.green.opacity(0.5))
-            }
-        }
-    }
 }
