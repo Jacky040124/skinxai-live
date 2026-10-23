@@ -11,7 +11,9 @@ struct RecentScreen: View {
         let days = model.recentDays(limit: override > 0 ? override : 24)
         let longest = max(30, days.flatMap(\.episodes).map(\.duration).max() ?? 60)
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 5) {
+            // A plain VStack (at most 24 rows): the entrance plays once for the whole list instead of
+            // rows popping in late while the Crown scrolls.
+            VStack(alignment: .leading, spacing: 5) {
                 if days.isEmpty {
                     EmptyRecent()
                 }
@@ -213,7 +215,8 @@ private struct StatusLine: View {
     var detail: String
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
-            WatchTile(symbol: symbol, fill: fill, size: 22)
+            WatchTile(symbol: symbol, fill: fill, size: 22,
+                      symbolColor: fill == Twin.Palette.nightTrack ? .white : Twin.Palette.ink)
             VStack(alignment: .leading, spacing: 1) {
                 Text(title)
                     .font(WatchFont.sans(13, .bold))

@@ -63,10 +63,12 @@ struct WatchTile: View {
     var symbol: String
     var fill: Color = Twin.Palette.orange
     var size: CGFloat = 16
+    /// Ink on brand colors; pass `.white` on the dark track color.
+    var symbolColor: Color = Twin.Palette.ink
     var body: some View {
         Image(systemName: symbol)
             .font(.system(size: size * 0.58, weight: .bold))
-            .foregroundStyle(Twin.Palette.ink)
+            .foregroundStyle(symbolColor)
             .frame(width: size, height: size)
             .background(fill, in: RoundedRectangle(cornerRadius: Twin.Radius.chip, style: .continuous))
     }
