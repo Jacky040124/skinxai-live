@@ -17,7 +17,8 @@ struct ScratchAlertView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let tile = min(84, geo.size.height * 0.42)
+            let compact = geo.size.height < 175
+            let tile = min(84, geo.size.height * (compact ? 0.34 : 0.42))
             ZStack {
                 PulseGlow(born: born, answered: answered, reduceMotion: reduceMotion)
                     .frame(width: geo.size.width * 1.4, height: geo.size.width * 1.4)
@@ -29,21 +30,23 @@ struct ScratchAlertView: View {
                         .opacity(shown ? 1 : 0)
                         .padding(.top, 4)
                     Text("Were you\nscratching?")
-                        .font(WatchFont.sans(17, .bold))
+                        .font(WatchFont.sans(compact ? 15 : 17, .bold))
                         .foregroundStyle(.white)
                         .multilineTextAlignment(.center)
                         .lineSpacing(-1)
                         .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 13)
+                        .padding(.top, compact ? 9 : 13)
                         .watchRise(0.12, distance: 8)
                         .accessibilityAddTraits(.isHeader)
                     Spacer(minLength: 6)
                     HStack(spacing: 8) {
                         Button("No") { answer(false) }
-                            .buttonStyle(WatchButtonStyle(fill: Twin.Palette.nightTrack, foreground: .white, height: 40, radius: 14))
+                            .buttonStyle(WatchButtonStyle(fill: Twin.Palette.nightTrack, foreground: .white, height: compact ? 34 : 40,
+                                                          radius: 14, fontSize: compact ? 15 : 16))
                             .accessibilityLabel("No, I wasn't scratching")
                         Button("Yes") { answer(true) }
-                            .buttonStyle(WatchButtonStyle(fill: Twin.Palette.yellow, foreground: Twin.Palette.ink, height: 40, radius: 14))
+                            .buttonStyle(WatchButtonStyle(fill: Twin.Palette.yellow, foreground: Twin.Palette.ink, height: compact ? 34 : 40,
+                                                          radius: 14, fontSize: compact ? 15 : 16))
                             .accessibilityLabel("Yes, I was scratching")
                     }
                     .disabled(answered != nil)
