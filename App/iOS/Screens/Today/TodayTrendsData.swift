@@ -222,9 +222,7 @@ struct TodaySnapshot {
         min(max(date.timeIntervalSince(calendar.startOfDay(for: day.day)) / 3600, 0), 24)
     }
 
-    /// Ring progress: today ÷ (3 × usual).
-    var ringProgress: Double { ringFullAt > 0 ? minutes / ringFullAt : 0 }
-    /// Minutes at which the hero ring is full (3 × usual).
+    /// Minutes at which the hero ring is full: progress = today ÷ (3 × usual).
     var ringFullAt: Double { max(0, 3 * usual) }
     var accent: Color { level == .above ? Twin.Palette.orange : Twin.Palette.lime }
     /// Hour-chart scale: the busiest hour, but never less than a calm day's busiest hour × ~3,

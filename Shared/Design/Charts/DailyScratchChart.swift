@@ -34,7 +34,7 @@ struct DailyScratchChart: View {
 
     var bars: [Bar]
     var usual: Double? = nil
-    /// Legend name of the dashed line, e.g. "your usual" or "starting estimate".
+    /// Legend name of the dashed line: "your usual", or "usual · starting estimate" while it is a guess.
     var usualLabel = "your usual"
     var markers: [Marker] = []
     @Binding var selection: Date?
