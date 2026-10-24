@@ -24,12 +24,12 @@ struct LiveMonitorView: View {
             if wide {
                 HStack(spacing: 10) {
                     chartCard
-                    LiveCountCard(count: session.count, episodes: session.episodes).frame(width: 210)
+                    LiveCountCard(count: session.thresholdCount, seconds: session.scratchSeconds).frame(width: 210)
                 }
             } else {
                 VStack(spacing: 10) {
                     chartCard
-                    LiveCountCard(count: session.count, episodes: session.episodes).frame(height: 190)
+                    LiveCountCard(count: session.thresholdCount, seconds: session.scratchSeconds).frame(height: 190)
                 }
             }
         }
@@ -93,14 +93,14 @@ struct LiveMonitorView: View {
             } else {
                 LiveGraphView(running: session.running, scratching: session.scratching)
             }
-            if session.scratching {
+            if session.aboveThreshold {
                 Sticker(text: "Scratching", icon: "✋", fill: Twin.Palette.orange)
                     .padding(.top, 10)
                     .padding(.leading, 12)
                     .transition(reduceMotion ? .opacity : .opacity.combined(with: .offset(y: -6)))
             }
         }
-        .animation(.timingCurve(0.22, 0.9, 0.24, 1, duration: 0.25), value: session.scratching)
+        .animation(.timingCurve(0.22, 0.9, 0.24, 1, duration: 0.25), value: session.aboveThreshold)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Twin.Palette.paper)
         .clipShape(RoundedRectangle(cornerRadius: Twin.Radius.card, style: .continuous))
@@ -114,7 +114,8 @@ struct LiveMonitorView: View {
 /// sends one orange ring out from behind it.
 struct LiveCountCard: View {
     var count: Int
-    var episodes: [LiveEpisode] = []
+    /// Seconds above the scratch threshold tonight (the stopwatch).
+    var seconds: Double = 0
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var bumped = false
@@ -128,9 +129,9 @@ struct LiveCountCard: View {
         let card = RoundedRectangle(cornerRadius: Twin.Radius.card, style: .continuous)
         VStack(alignment: .leading, spacing: 0) {
             Eyebrow(text: "Scratching tonight")
-            TimelineView(.periodic(from: .now, by: 1)) { context in
+            Group {
                 VStack(spacing: 6) {
-                    scratchTime(at: context.date)
+                    scratchTime()
                         .foregroundStyle(bumped ? Twin.Palette.orange : Twin.Palette.ink)
                         .lineLimit(1)
                         .minimumScaleFactor(0.4)
@@ -162,17 +163,12 @@ struct LiveCountCard: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Scratching tonight")
-        .accessibilityValue("\(Self.seconds(episodes, at: Date())) seconds, \(count) scratches")
-    }
-
-    /// Seconds of scratching tonight (an episode still going counts up to now).
-    static func seconds(_ episodes: [LiveEpisode], at now: Date) -> Int {
-        Int(episodes.reduce(0) { $0 + max(0, ($1.end ?? now).timeIntervalSince($1.start)) }.rounded())
+        .accessibilityValue("\(Int(seconds)) seconds, \(count) scratches")
     }
 
     /// "45 s" under a minute, then "1 min 23 s": big numbers, small units.
-    private func scratchTime(at now: Date) -> Text {
-        let total = Self.seconds(episodes, at: now)
+    private func scratchTime() -> Text {
+        let total = Int(seconds)
         let big = Twin.Typeface.sans(64, .bold), small = Twin.Typeface.sans(22, .bold)
         if total < 60 {
             return Text("\(total)").font(big).tracking(-3) + Text(" s").font(small)

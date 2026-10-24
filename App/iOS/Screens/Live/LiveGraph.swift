@@ -40,6 +40,48 @@ final class LiveMotionFeed: @unchecked Sendable {
     }
 }
 
+/// Scratch intensity from wrist motion, one value at a time (25 a second), and the scratch threshold:
+///
+///     R(n) = √( mean of m² over the last 12 values )   (0.48 s)
+///     I(n) = I(n−1) + 0.15 · (R(n) − I(n−1))
+///     scratching starts when I ≥ 0.20 g and stops when I < 0.15 g (a small gap so it doesn't flicker)
+///
+/// The graph draws I and colors it orange while above the threshold; `LiveSession` runs the same meter
+/// on every value the relay delivers to time the scratching (the stopwatch) and count the scratches.
+struct IntensityMeter {
+    static let startAt = 0.20
+    static let stopAt = 0.15
+    static let window = 12
+    static let smoothing = 0.15
+
+    private var recent = [Double](repeating: 0, count: 12)
+    private var index = 0
+    private var squares = 0.0
+    private(set) var level = 0.0
+    private(set) var above = false
+
+    /// Adds one wrist-motion value; returns true when this value starts a scratch.
+    @discardableResult
+    mutating func add(_ m: Double) -> Bool {
+        let old = recent[index]
+        recent[index] = m
+        index = (index + 1) % Self.window
+        squares = max(0, squares + m * m - old * old)
+        level += Self.smoothing * ((squares / Double(Self.window)).squareRoot() - level)
+        if !above, level >= Self.startAt { above = true; return true }
+        if above, level < Self.stopAt { above = false }
+        return false
+    }
+
+    /// No data for a moment: let the level settle.
+    mutating func settle() {
+        level *= 0.92
+        if above, level < Self.stopAt { above = false }
+    }
+
+    mutating func reset() { self = IntensityMeter() }
+}
+
 /// The live monitor's graph: how hard the wrist moves over the last 15 seconds, drawn as a line with
 /// the area under it, scrolling right → left with "now" on the right.
 ///
@@ -82,17 +124,12 @@ final class LiveGraphModel {
     static let seconds = 15.0                   // seconds on screen
     static let capacity = Int(rate * seconds) + 2
     static let top = 1.6                        // g at the top of the plot
-    static let smoothing = 0.15                 // I(n) = I(n−1) + 0.15 · (R(n) − I(n−1))
-    static let window = 12                      // R(n): RMS over the last 12 values (0.48 s)
-    private var recent = [Double](repeating: 0, count: 12)
-    private var recentIndex = 0
-    private var recentSquares = 0.0
+    private var meter = IntensityMeter()
     private static let gridLevels: [Double] = [0, 0.5, 1.0, 1.5]
 
     private var values = [Double](repeating: 0, count: capacity)
     private var hot = [Bool](repeating: false, count: capacity)
     private var newest = capacity - 1
-    private var smooth = 0.0
     /// Values the clock owes the graph (fractional), and how long the feed has been empty.
     private var owed = 0.0
     private var starved = 0
@@ -112,8 +149,7 @@ final class LiveGraphModel {
         let feed = LiveMotionFeed.shared
         guard running else {
             feed.clear()
-            smooth += Self.smoothing * (0 - smooth)
-            for _ in 0..<n { push(smooth, hot: false) }
+            for _ in 0..<n { meter.settle(); push(meter.level, hot: false) }
             return
         }
         // Keep about 0.3 s of motion in hand (batches come every 0.3 s): catch up when more waits.
@@ -123,23 +159,14 @@ final class LiveGraphModel {
         for i in 0..<n {
             if i < got.count {
                 starved = 0
-                smooth += Self.smoothing * (rms(adding: got[i]) - smooth)
+                meter.add(got[i])
             } else {
                 // Nothing arrived yet: hold the line for half a second, then let it settle.
                 starved += 1
-                if starved > 12 { smooth *= 0.92 }
+                if starved > 12 { meter.settle() }
             }
-            push(smooth, hot: scratching)
+            push(meter.level, hot: meter.above)
         }
-    }
-
-    /// Adds a value to the 0.48 s window and returns the window's RMS.
-    private func rms(adding m: Double) -> Double {
-        let old = recent[recentIndex]
-        recent[recentIndex] = m
-        recentIndex = (recentIndex + 1) % Self.window
-        recentSquares = max(0, recentSquares + m * m - old * old)
-        return (recentSquares / Double(Self.window)).squareRoot()
     }
 
     private func push(_ value: Double, hot isHot: Bool) {
@@ -174,6 +201,14 @@ final class LiveGraphModel {
                          at: CGPoint(x: px, y: plot.maxY + 8),
                          anchor: seconds == 15 ? .topLeading : seconds == 0 ? .topTrailing : .top)
         }
+        // The scratch threshold.
+        var threshold = Path()
+        threshold.move(to: CGPoint(x: plot.minX, y: y(IntensityMeter.startAt)))
+        threshold.addLine(to: CGPoint(x: plot.maxX, y: y(IntensityMeter.startAt)))
+        context.stroke(threshold, with: .color(Color(red: 0.886, green: 0.451, blue: 0.227).opacity(0.7)),
+                       style: StrokeStyle(lineWidth: 1.2, dash: [5, 4]))
+        context.draw(Text("SCRATCH THRESHOLD").font(Twin.Typeface.mono(9)).foregroundColor(Color(red: 0.886, green: 0.451, blue: 0.227)),
+                     at: CGPoint(x: plot.minX + 4, y: y(IntensityMeter.startAt) - 4), anchor: .bottomLeading)
         context.draw(Text("WRIST MOTION").font(Twin.Typeface.mono(10)).foregroundColor(Twin.Palette.inkHint),
                      at: CGPoint(x: plot.maxX, y: 14), anchor: .topTrailing)
 

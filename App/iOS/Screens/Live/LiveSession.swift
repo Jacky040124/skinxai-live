@@ -58,6 +58,13 @@ final class LiveSession: ObservableObject {
     /// the pill doesn't blink out on a network hiccup.
     @Published private(set) var running = false
 
+    /// The scratch stopwatch (see `IntensityMeter`): seconds tonight with the wrist-motion intensity above
+    /// the scratch threshold, how many times it crossed it, and whether it is above right now.
+    @Published private(set) var scratchSeconds: Double = 0
+    @Published private(set) var thresholdCount = 0
+    @Published private(set) var aboveThreshold = false
+    private var meter = IntensityMeter()
+
     /// A new session began (the watch's Start, or batches after a minute of silence): count from 0.
     let sessionStarted = PassthroughSubject<Void, Never>()
     /// He woke up: the watch's Stop arrived (or Done closed a monitor that had gone quiet). Last night is ready.
@@ -155,7 +162,28 @@ final class LiveSession: ObservableObject {
     func reset() {
         rules.reset(at: Date())
         LiveMotionFeed.shared.clear()
+        resetStopwatch()
         publish()
+    }
+
+    /// Runs the meter over a batch's wrist motion (25 values a second, 0.04 s each).
+    private func runStopwatch(_ motion: [Double]) {
+        guard !motion.isEmpty else { return }
+        var seconds = scratchSeconds, count = thresholdCount
+        for m in motion {
+            if meter.add(m) { count += 1 }
+            if meter.above { seconds += 0.04 }
+        }
+        if seconds != scratchSeconds { scratchSeconds = seconds }
+        if count != thresholdCount { thresholdCount = count }
+        if meter.above != aboveThreshold { aboveThreshold = meter.above }
+    }
+
+    private func resetStopwatch() {
+        meter.reset()
+        scratchSeconds = 0
+        thresholdCount = 0
+        aboveThreshold = false
     }
 
     // MARK: - Input
@@ -191,8 +219,13 @@ final class LiveSession: ObservableObject {
         switch message {
         case .batch(let batch):
             let changes = rules.take(batch, at: now)
-            if changes.contains(.sessionStarted) { LiveMotionFeed.shared.clear() }
-            if batch.live != false { LiveMotionFeed.shared.append(batch.motion) }   // for the live graph
+            if changes.contains(.sessionStarted) { LiveMotionFeed.shared.clear(); resetStopwatch() }
+            if batch.live != false {
+                LiveMotionFeed.shared.append(batch.motion)   // for the live graph
+                runStopwatch(batch.motion)
+            } else if aboveThreshold {
+                aboveThreshold = false
+            }
             if batch.live != false { greeted = false }        // the watch is (still) tracking
             publish(now)
             #if DEBUG
