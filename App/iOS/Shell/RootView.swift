@@ -58,7 +58,7 @@ struct RootView: View {
 
     @ViewBuilder private func page(_ tab: Tab) -> some View {
         switch tab {
-        case .today: TodayScreen()
+        case .today: SummaryScreen()
         case .trends: TrendsScreen()
         case .insight: InsightScreen()
         }

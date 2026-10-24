@@ -1,24 +1,26 @@
 import SwiftUI
 import EczemaKit
 
-/// Today — last night at a glance (STAGE-SPEC §3). Every number comes from `StageStory`.
+/// Summary — is my eczema normal, is it getting worse, what might be behind it (STAGE-SPEC §3,
+/// redesigned for a 3-second read). Every number comes from `StageStory`.
 ///
-/// The last-night card (ring, "× your usual", the worst hours, the night in quarter hours), the pink
-/// "Ask Claude what changed" card that opens Insight, Sleep and Stress, and "Around you". The top bar
-/// has the live pill (only while the watch tracks sleep) next to the avatar.
+/// Top to bottom: the status card (flare in red, normal in lime), the last 7 nights against your
+/// usual, the possible triggers with the way to Insight (flare only), the factors as six tiles, and
+/// last night in quarter hours. The top bar has the live pill (only while the watch tracks sleep)
+/// next to the avatar.
 ///
-/// Sections rise in one after another, numbers count up, the ring fills, the bars grow. When he wakes
-/// up (the watch's Stop, `LiveSession.wokeUp`), the sections play their entrance again once Today is
-/// back on screen: last night is ready. A few seconds of network silence never do that.
-struct TodayScreen: View {
+/// Sections rise in one after another, numbers count up, the bars grow. When he wakes up (the
+/// watch's Stop, `LiveSession.wokeUp`), the sections play their entrance again once Summary is back
+/// on screen: last night is ready. A few seconds of network silence never do that.
+struct SummaryScreen: View {
     @EnvironmentObject var app: AppState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Bumped to play the entrance again.
     @State private var entrance = 0
-    /// Today is on screen (not covered by the live monitor, not on another tab).
+    /// Summary is on screen (not covered by the live monitor, not on another tab).
     @State private var onScreen = false
-    /// He woke up while the live monitor covered Today: replay when Today is back.
+    /// He woke up while the live monitor covered Summary: replay when Summary is back.
     @State private var replayWhenBack = false
     /// Hides the sections while they wait for that replay, so the monitor dissolves into an empty
     /// page that fills in, not into last night's card that then blanks and starts over.
@@ -27,7 +29,7 @@ struct TodayScreen: View {
     @State private var now = Date()
 
     var body: some View {
-        ScreenScaffold(title: "Today", subtitle: TodayStory.topBarDate(now)) {
+        ScreenScaffold(title: "Summary", subtitle: TodayStory.topBarDate(now)) {
             HStack(spacing: 10) {
                 LivePill()
                 UserAvatar()
@@ -62,7 +64,7 @@ struct TodayScreen: View {
                     } else {
                         replayWhenBack = true
                         heldForReplay = true
-                        // Safety: never leave Today blank if it doesn't get its onAppear back
+                        // Safety: never leave Summary blank if it doesn't get its onAppear back
                         // (the monitor takes about 1 s to close).
                         Task { @MainActor in
                             try? await Task.sleep(for: .seconds(3))
@@ -77,45 +79,28 @@ struct TodayScreen: View {
     }
 
     private var sections: some View {
-        VStack(alignment: .leading, spacing: Twin.Space.m) {
-            section(0) { TodayNightCard() }
-            section(1) {
-                // Leads to Insight; it never says what changed (Claude finds out there).
-                TodayActionCard(glyph: "✶", title: TodayStory.ctaTitle, subtitle: "Ask Claude what changed") {
-                    app.select(.insight)
-                } accessory: { EmptyView() }
-                .accessibilityHint("Opens Insight")
-            }
-            section(2) {
-                HStack(alignment: .top, spacing: Twin.Space.m) {
-                    sleepCard
-                    stressCard
+        let story = SummaryStory.current(now: now)
+        return VStack(alignment: .leading, spacing: Twin.Space.m) {
+            section(0) { SummaryStatusCard(story: story) }
+            section(1) { SummaryWeekCard(story: story) }
+            if story.status == .flare {
+                section(2) {
+                    // The things that changed; Claude narrows them down on Insight.
+                    SummaryTriggersCard(story: story) { app.select(.insight) }
                 }
-                .fixedSize(horizontal: false, vertical: true)   // both cards as tall as the taller one
+                .id("summary-triggers")
             }
-            section(3) { TodayAroundYouCard() }
+            section(3) { SummaryFactorsCard(story: story) }
+                .id("summary-factors")
+            if story.hasNightDetail {
+                section(4) { SummaryNightCard() }
+            }
         }
     }
 
     /// Entrance choreography: each section rises in after the previous one (fade only with Reduce Motion).
     private func section<V: View>(_ i: Int, @ViewBuilder _ content: () -> V) -> some View {
         content().riseIn(0.05 + Double(i) * 0.1, distance: reduceMotion ? 0 : 16)
-    }
-
-    private var sleepCard: some View {
-        let last = StageStory.LastNight.sleepHours
-        let usual = TodayStory.usualSleep
-        return TodayMiniCard(title: "Sleep", value: last, decimals: 1, unit: "h",
-                             note: "woke up \(StageStory.LastNight.wakeUps)×",
-                             worse: last < usual - 0.5, delay: 0.35)
-    }
-
-    private var stressCard: some View {
-        let hrv = Double(StageStory.LastNight.hrvMs)
-        let usual = Double(StageStory.usualHrvMs)
-        let note = hrv < usual * 0.9 ? "lower than usual" : (hrv > usual * 1.1 ? "higher than usual" : "about usual")
-        return TodayMiniCard(title: "Stress (HRV)", value: hrv, decimals: 0, unit: "ms", note: note,
-                             worse: hrv < usual * 0.9, delay: 0.42)
     }
 
     /// Plays the entrance again (from the top) after `delay`, once the monitor is gone and the phone is upright.
