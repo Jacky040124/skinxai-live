@@ -77,19 +77,12 @@ struct EpisodeTracker {
     mutating func feed(_ w: WindowResult) -> [DetectorEvent] {
         switch state {
         case .idle:
-            if w.isScratch { state = .candidate(w, gap: 0) }
+            guard w.isScratch else { return [] }
+            if config.minWindows <= 1 { return begin(with: [w]) }
+            state = .candidate(w, gap: 0)
             return []
         case let .candidate(first, gap):
-            if w.isScratch {
-                let id = UUID()
-                let windows = [first, w]
-                state = .active(id: id, windows: windows, gap: 0)
-                let start = first.features.start + config.hopSeconds / 2
-                let alert = lastAlert.map { start - $0 >= config.alertCooldown } ?? true
-                if alert { lastAlert = start }
-                return [.episodeStarted(EpisodeStart(id: id, start: Date(timeIntervalSinceReferenceDate: start), shouldAlert: alert,
-                                                     windows: windows.map(\.features), meanHz: Self.meanHz(windows)))]
-            }
+            if w.isScratch { return begin(with: [first, w]) }
             state = gap >= 1 ? .idle : .candidate(first, gap: gap + 1)
             return []
         case let .active(id, windows, gap):
@@ -104,6 +97,16 @@ struct EpisodeTracker {
             state = .active(id: id, windows: windows, gap: gap + 1)
             return []
         }
+    }
+
+    private mutating func begin(with windows: [WindowResult]) -> [DetectorEvent] {
+        let id = UUID()
+        state = .active(id: id, windows: windows, gap: 0)
+        let start = windows[0].features.start + config.hopSeconds / 2
+        let alert = lastAlert.map { start - $0 >= config.alertCooldown } ?? true
+        if alert { lastAlert = start }
+        return [.episodeStarted(EpisodeStart(id: id, start: Date(timeIntervalSinceReferenceDate: start), shouldAlert: alert,
+                                             windows: windows.map(\.features), meanHz: Self.meanHz(windows)))]
     }
 
     /// End of the stream: close an open episode, forget a lone scratch window.

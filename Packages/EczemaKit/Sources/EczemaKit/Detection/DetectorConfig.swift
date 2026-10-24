@@ -43,10 +43,26 @@ public struct DetectorConfig: Sendable, Hashable {
     public var alertCooldown: TimeInterval = 45
     /// A hole in the sample stream longer than this ends the current episode and restarts the windows.
     public var maxSampleGap: TimeInterval = 0.5
+    /// Scratch windows in a row needed to start an episode (2 = about 4.5 s of scratching, 1 = 3 s).
+    public var minWindows: Int = 2
+    /// Windows moving harder than this (g) never count as scratching (waving, big arm moves).
+    public var maxStrength: Double = .infinity
 
     public init() {}
 
     public static let standard = DetectorConfig()
+
+    /// Live detection on the wrist (stage demo + real use): reacts after one 3 s window, lets gentler
+    /// scratching through, and ignores big arm movements such as waving.
+    public static let live: DetectorConfig = {
+        var c = DetectorConfig()
+        c.movementGate = 0.012
+        c.threshold = 0.42
+        c.minWindows = 1
+        c.maxStrength = 0.9
+        c.alertCooldown = 20
+        return c
+    }()
 
     /// Samples per window (150 at 50 Hz).
     public var windowLength: Int { max(8, Int((windowSeconds * sampleRate).rounded())) }

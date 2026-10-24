@@ -91,6 +91,8 @@ final class WatchModel: ObservableObject {
     @Published private(set) var flash: WatchFlash?
     /// What the ring showed when the alert came up; it resumes from here when the alert closes.
     @Published private(set) var ringResume: TodaySummary?
+    /// Big-screen relay: true = last send arrived, false = failing, nil = not sending.
+    @Published private(set) var screenLink: Bool?
 
     private let store = WatchStore()
     private let link = PhoneLink.shared
@@ -133,6 +135,10 @@ final class WatchModel: ObservableObject {
         rebuildDisplay()
 
         monitor.onEvent = { [weak self] event in self?.handle(event) }
+        LiveStreamer.shared.onStatus = { [weak self] ok in
+            guard let self, self.live != .off, self.screenLink != ok else { return }
+            withAnimation(Twin.Motion.spring) { self.screenLink = ok }
+        }
         link.onActivated = { [weak self] in self?.syncToPhone() }
         link.onFailed = { [weak self] ids in self?.store.markUnsent(ids) }
         link.onContext = { [weak self] context in self?.receive(context) }
@@ -401,6 +407,7 @@ final class WatchModel: ObservableObject {
             withAnimation(Twin.Motion.spring) {
                 live = .off
                 ticks = []
+                screenLink = nil
             }
         case let .window(w):
             tickCounter += 1

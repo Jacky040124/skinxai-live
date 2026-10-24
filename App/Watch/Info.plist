@@ -26,6 +26,10 @@
 	<string>Eczema Twin keeps a workout session so it can detect scratching in the background.</string>
 	<key>NSMotionUsageDescription</key>
 	<string>Eczema Twin reads wrist motion to detect scratching.</string>
+	<key>TwinLiveHost</key>
+	<string>$(TWIN_LIVE_HOST)</string>
+	<key>TwinLiveKey</key>
+	<string>$(TWIN_LIVE_KEY)</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>SpaceGrotesk.ttf</string>

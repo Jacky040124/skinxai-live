@@ -64,7 +64,8 @@ public final class ScratchDetector {
         if xs.count == config.windowLength {
             let f = extractor.features(x: xs, y: ys, z: zs, start: ts[0])
             let p = model.probability(f)
-            let result = WindowResult(features: f, probability: p, isScratch: f.moving && p >= config.threshold)
+            let result = WindowResult(features: f, probability: p,
+                                     isScratch: f.moving && p >= config.threshold && f.strength <= config.maxStrength)
             windowCount += 1
             if f.moving { movingCount += 1 }
             events.append(.window(result))

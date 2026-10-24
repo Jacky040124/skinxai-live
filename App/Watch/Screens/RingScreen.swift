@@ -248,7 +248,7 @@ struct LiveControl: View {
                         Image(systemName: "waveform")
                             .font(.system(size: 13, weight: .bold))
                             .symbolEffect(.variableColor.iterative, options: .nonRepeating, value: on)
-                        Text("Start detecting")
+                        Text("Start monitoring")
                     }
                     .foregroundStyle(Twin.Palette.ink)
                     .transition(.blurReplace)
@@ -290,9 +290,7 @@ private struct LiveRunning: View {
         HStack(spacing: 8) {
             LiveDot(size: 7)
             VStack(alignment: .leading, spacing: -1) {
-                Text(backing == .simulated ? "SIM" : "LIVE")
-                    .font(WatchFont.mono(10, bold: true))
-                    .foregroundStyle(Twin.Palette.cyan)
+                LiveBadge(backing: backing)
                 Text(since, style: .timer)
                     .font(WatchFont.mono(10))
                     .foregroundStyle(.white.opacity(0.85))
@@ -306,6 +304,19 @@ private struct LiveRunning: View {
                 .frame(width: 10, height: 10)
                 .padding(.leading, 2)
         }
+    }
+}
+
+/// "LIVE ↗" when the big screen is receiving, "LIVE ✕" when sends fail, plain "LIVE" before the first send.
+private struct LiveBadge: View {
+    @EnvironmentObject var model: WatchModel
+    var backing: LiveMonitor.Backing
+    var body: some View {
+        let base = backing == .simulated ? "SIM" : "LIVE"
+        let suffix: String = switch model.screenLink { case .some(true): " ↗"; case .some(false): " ✕"; case .none: "" }
+        Text(base + suffix)
+            .font(WatchFont.mono(10, bold: true))
+            .foregroundStyle(model.screenLink == false ? Twin.Palette.orange : Twin.Palette.cyan)
     }
 }
 

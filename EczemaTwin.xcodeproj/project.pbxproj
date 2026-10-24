@@ -36,6 +36,7 @@
 		44E1B82DB431995C57861E74 /* SignalLineChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4C2E3A3EE2BA5714D4874E1 /* SignalLineChart.swift */; };
 		460A0A6955DA3D851D5F5841 /* LiveMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E03FADE1874C4C509264EC8 /* LiveMonitor.swift */; };
 		48399A7F09164C0C6E6EED33 /* ExperimentScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D032EE2BCBD0BBDDE56E0E0 /* ExperimentScreen.swift */; };
+		48F3E315ABEC5638185AB796 /* LiveStreamer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D71746025FCD0137A6FD57A /* LiveStreamer.swift */; };
 		49DBBE7537FBF36FA86BF2FB /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F964877FF3ADC4D998AAC93 /* RootView.swift */; };
 		4CFF2785CF7513EE7129DC52 /* WatchRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1896AB6DB5F3888888AF15F3 /* WatchRootView.swift */; };
 		4DA5C5D90AFBD01084945F06 /* ScratchAlertView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9E92751AB72B2569A959BBE2 /* ScratchAlertView.swift */; };
@@ -130,6 +131,8 @@
 		18337E3CD736F702EE74ECD0 /* TagSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TagSheet.swift; sourceTree = "<group>"; };
 		188F7FF09D624D55923C26C6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		1896AB6DB5F3888888AF15F3 /* WatchRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchRootView.swift; sourceTree = "<group>"; };
+		1B25CA124BB6108D32C81089 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
+		1D71746025FCD0137A6FD57A /* LiveStreamer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveStreamer.swift; sourceTree = "<group>"; };
 		2041CCD0264F87E0A11694E2 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		20725F17361B3FA040D79E6C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		208DBA8B4BEC280B2C06EBFB /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
@@ -356,6 +359,7 @@
 			children = (
 				A751231395BD9B08F0494C6A /* BackgroundRecorder.swift */,
 				4E03FADE1874C4C509264EC8 /* LiveMonitor.swift */,
+				1D71746025FCD0137A6FD57A /* LiveStreamer.swift */,
 				3A0CBE45AF6B83E4BCF4F4A4 /* PhoneLink.swift */,
 				7EDAA8438D873B58FD148800 /* WatchDemoStory.swift */,
 				0DDD38B993F1AA1D0BC536CA /* WatchStore.swift */,
@@ -369,6 +373,7 @@
 				20725F17361B3FA040D79E6C /* Assets.xcassets */,
 				347396144EA7921BA5D444F0 /* EczemaTwinWatchApp.swift */,
 				188F7FF09D624D55923C26C6 /* Info.plist */,
+				1B25CA124BB6108D32C81089 /* Secrets.xcconfig */,
 				83588CEFBC0B69A2FB905A13 /* Watch.entitlements */,
 				D76256B4672DD738B542C92E /* WatchModel.swift */,
 				E75F4075DE13665B01073360 /* Design */,
@@ -610,6 +615,7 @@
 				FB96FE91564D485C7A2AF6FA /* EczemaTwinWatchApp.swift in Sources */,
 				3B7C6E1ADB8ADA307ECD856C /* HourlyScratchChart.swift in Sources */,
 				460A0A6955DA3D851D5F5841 /* LiveMonitor.swift in Sources */,
+				48F3E315ABEC5638185AB796 /* LiveStreamer.swift in Sources */,
 				FD5C701082C639F24C217B9A /* PhoneLink.swift in Sources */,
 				424A981CE3A8B1FCC76E48D6 /* RecentScreen.swift in Sources */,
 				968108C8D621FC17FFE5F201 /* RingScreen.swift in Sources */,
@@ -762,6 +768,7 @@
 		};
 		0AF52EE9B9198B1FC35440A2 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 1B25CA124BB6108D32C81089 /* Secrets.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = App/Watch/Watch.entitlements;
@@ -775,6 +782,7 @@
 		};
 		59AA04D222984194EF60731F /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 1B25CA124BB6108D32C81089 /* Secrets.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = App/Watch/Watch.entitlements;

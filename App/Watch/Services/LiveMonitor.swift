@@ -60,6 +60,7 @@ final class LiveMonitor: NSObject {
             Task { @MainActor in self?.deliver(events) }
         }
         self.pipe = pipe
+        LiveStreamer.shared.start()
 
         guard real else {
             let sim = SimulatedSensor()
@@ -91,6 +92,7 @@ final class LiveMonitor: NSObject {
         if let r = runtime { runtime = nil; r.invalidate() }
         pipe?.finish()
         pipe = nil
+        LiveStreamer.shared.stop()
         backing = nil
         onEvent?(.stopped(reason: reason))
     }
@@ -234,20 +236,28 @@ final class DetectorPipe: @unchecked Sendable {
     private let emit: ([DetectorEvent]) -> Void
 
     init(model: ScratchModel, source: EpisodeSource, lastAlert: Date?, emit: @escaping ([DetectorEvent]) -> Void) {
-        detector = ScratchDetector(model: model, source: source, lastAlert: lastAlert)
+        detector = ScratchDetector(model: model, config: .live, source: source, lastAlert: lastAlert)
         self.emit = emit
     }
 
     /// Only from `queue` (the motion handler's operation queue runs on it).
     func processOnQueue(_ sample: MotionSample) {
+        LiveStreamer.shared.add(sample)
         let events = detector.process(sample)
-        if !events.isEmpty { emit(events) }
+        if !events.isEmpty {
+            LiveStreamer.shared.add(events)
+            emit(events)
+        }
     }
 
     func process(_ samples: [MotionSample]) {
         queue.async {
+            LiveStreamer.shared.add(samples)
             let events = self.detector.process(samples)
-            if !events.isEmpty { self.emit(events) }
+            if !events.isEmpty {
+                LiveStreamer.shared.add(events)
+                self.emit(events)
+            }
         }
     }
 
@@ -256,7 +266,10 @@ final class DetectorPipe: @unchecked Sendable {
     func finish() {
         queue.async {
             let events = self.detector.finish()
-            if !events.isEmpty { self.emit(events) }
+            if !events.isEmpty {
+                LiveStreamer.shared.add(events)
+                self.emit(events)
+            }
         }
     }
 }

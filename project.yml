@@ -58,6 +58,9 @@ targets:
       - path: Shared
     dependencies:
       - package: EczemaKit
+    configFiles:
+      Debug: App/Watch/Secrets.xcconfig
+      Release: App/Watch/Secrets.xcconfig
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.jackyzhong.eczematwin2.watchkitapp
@@ -73,6 +76,8 @@ targets:
         WKApplication: true
         WKCompanionAppBundleIdentifier: com.jackyzhong.eczematwin2
         WKBackgroundModes: [workout-processing, physical-therapy]
+        TwinLiveHost: $(TWIN_LIVE_HOST)
+        TwinLiveKey: $(TWIN_LIVE_KEY)
         UIAppFonts: [SpaceGrotesk.ttf, SpaceMono-Regular.ttf, SpaceMono-Bold.ttf]
         NSMotionUsageDescription: Eczema Twin reads wrist motion to detect scratching.
         NSHealthShareUsageDescription: Eczema Twin keeps a workout session so it can detect scratching in the background.
