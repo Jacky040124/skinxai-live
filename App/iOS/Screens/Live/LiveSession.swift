@@ -23,6 +23,14 @@ struct LiveEpisode: Identifiable, Equatable {
 ///
 /// When the watch stops (a `live: false` batch, or 8 s without batches) an open monitor closes
 /// itself (`LiveMonitorPresenter.watchDidStop()`); a closed one just loses its pill.
+///
+/// Launch arguments:
+///
+///     -screen live              open the monitor at launch
+///     -liveSim 1                the built-in stand-in watch instead of the relay (no network)
+///     -liveSimStop <seconds>    …which taps Stop that long after tracking began
+///     -liveReplay <id>          (Debug) play a relay recording instead of the relay
+///     -screen livepill          (Debug) Today's top bar with the pill, see `LivePillHarness`
 @MainActor
 final class LiveSession: ObservableObject {
     static let shared = LiveSession()
