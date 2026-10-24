@@ -83,7 +83,6 @@ struct LiveMonitorView: View {
         .font(Twin.Typeface.mono(16))
         .foregroundStyle(Twin.Palette.inkHint)
         .lineLimit(1)
-        .accessibilityLabel("Tracking time")
     }
 
     private var chartCard: some View {

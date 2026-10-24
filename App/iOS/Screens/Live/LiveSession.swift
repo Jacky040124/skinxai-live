@@ -56,9 +56,10 @@ final class LiveSession: ObservableObject {
 
     private init() {
         let defaults = UserDefaults.standard
-        var replayID: String?
         #if DEBUG
-        replayID = defaults.string(forKey: "liveReplay")
+        let replayID = defaults.string(forKey: "liveReplay")
+        #else
+        let replayID: String? = nil
         #endif
         if let sim = defaults.string(forKey: "liveSim"), !["", "0", "NO", "no", "false"].contains(sim) {
             let stop = defaults.double(forKey: "liveSimStop")

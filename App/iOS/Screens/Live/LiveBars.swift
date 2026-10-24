@@ -40,6 +40,10 @@ final class LiveBarsModel {
     static let step: CGFloat = 11               // bar + 5 pt gap
     static let trailing: CGFloat = 16           // the newest bar's distance from the right edge
     private static let capacity = 128           // > the widest chart (932 pt / 11 pt)
+    private static let lineShading = GraphicsContext.Shading.color(Twin.Palette.ink.opacity(0.10))
+    private static let calmShading = GraphicsContext.Shading.color(Twin.Palette.ink.opacity(0.16))
+    private static let hotShading = GraphicsContext.Shading.color(Twin.Palette.orange)
+    private static let edgeShading = GraphicsContext.Shading.color(Twin.Palette.ink)
 
     private var heights = [Double](repeating: 0.03, count: capacity)
     private var hot = [Bool](repeating: false, count: capacity)
@@ -102,7 +106,7 @@ final class LiveBarsModel {
         var line = Path()
         line.move(to: CGPoint(x: 0, y: mid + 0.5))
         line.addLine(to: CGPoint(x: w, y: mid + 0.5))
-        context.stroke(line, with: .color(Twin.Palette.ink.opacity(0.10)), lineWidth: 1)
+        context.stroke(line, with: Self.lineShading, lineWidth: 1)
 
         // Smooth scroll: the whole row slides one step left over each 140 ms.
         let frac = still ? 0 : CGFloat(min(1, max(0, ((lastFrame ?? newestAt) - newestAt) / Self.interval)))
@@ -134,9 +138,9 @@ final class LiveBarsModel {
                 calmBars.addRoundedRect(in: rect, cornerSize: corner)
             }
         }
-        context.fill(calmBars, with: .color(Twin.Palette.ink.opacity(0.16)))
-        context.fill(hotBars, with: .color(Twin.Palette.orange))
-        context.stroke(hotBars, with: .color(Twin.Palette.ink), lineWidth: 1)
+        context.fill(calmBars, with: Self.calmShading)
+        context.fill(hotBars, with: Self.hotShading)
+        context.stroke(hotBars, with: Self.edgeShading, lineWidth: 1)
     }
 
     private static func smoothstep(_ x: Double) -> Double { x * x * (3 - 2 * x) }

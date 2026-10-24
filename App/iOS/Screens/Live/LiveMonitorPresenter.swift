@@ -110,7 +110,7 @@ final class LiveMonitorPresenter: ObservableObject {
         withAnimation(.easeOut(duration: 0.2)) { contentShown = false }
         after(0.2) {
             OrientationLock.set(.portrait)
-            self.after(0.55) { self.dismiss() }
+            self.after(0.4) { self.dismiss() }               // the turn takes ~0.3 s
         }
     }
 
