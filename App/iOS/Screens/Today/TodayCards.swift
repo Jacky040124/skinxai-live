@@ -127,32 +127,25 @@ struct TodayActionCard<Accessory: View>: View {
 
 // MARK: - Sleep / Stress mini cards
 
-/// "SLEEP 5.1 h · ■ woke up 4×": the value counts up, spark bars show the last nights (last night
-/// highlighted, your usual dashed), and a square says worse (orange) or fine (lime).
+/// "SLEEP 5.1 h · ■ woke up 4×": the value counts up; the square says worse than usual (orange) or
+/// fine (lime).
 struct TodayMiniCard: View {
     let title: String
     let value: Double
     let decimals: Int
     let unit: String
     let note: String
-    /// Worse than usual: orange square and last bar; otherwise lime square and an ink bar.
+    /// Worse than usual: orange square; otherwise lime.
     let worse: Bool
-    /// The last nights, last night last.
-    let history: [Double]
-    var usual: Double? = nil
     var delay: Double = 0.3
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 4) {
             Eyebrow(text: title)
             HStack(alignment: .lastTextBaseline, spacing: 3) {
                 CountUp(value: value, decimals: decimals, font: Twin.Typeface.sans(34, .bold), delay: delay)
                     .tracking(-1)
                 Text(unit).font(Twin.Typeface.sans(15)).foregroundStyle(Twin.Palette.inkHint)
-                Spacer(minLength: 6)
-                SparkBars(values: history, highlight: worse ? Twin.Palette.orange : Twin.Palette.ink,
-                          usual: usual, delay: delay + 0.25)
-                    .frame(width: 44, height: 22)
             }
             HStack(spacing: 6) {
                 RoundedRectangle(cornerRadius: 1.5, style: .continuous)
@@ -166,6 +159,7 @@ struct TodayMiniCard: View {
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
             }
+            .padding(.top, 2)
         }
         .frame(maxHeight: .infinity, alignment: .top)
         .twinCard()

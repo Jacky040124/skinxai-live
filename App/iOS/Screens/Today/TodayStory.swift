@@ -46,9 +46,6 @@ enum TodayStory {
         return streak >= 2 ? "Up \(streak) nights in a row" : "Last night was above your usual"
     }
 
-    /// The last `n` nights of a value, last night last (the mini cards' spark bars).
-    static func recent(_ values: [Double], _ n: Int = 7) -> [Double] { Array(values.suffix(n)) }
-
     /// Your usual sleep: the median of the nights before the new body wash.
     static var usualSleep: Double {
         let before = StageStory.sleepHours.prefix(StageStory.bodyWashNight).sorted()

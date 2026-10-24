@@ -90,8 +90,7 @@ struct TodayScreen: View {
         let usual = TodayStory.usualSleep
         return TodayMiniCard(title: "Sleep", value: last, decimals: 1, unit: "h",
                              note: "woke up \(StageStory.LastNight.wakeUps)×",
-                             worse: last < usual - 0.5,
-                             history: TodayStory.recent(StageStory.sleepHours), usual: usual, delay: 0.35)
+                             worse: last < usual - 0.5, delay: 0.35)
     }
 
     private var stressCard: some View {
@@ -99,8 +98,7 @@ struct TodayScreen: View {
         let usual = Double(StageStory.usualHrvMs)
         let note = hrv < usual * 0.9 ? "lower than usual" : (hrv > usual * 1.1 ? "higher than usual" : "about usual")
         return TodayMiniCard(title: "Stress (HRV)", value: hrv, decimals: 0, unit: "ms", note: note,
-                             worse: hrv < usual * 0.9,
-                             history: TodayStory.recent(StageStory.hrvMs.map(Double.init)), usual: usual, delay: 0.42)
+                             worse: hrv < usual * 0.9, delay: 0.42)
     }
 
     /// Plays the entrance again (from the top) after `delay`, once the monitor is gone and the phone is upright.
