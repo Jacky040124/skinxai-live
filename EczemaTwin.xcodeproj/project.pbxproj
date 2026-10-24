@@ -41,6 +41,7 @@
 		546349FF84F2CEA950B5B042 /* TodayStory.swift in Sources */ = {isa = PBXBuildFile; fileRef = C940EAFB152A5FE8B793688C /* TodayStory.swift */; };
 		558DF6DCEFC8FDF1D72D9448 /* MonitorScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53312E31F08FE80F384BD385 /* MonitorScreen.swift */; };
 		575C311180B313796A89B293 /* SpaceGrotesk.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 34F1487CBB263DD93F8907CC /* SpaceGrotesk.ttf */; };
+		5D8AFA25300C7981940B9159 /* LiveReplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 533848905591F2813A5E3EA9 /* LiveReplay.swift */; };
 		6120A254393C824E106A6B6B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2041CCD0264F87E0A11694E2 /* Assets.xcassets */; };
 		63F214BF2D73BD94C75EA70A /* QuarterHourChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = B46BACD158F10E448128766E /* QuarterHourChart.swift */; };
 		6A5BCBECDB6B748A679BAB02 /* InsightCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EBA8BBF881EF8EA2585D098 /* InsightCards.swift */; };
@@ -53,6 +54,7 @@
 		79D322D18A4F64C1FFE34A10 /* PermissionsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 105BB566FA59048640D3660B /* PermissionsScreen.swift */; };
 		7FC61495F36D235D7E17894E /* HealthReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDFA3B16DEEAFCB72E81305C /* HealthReader.swift */; };
 		86CB04D942289675C860D6B3 /* ChartRangePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B4CF87A7465A89E733C681C /* ChartRangePicker.swift */; };
+		8AF9D793035A366205AE4763 /* LiveMonitorPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5CFE75E6C8B3CF0CA5E9973C /* LiveMonitorPresenter.swift */; };
 		94A027040E07F67FEA7A5AA0 /* ShellServices.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13EE34011CA4E78402E237D3 /* ShellServices.swift */; };
 		959BBFBC752662D7AAB67D08 /* OFL.txt in Resources */ = {isa = PBXBuildFile; fileRef = 5808DD3E3B07C0808DABFD4C /* OFL.txt */; };
 		976E54F3AC11E418205AA68F /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB1BD32C0370C9BA3147BBF8 /* Theme.swift */; };
@@ -64,14 +66,19 @@
 		A5169C554658DF70A339839D /* ChartRangePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B4CF87A7465A89E733C681C /* ChartRangePicker.swift */; };
 		A90000FCDEC8CC5078CD99E6 /* SignalLineChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = F4C2E3A3EE2BA5714D4874E1 /* SignalLineChart.swift */; };
 		AEC3C2720453A1E5DE378677 /* TodayNightCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = F214FA769224797717283CFF /* TodayNightCard.swift */; };
+		AF4D133AC33F342368291A4D /* LivePillHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F62057DD333871EA66459D3 /* LivePillHarness.swift */; };
 		B279BD03EE0B06C033805E4B /* DailyScratchChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1CF5CD9D03422FC9CECB0A0 /* DailyScratchChart.swift */; };
+		B56138DA790475C50A2F4DA9 /* LiveRelayClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81469EE688A63C6968697870 /* LiveRelayClient.swift */; };
+		B6FA149DF727D940229BFB48 /* LiveSimulator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 014BDD3C1323481999354AAB /* LiveSimulator.swift */; };
 		BBBB1A58B05588354A87B2D1 /* DeviceAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = F06FE54F03E23DB9D8E77B2B /* DeviceAccess.swift */; };
+		BE0F69BD38BD8F2F926E4A96 /* LiveBars.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4920F844414A5B8042B0564 /* LiveBars.swift */; };
 		C2A59A49ED98B9FB21169240 /* SpaceMono-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E06B0299ACCBE9F04008DCEE /* SpaceMono-Regular.ttf */; };
 		D0A78FEA08952544FA30DCCB /* EczemaKit in Frameworks */ = {isa = PBXBuildFile; productRef = D2EA930CC5E12E9FB0AD6085 /* EczemaKit */; };
 		E05B340326EC3216606E365B /* EczemaTwinWatch.app in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 28A06BF100E5C5473F4637B6 /* EczemaTwinWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		E7784C3DF5F23040BB783975 /* SpaceMono-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E06B0299ACCBE9F04008DCEE /* SpaceMono-Regular.ttf */; };
 		E7AA5414802DC92F44E6B4CD /* NightsChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E9F301E8B62DFBA010AB0D1 /* NightsChart.swift */; };
 		F30C8F2E8CFA7CE2833457E0 /* WatchModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D76256B4672DD738B542C92E /* WatchModel.swift */; };
+		FA881C809B2B0BECE02DB009 /* LiveMonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5DACAB9E72DC72192AD47F7 /* LiveMonitorView.swift */; };
 		FB96FE91564D485C7A2AF6FA /* EczemaTwinWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 347396144EA7921BA5D444F0 /* EczemaTwinWatchApp.swift */; };
 		FC1C33CFCD67FD3C3E85D811 /* InsightSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = C762F6004FCB6774AE2BDF92 /* InsightSession.swift */; };
 		FD5C701082C639F24C217B9A /* PhoneLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A0CBE45AF6B83E4BCF4F4A4 /* PhoneLink.swift */; };
@@ -102,6 +109,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		014BDD3C1323481999354AAB /* LiveSimulator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveSimulator.swift; sourceTree = "<group>"; };
 		09B94D5D86D51B138BE7A8E6 /* TodayScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayScreen.swift; sourceTree = "<group>"; };
 		0DDD38B993F1AA1D0BC536CA /* WatchStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchStore.swift; sourceTree = "<group>"; };
 		0F964877FF3ADC4D998AAC93 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
@@ -132,14 +140,18 @@
 		4E03FADE1874C4C509264EC8 /* LiveMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveMonitor.swift; sourceTree = "<group>"; };
 		4E9F301E8B62DFBA010AB0D1 /* NightsChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NightsChart.swift; sourceTree = "<group>"; };
 		53312E31F08FE80F384BD385 /* MonitorScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitorScreen.swift; sourceTree = "<group>"; };
+		533848905591F2813A5E3EA9 /* LiveReplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveReplay.swift; sourceTree = "<group>"; };
 		570EC8EF09994F162B38DB16 /* Live.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Live.xcconfig; sourceTree = "<group>"; };
 		5808DD3E3B07C0808DABFD4C /* OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = OFL.txt; sourceTree = "<group>"; };
 		59666E413FAD8FCAACA96F91 /* HourlyScratchChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HourlyScratchChart.swift; sourceTree = "<group>"; };
+		5CFE75E6C8B3CF0CA5E9973C /* LiveMonitorPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveMonitorPresenter.swift; sourceTree = "<group>"; };
 		5EBA8BBF881EF8EA2585D098 /* InsightCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightCards.swift; sourceTree = "<group>"; };
 		68A5DF5B6053F283ACF19DAA /* StageNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageNotifications.swift; sourceTree = "<group>"; };
 		6B4CF87A7465A89E733C681C /* ChartRangePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartRangePicker.swift; sourceTree = "<group>"; };
+		6F62057DD333871EA66459D3 /* LivePillHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LivePillHarness.swift; sourceTree = "<group>"; };
 		760C741AF41DD66B5FC369AF /* SpaceMono-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SpaceMono-Bold.ttf"; sourceTree = "<group>"; };
 		7C8235AB06029C117D8E8B36 /* TrendsCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrendsCards.swift; sourceTree = "<group>"; };
+		81469EE688A63C6968697870 /* LiveRelayClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveRelayClient.swift; sourceTree = "<group>"; };
 		83588CEFBC0B69A2FB905A13 /* Watch.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Watch.entitlements; sourceTree = "<group>"; };
 		88CF0F5B4A8F4AB5381388F1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		89663F3DDC66BCF5E2268A7E /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
@@ -151,6 +163,7 @@
 		BB1B3BDB0E5C9F0AE7DBB8F0 /* EczemaTwinApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EczemaTwinApp.swift; sourceTree = "<group>"; };
 		C1CF5CD9D03422FC9CECB0A0 /* DailyScratchChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyScratchChart.swift; sourceTree = "<group>"; };
 		C3AF309625DABE1A365F5A0D /* TodayCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayCards.swift; sourceTree = "<group>"; };
+		C4920F844414A5B8042B0564 /* LiveBars.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveBars.swift; sourceTree = "<group>"; };
 		C762F6004FCB6774AE2BDF92 /* InsightSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightSession.swift; sourceTree = "<group>"; };
 		C940EAFB152A5FE8B793688C /* TodayStory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayStory.swift; sourceTree = "<group>"; };
 		CB1BD32C0370C9BA3147BBF8 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
@@ -160,6 +173,7 @@
 		DE35167A82BBFBAF22509A89 /* LivePill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LivePill.swift; sourceTree = "<group>"; };
 		DED0BAE1425EE27470E3A238 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		E06B0299ACCBE9F04008DCEE /* SpaceMono-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SpaceMono-Regular.ttf"; sourceTree = "<group>"; };
+		E5DACAB9E72DC72192AD47F7 /* LiveMonitorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveMonitorView.swift; sourceTree = "<group>"; };
 		F06FE54F03E23DB9D8E77B2B /* DeviceAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceAccess.swift; sourceTree = "<group>"; };
 		F214FA769224797717283CFF /* TodayNightCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayNightCard.swift; sourceTree = "<group>"; };
 		F4C2E3A3EE2BA5714D4874E1 /* SignalLineChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalLineChart.swift; sourceTree = "<group>"; };
@@ -391,8 +405,15 @@
 		C789BC6DD513FFE97987A182 /* Live */ = {
 			isa = PBXGroup;
 			children = (
+				C4920F844414A5B8042B0564 /* LiveBars.swift */,
+				5CFE75E6C8B3CF0CA5E9973C /* LiveMonitorPresenter.swift */,
+				E5DACAB9E72DC72192AD47F7 /* LiveMonitorView.swift */,
 				DE35167A82BBFBAF22509A89 /* LivePill.swift */,
+				6F62057DD333871EA66459D3 /* LivePillHarness.swift */,
+				81469EE688A63C6968697870 /* LiveRelayClient.swift */,
+				533848905591F2813A5E3EA9 /* LiveReplay.swift */,
 				1C51CCC0F091E681A181E4C7 /* LiveSession.swift */,
+				014BDD3C1323481999354AAB /* LiveSimulator.swift */,
 			);
 			path = Live;
 			sourceTree = "<group>";
@@ -572,8 +593,15 @@
 				6A5BCBECDB6B748A679BAB02 /* InsightCards.swift in Sources */,
 				10056456D441FC06F7913DF4 /* InsightScreen.swift in Sources */,
 				FC1C33CFCD67FD3C3E85D811 /* InsightSession.swift in Sources */,
+				BE0F69BD38BD8F2F926E4A96 /* LiveBars.swift in Sources */,
+				8AF9D793035A366205AE4763 /* LiveMonitorPresenter.swift in Sources */,
+				FA881C809B2B0BECE02DB009 /* LiveMonitorView.swift in Sources */,
 				0C47E3279B980203D1702F0C /* LivePill.swift in Sources */,
+				AF4D133AC33F342368291A4D /* LivePillHarness.swift in Sources */,
+				B56138DA790475C50A2F4DA9 /* LiveRelayClient.swift in Sources */,
+				5D8AFA25300C7981940B9159 /* LiveReplay.swift in Sources */,
 				9D9B9FC68BFEAFB2383B40AC /* LiveSession.swift in Sources */,
+				B6FA149DF727D940229BFB48 /* LiveSimulator.swift in Sources */,
 				9A5F5379ECA6AC9A5C077AAD /* NightsChart.swift in Sources */,
 				48428B69503D7D7EB001E6C7 /* OrientationLock.swift in Sources */,
 				5342282DDF4A954661FA364C /* PermissionCards.swift in Sources */,
