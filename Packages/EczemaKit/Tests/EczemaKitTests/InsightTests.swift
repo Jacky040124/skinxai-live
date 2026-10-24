@@ -260,10 +260,21 @@ private func record(_ i: Int, _ minutes: Double, _ exposures: [(ExposureKind, St
 final class MockURLProtocol: URLProtocol {
     nonisolated(unsafe) static var handler: ((URLRequest) throws -> (Int, Data))?
     nonisolated(unsafe) static var lastRequest: URLRequest?
+    /// Seconds before the response arrives (0 = at once). The wait never blocks the loading thread.
+    nonisolated(unsafe) static var delay: TimeInterval = 0
+    private let lock = NSLock()
+    private var stopped = false
+
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         Self.lastRequest = request
+        guard Self.delay > 0 else { respond(); return }
+        DispatchQueue.global().asyncAfter(deadline: .now() + Self.delay) { [weak self] in self?.respond() }
+    }
+    private func respond() {
+        lock.lock(); let cancelled = stopped; lock.unlock()
+        guard !cancelled else { return }
         do {
             guard let handler = Self.handler else { throw URLError(.unknown) }
             let (status, data) = try handler(request)
@@ -275,7 +286,9 @@ final class MockURLProtocol: URLProtocol {
             client?.urlProtocol(self, didFailWithError: error)
         }
     }
-    override func stopLoading() {}
+    override func stopLoading() {
+        lock.lock(); stopped = true; lock.unlock()
+    }
 
     static var session: URLSession {
         let config = URLSessionConfiguration.ephemeral
@@ -347,6 +360,48 @@ final class MockURLProtocol: URLProtocol {
         MockURLProtocol.handler = { _ in (200, MockURLProtocol.chat("Sorry, I can't do that.")) }
         let junk = await InsightService.analyze(dataset: demo, apiKey: "k", model: "m", now: now, calendar: cal, session: MockURLProtocol.session)
         #expect(junk.source == .bundled(.failed))
+    }
+
+    @Test func slowModelFallsBackAtTheLimit() async {
+        MockURLProtocol.handler = { _ in (200, MockURLProtocol.chat(InsightReplyTests.clean)) }
+        MockURLProtocol.delay = 3
+        defer { MockURLProtocol.delay = 0 }
+        let started = Date()
+        let outcome = await InsightService.analyze(dataset: demo, apiKey: "k", model: "m", now: now, calendar: cal,
+                                                   session: MockURLProtocol.session, limit: 0.4)
+        #expect(outcome.source == .bundled(.slow))
+        #expect(outcome.caseFile == demo.caseFile)
+        #expect(Date().timeIntervalSince(started) < 2.5)
+        #expect(InsightOutcome.BundledReason.slow.note == "Bundled analysis · model slow")
+    }
+
+    @Test func modelWithinTheLimitIsLive() async {
+        MockURLProtocol.handler = { _ in (200, MockURLProtocol.chat(InsightReplyTests.clean)) }
+        MockURLProtocol.delay = 0.1
+        defer { MockURLProtocol.delay = 0 }
+        let outcome = await InsightService.analyze(dataset: demo, apiKey: "k", model: "m", now: now, calendar: cal,
+                                                   session: MockURLProtocol.session, limit: 10)
+        #expect(outcome.isLive)
+    }
+
+    @Test func timeLimitHelper() async {
+        let quick = await InsightService.withTimeLimit(5) { 42 }
+        #expect(quick == 42)
+        let late = await InsightService.withTimeLimit(0.05) { () async -> Int in
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            return 7
+        }
+        #expect(late == nil)
+    }
+
+    @Test func caseFileKnowsWhereItCameFrom() throws {
+        let bundled = try #require(demo.caseFile)
+        #expect(bundled.isBundled)
+        #expect(bundled.liveModel == nil)
+        var live = bundled
+        live.producedBy = "claude-sonnet-5.5 · live"
+        #expect(!live.isBundled)
+        #expect(live.liveModel == "claude-sonnet-5.5")
     }
 
     @Test func bundledCaseFileIsRebuiltWhenALiveOneReplacedIt() throws {

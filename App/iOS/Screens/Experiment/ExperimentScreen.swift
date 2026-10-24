@@ -5,6 +5,7 @@ import EczemaKit
 /// day tiles, before/after bars) and the day-10 result moment (the card flips to "Confirmed" with a burst).
 struct ExperimentScreen: View {
     @EnvironmentObject var app: AppState
+    @ObservedObject private var session = ExperimentSession.shared
 
     var body: some View {
         let progress = ExperimentProgress(dataset: app.dataset)
@@ -16,6 +17,17 @@ struct ExperimentScreen: View {
             } else {
                 SuggestedExperimentView(caseFile: app.dataset.caseFile)
             }
+        }
+        // The result burst flies over the whole page (top bar included, not clipped by the scroll view) and
+        // comes from behind the result card, which stays in front of it.
+        .overlayPreferenceValue(ResultCardAnchor.self) { anchor in
+            GeometryReader { proxy in
+                if let anchor {
+                    CelebrationBurst(trigger: session.burst, card: proxy[anchor])
+                }
+            }
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
         }
     }
 
@@ -68,18 +80,36 @@ enum AutoAdvance {
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 2_400_000_000)
             while let p = ExperimentProgress(dataset: app.dataset), !p.isFinished {
-                app.setExperimentDay(p.day + 1)
+                StoryTravel.setExperimentDay(p.day + 1, app: app)
                 try? await Task.sleep(nanoseconds: 1_800_000_000)
             }
+            #if DEBUG
+            // `-experimentQA runAgain`: after the result moment, tap "Run it again" once.
+            if UserDefaults.standard.string(forKey: "experimentQA") == "runAgain" {
+                try? await Task.sleep(nanoseconds: 4_500_000_000)
+                StoryTravel.setExperimentDay(1, app: app)
+            }
+            #endif
         }
     }
 }
 
-/// Remembers, for this launch, whether the current result was already celebrated.
+/// The result moment for this launch: whether the current result was already celebrated, and the burst
+/// (drawn by `ExperimentScreen` over the whole page).
 @MainActor
 final class ExperimentSession: ObservableObject {
     static let shared = ExperimentSession()
     var celebrated = false
+    /// Bumps once per burst.
+    @Published var burst = 0
+    /// Bumps whenever a celebration starts or is called off, so steps still pending can tell they're stale.
+    var generation = 0
+}
+
+/// The result card's frame, for the burst that comes from behind it.
+struct ResultCardAnchor: PreferenceKey {
+    static var defaultValue: Anchor<CGRect>? = nil
+    static func reduce(value: inout Anchor<CGRect>?, nextValue: () -> Anchor<CGRect>?) { value = value ?? nextValue() }
 }
 
 // MARK: - Running / finished
@@ -89,51 +119,63 @@ struct RunningExperimentView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var progress: ExperimentProgress
 
+    /// Scroll target 16 pt above the hero card.
+    static let heroID = "experiment-hero"
+
     /// 0 = progress face, 180 = result face.
     @State private var angle: Double = ExperimentSession.shared.celebrated ? 180 : 0
-    @State private var burst = 0
     @State private var pop = false
+    @State private var ringPulse = 0
+    /// The first entrance is over: views that arrive later (a new bar, the "What now" card) use their own
+    /// motion only.
+    @State private var settled = false
 
     var body: some View {
         ScrollViewReader { proxy in
             VStack(alignment: .leading, spacing: Twin.Space.m) {
-                FlipCard(angle: angle) {
-                    ProgressFace(progress: progress, reduceMotion: reduceMotion)
+                FlipCard(angle: angle, reduceMotion: reduceMotion) {
+                    ProgressFace(progress: progress, reduceMotion: reduceMotion, ringPulse: ringPulse)
                 } back: {
                     if progress.isFinished { ResultFace(progress: progress) }
                 }
+                .anchorPreference(key: ResultCardAnchor.self, value: .bounds) { $0 }
                 .scaleEffect(pop ? 1.035 : 1)
-                // The burst canvas reaches past the card so the stickers can fly out of it.
-                .overlay { CelebrationBurst(trigger: burst).padding(-140).allowsHitTesting(false) }
-                .background(alignment: .top) { Color.clear.frame(height: 1).offset(y: -Twin.Space.l).id("hero") }
-                .riseIn(0.04)
+                // A real layout frame 16 pt above the card (an offset would not move it), so scrolling to it
+                // keeps the screen's top margin.
+                .background(alignment: .top) {
+                    Color.clear.frame(width: 1, height: Twin.Space.l + 1).id(Self.heroID).padding(.top, -Twin.Space.l)
+                }
+                .entranceRise(0.04)
 
-                ComparisonCard(progress: progress)
-                    .riseIn(0.04 + Twin.Motion.stagger)
+                // Demo time travel only makes sense in the demo story: in real mode (Settings → Demo story
+                // off) a fast-forward would swap the user's own data for the demo.
+                if app.dataset.isDemo {
+                    DemoChip(progress: progress)
+                        .frame(maxWidth: .infinity)
+                        .entranceRise(0.04 + Twin.Motion.stagger)
+                }
+
+                ComparisonCard(progress: progress, settled: settled)
+                    .entranceRise(0.04 + 2 * Twin.Motion.stagger)
 
                 if progress.isFinished {
                     WhatNowCard(progress: progress)
-                        .transition(.opacity.combined(with: .offset(y: 12)))
-                        .riseIn(0.04 + 2 * Twin.Motion.stagger)
+                        .transition(.swapInPlace)
+                        .entranceRise(0.04 + 3 * Twin.Motion.stagger, enabled: !settled)
                 } else {
                     TipCard(progress: progress)
-                        .transition(.opacity)
-                        .riseIn(0.04 + 2 * Twin.Motion.stagger)
-                }
-
-                // Demo time travel only makes sense in the demo story: in real mode (Settings →
-                // Demo story off) a fast-forward would swap the user's own data for the demo.
-                if app.dataset.isDemo {
-                    DemoControls(progress: progress)
-                        .riseIn(0.04 + 3 * Twin.Motion.stagger)
+                        .transition(.swapInPlace)
+                        .entranceRise(0.04 + 3 * Twin.Motion.stagger, enabled: !settled)
                 }
                 Color.clear.frame(height: 1).id(ScrollHook.bottomID)
             }
             .onAppear {
                 ScrollHook.scrollIfAsked(proxy, after: 3.2)
                 AutoAdvance.startIfAsked(app: app)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) { settled = true }
                 if progress.isFinished && !ExperimentSession.shared.celebrated {
-                    celebrate(after: reduceMotion ? 0.2 : 1.5, proxy: nil)
+                    // The ring fills from 0 on appear and closes at about 1 s.
+                    celebrate(ringClosesIn: 1.0, scroll: nil)
                 } else if !progress.isFinished {
                     ExperimentSession.shared.celebrated = false
                     angle = 0
@@ -141,55 +183,86 @@ struct RunningExperimentView: View {
             }
             .onChange(of: progress.isFinished) { _, finished in
                 if finished {
-                    celebrate(after: 0.35, proxy: proxy)
+                    // Day 9 → 10: the ring visibly closes about 0.7 s after the day arrives.
+                    celebrate(ringClosesIn: 0.7, scroll: proxy)
                 } else {
-                    ExperimentSession.shared.celebrated = false
-                    withAnimation(Twin.Motion.spring) { angle = 0 }
+                    let session = ExperimentSession.shared
+                    session.celebrated = false
+                    session.generation += 1          // calls off any step still pending
+                    pop = false
+                    withAnimation(reduceMotion ? .easeInOut(duration: 0.3) : Twin.Motion.spring) { angle = 0 }
                 }
             }
         }
     }
 
-    /// The result moment: back to the top, the card flips, a burst, a success haptic.
-    private func celebrate(after delay: Double, proxy: ScrollViewProxy?) {
-        ExperimentSession.shared.celebrated = true
-        if let proxy { withAnimation(Twin.Motion.spring) { proxy.scrollTo("hero", anchor: .top) } }
-        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-            if reduceMotion {
-                withAnimation(.easeInOut(duration: 0.3)) { angle = 180 }
-            } else {
-                withAnimation(.spring(response: 0.75, dampingFraction: 0.78)) { angle = 180 }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) {
-                    burst += 1
-                    withAnimation(.spring(response: 0.22, dampingFraction: 0.5)) { pop = true }
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.16) {
-                        withAnimation(.spring(response: 0.45, dampingFraction: 0.55)) { pop = false }
-                    }
-                }
-            }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                progress.status == .confirmed ? Haptics.success() : Haptics.warning()
+    /// The result moment, in order: back to the top; the ring closes at day 10 (a soft tick and a small
+    /// pulse); a short beat; then the card turns over to the result with a burst and a success haptic.
+    /// With Reduce Motion the faces cross-fade and nothing flies.
+    private func celebrate(ringClosesIn delay: Double, scroll proxy: ScrollViewProxy?) {
+        let session = ExperimentSession.shared
+        session.celebrated = true
+        session.generation += 1
+        let generation = session.generation
+        let confirmed = progress.status == .confirmed
+        if let proxy { withAnimation(Twin.Motion.spring) { proxy.scrollTo(Self.heroID, anchor: .top) } }
+
+        func later(_ seconds: Double, _ step: @escaping () -> Void) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + seconds) {
+                guard session.generation == generation else { return }
+                step()
             }
         }
+
+        if reduceMotion {
+            later(delay + 0.15) {
+                withAnimation(.easeInOut(duration: 0.3)) { angle = 180 }
+                confirmed ? Haptics.success() : Haptics.warning()
+            }
+            return
+        }
+        later(delay) {
+            ringPulse += 1
+            Haptics.soft()
+        }
+        let flip = delay + 0.5
+        later(flip) { withAnimation(.spring(response: 0.75, dampingFraction: 0.78)) { angle = 180 } }
+        // About when the card is edge-on and the result face takes over.
+        later(flip + 0.28) {
+            if confirmed { session.burst += 1 }
+            withAnimation(.spring(response: 0.22, dampingFraction: 0.5)) { pop = true }
+            confirmed ? Haptics.success() : Haptics.warning()
+        }
+        later(flip + 0.44) { withAnimation(.spring(response: 0.45, dampingFraction: 0.55)) { pop = false } }
     }
 }
 
 // MARK: - Flip
 
 /// A card with two faces that flips around the vertical axis. The faces swap at 90°.
+/// With Reduce Motion it doesn't turn: the faces cross-fade in place (animate `angle` with a short ease).
 struct FlipCard<Front: View, Back: View>: View {
     var angle: Double
+    var reduceMotion = false
     @ViewBuilder var front: () -> Front
     @ViewBuilder var back: () -> Back
 
     var body: some View {
-        ZStack(alignment: .top) {
-            front().modifier(FaceVisibility(angle: angle, isBack: false))
-            back()
-                .rotation3DEffect(.degrees(180), axis: (x: 0, y: 1, z: 0))
-                .modifier(FaceVisibility(angle: angle, isBack: true))
+        if reduceMotion {
+            let showingBack = angle > 90
+            ZStack(alignment: .top) {
+                front().opacity(showingBack ? 0 : 1).accessibilityHidden(showingBack)
+                back().opacity(showingBack ? 1 : 0).accessibilityHidden(!showingBack)
+            }
+        } else {
+            ZStack(alignment: .top) {
+                front().modifier(FaceVisibility(angle: angle, isBack: false))
+                back()
+                    .rotation3DEffect(.degrees(180), axis: (x: 0, y: 1, z: 0))
+                    .modifier(FaceVisibility(angle: angle, isBack: true))
+            }
+            .rotation3DEffect(.degrees(angle), axis: (x: 0, y: 1, z: 0), perspective: 0.45)
         }
-        .rotation3DEffect(.degrees(angle), axis: (x: 0, y: 1, z: 0), perspective: 0.45)
     }
 }
 
@@ -214,10 +287,12 @@ private struct FaceVisibility: ViewModifier, Animatable {
 struct ProgressFace: View {
     var progress: ExperimentProgress
     var reduceMotion: Bool
+    /// Bumps when the ring closes on the last day.
+    var ringPulse = 0
 
     var body: some View {
         VStack(spacing: 16) {
-            DayRing(day: progress.day, length: progress.length)
+            DayRing(day: progress.day, length: progress.length, pulse: ringPulse)
             .frame(width: 184, height: 184)
             .padding(.top, 4)
             .accessibilityElement(children: .ignore)
@@ -324,10 +399,19 @@ struct ResultFace: View {
 struct DayRing: View {
     var day: Int
     var length: Int
+    /// Bumps to give the ring a small pulse (the last day closing it).
+    var pulse = 0
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var shown: Double = 0
 
     var body: some View {
         DayRingFrame(value: shown, length: length)
+            .keyframeAnimator(initialValue: 1.0, trigger: pulse) { view, scale in
+                view.scaleEffect(reduceMotion ? 1 : scale)
+            } keyframes: { _ in
+                CubicKeyframe(1.06, duration: 0.14)
+                SpringKeyframe(1, duration: 0.5, spring: .bouncy)
+            }
             .onAppear { withAnimation(Twin.Motion.fill.delay(0.15)) { shown = Double(day) } }
             .onChange(of: day) { _, new in withAnimation(Twin.Motion.fill) { shown = Double(new) } }
     }
@@ -421,6 +505,8 @@ private struct Bob: ViewModifier {
 
 struct ComparisonCard: View {
     var progress: ExperimentProgress
+    /// The screen's entrance is over (numbers that change later start at once).
+    var settled = false
 
     private var plan: ExperimentPlan { progress.experiment.plan }
     private var withLabel: String { plan.shortSubject.map { "WITH \($0.uppercased())" } ?? "BEFORE" }
@@ -438,10 +524,10 @@ struct ComparisonCard: View {
             }
 
             ComparisonBars(before: progress.before, during: progress.during, usual: progress.usual,
-                           beforeLabel: withLabel, duringLabel: pausedLabel)
+                           beforeLabel: withLabel, duringLabel: pausedLabel, settled: settled)
 
             HStack(alignment: .center, spacing: 10) {
-                ChangeSticker(percentLess: progress.percentLess, final: progress.isFinished)
+                ChangeSticker(percentLess: progress.percentLess, final: progress.isFinished, delay: settled ? 0.15 : 0.5)
                 Spacer(minLength: 4)
                 Text(caption)
                     .font(Twin.Typeface.sans(13))
@@ -462,22 +548,27 @@ struct ComparisonCard: View {
 }
 
 /// Two big bars (before = orange, during = lime) with counted numbers and a dashed "usual" line.
+/// Each bar grows from zero when it first appears, also the "during" bar that arrives on day 2.
 struct ComparisonBars: View {
     var before: Double
     var during: Double?
     var usual: Double
     var beforeLabel: String
     var duringLabel: String
+    /// The screen's entrance is over: a bar that arrives later grows at once, not after the entrance delay.
+    var settled = false
 
-    @State private var grown = false
+    @State private var lineIn = false
     private let barArea: CGFloat = 112
 
     var body: some View {
         let top = max(before, during ?? 0, usual, 1)
         let h: (Double) -> CGFloat = { v in max(4, CGFloat(v / top) * barArea) }
         HStack(alignment: .bottom, spacing: 14) {
-            column(value: before, height: h(before), color: Twin.Palette.orange, label: beforeLabel, delay: 0.2)
-            column(value: during, height: during.map(h) ?? 0, color: Twin.Palette.lime, label: duringLabel, delay: 0.45)
+            BarColumn(value: before, height: h(before), color: Twin.Palette.orange, label: beforeLabel,
+                      delay: 0.2, barArea: barArea)
+            BarColumn(value: during, height: during.map(h) ?? 0, color: Twin.Palette.lime, label: duringLabel,
+                      delay: settled ? 0.05 : 0.45, barArea: barArea)
         }
         .frame(maxWidth: .infinity)
         .overlay(alignment: .bottom) {
@@ -495,36 +586,41 @@ struct ComparisonBars: View {
                     .offset(y: -9)
             }
             .padding(.bottom, 22 + y)
-            .opacity(grown ? 1 : 0)
-            .animation(.easeOut(duration: 0.4).delay(0.9), value: grown)
+            .opacity(lineIn ? 1 : 0)
         }
-        .onAppear { grown = true }
+        .onAppear { withAnimation(.easeOut(duration: 0.4).delay(0.9)) { lineIn = true } }
     }
+}
 
-    private func column(value: Double?, height: CGFloat, color: Color, label: String, delay: Double) -> some View {
+private struct BarColumn: View {
+    var value: Double?
+    var height: CGFloat
+    var color: Color
+    var label: String
+    var delay: Double
+    var barArea: CGFloat
+
+    var body: some View {
         VStack(spacing: 6) {
-            Group {
+            ZStack {
                 if let value {
                     CountUp(value: value, font: Twin.Typeface.sans(24, .bold), delay: delay, duration: 1.0)
+                        .transition(.opacity)
                 } else {
                     Text("—").font(Twin.Typeface.sans(24, .bold)).foregroundStyle(Twin.Palette.inkHint)
+                        .transition(.opacity.animation(.easeOut(duration: 0.12)))
                 }
             }
             .frame(height: 30)
             ZStack(alignment: .bottom) {
                 Color.clear.frame(height: barArea)
                 if value != nil {
-                    UnevenRoundedRectangle(topLeadingRadius: Twin.Radius.chip, topTrailingRadius: Twin.Radius.chip, style: .continuous)
-                        .fill(color)
-                        .overlay(UnevenRoundedRectangle(topLeadingRadius: Twin.Radius.chip, topTrailingRadius: Twin.Radius.chip, style: .continuous)
-                            .strokeBorder(Twin.Palette.ink, lineWidth: Twin.Stroke.ink))
-                        .frame(width: 92, height: grown ? height : 0)
-                        .animation(.spring(response: 0.7, dampingFraction: 0.7).delay(delay), value: grown)
-                        .animation(Twin.Motion.spring, value: height)
+                    GrowingBar(height: height, color: color, delay: delay)
                 } else {
                     RoundedRectangle(cornerRadius: Twin.Radius.chip, style: .continuous)
                         .strokeBorder(Twin.Palette.inkFaint, style: StrokeStyle(lineWidth: 1.2, dash: [4, 3]))
                         .frame(width: 92, height: 30)
+                        .transition(.opacity.animation(.easeOut(duration: 0.12)))
                 }
             }
             Text(label)
@@ -537,6 +633,24 @@ struct ComparisonBars: View {
     }
 }
 
+/// One bar that grows from zero with a spring when it appears, then follows its value.
+private struct GrowingBar: View {
+    var height: CGFloat
+    var color: Color
+    var delay: Double
+    @State private var grown = false
+
+    var body: some View {
+        let shape = UnevenRoundedRectangle(topLeadingRadius: Twin.Radius.chip, topTrailingRadius: Twin.Radius.chip, style: .continuous)
+        shape.fill(color)
+            .overlay(shape.strokeBorder(Twin.Palette.ink, lineWidth: Twin.Stroke.ink))
+            .frame(width: 92, height: grown ? height : 0)
+            .animation(Twin.Motion.spring, value: height)
+            .transition(.identity)
+            .onAppear { withAnimation(.spring(response: 0.7, dampingFraction: 0.7).delay(delay)) { grown = true } }
+    }
+}
+
 private struct Line: Shape {
     func path(in rect: CGRect) -> Path {
         var p = Path()
@@ -546,30 +660,62 @@ private struct Line: Shape {
     }
 }
 
-/// "▼ 30% less so far" (lime) / "▲ 5% more so far" (orange) / "Day 1" (paper).
+/// "▼ 30% less so far" (lime) / "▲ 5% more so far" (orange) / "Day 1 · just started" (paper).
+/// The number sticker stamps in when its count starts (never a "0%" with its final arrow and words), and
+/// a turn from "more" to "less" stamps a fresh one.
 struct ChangeSticker: View {
     var percentLess: Int?
     var final = false
+    /// When the count starts (and the sticker stamps in).
+    var delay: Double = 0.5
+
     var body: some View {
-        Group {
+        ZStack(alignment: .leading) {
             if let p = percentLess {
-                HStack(spacing: 5) {
-                    Image(systemName: p >= 0 ? "arrowtriangle.down.fill" : "arrowtriangle.up.fill")
-                        .font(.system(size: 9, weight: .bold))
-                    HStack(spacing: 0) {
-                        CountUp(value: Double(abs(p)), font: Twin.Typeface.sans(13, .bold), delay: 0.5, duration: 0.9)
-                        Text((p >= 0 ? "% less" : "% more") + (final ? "" : " so far")).font(Twin.Typeface.sans(13, .bold))
-                    }
-                }
-                .foregroundStyle(Twin.Palette.ink)
-                .padding(.horizontal, 9)
-                .padding(.vertical, 5)
-                .sticker(p >= 0 ? Twin.Palette.lime : Twin.Palette.orange)
+                ChangeValueSticker(percentLess: p, final: final, delay: delay)
+                    .id(p >= 0)
+                    .transition(.asymmetric(insertion: .identity, removal: .opacity.animation(.easeOut(duration: 0.12))))
             } else {
                 Sticker(text: "Day 1 · just started", icon: "clock", fill: Twin.Palette.paper)
+                    .transition(.asymmetric(insertion: .opacity, removal: .opacity.animation(.easeOut(duration: 0.12))))
             }
         }
         .fixedSize()
+    }
+}
+
+private struct ChangeValueSticker: View {
+    var percentLess: Int
+    var final: Bool
+    var delay: Double
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var stamped = false
+    @State private var shown: Double = 0
+
+    var body: some View {
+        let less = percentLess >= 0
+        HStack(spacing: 5) {
+            Image(systemName: less ? "arrowtriangle.down.fill" : "arrowtriangle.up.fill")
+                .font(.system(size: 9, weight: .bold))
+            HStack(spacing: 0) {
+                CountingText(value: shown, font: Twin.Typeface.sans(13, .bold))
+                Text((less ? "% less" : "% more") + (final ? "" : " so far")).font(Twin.Typeface.sans(13, .bold))
+            }
+        }
+        .foregroundStyle(Twin.Palette.ink)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .sticker(less ? Twin.Palette.lime : Twin.Palette.orange)
+        .scaleEffect(stamped || reduceMotion ? 1 : 0.55, anchor: .leading)
+        .rotationEffect(.degrees(stamped || reduceMotion ? 0 : -9), anchor: .leading)
+        .opacity(stamped ? 1 : 0)
+        .onAppear {
+            withAnimation(reduceMotion ? .easeOut(duration: 0.3).delay(delay) : Twin.Motion.bouncy.delay(delay)) { stamped = true }
+            withAnimation(.easeOut(duration: 0.9).delay(delay)) { shown = Double(abs(percentLess)) }
+        }
+        .onChange(of: percentLess) { _, new in withAnimation(.easeOut(duration: 0.9)) { shown = Double(abs(new)) } }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(abs(percentLess))% \(less ? "less" : "more")\(final ? "" : " so far")")
     }
 }
 
@@ -644,42 +790,45 @@ struct WhatNowCard: View {
     }
 }
 
-/// Small, clearly secondary controls for the stage demo (dashed frame = not part of the product).
-struct DemoControls: View {
+/// Demo time travel, clearly not part of the product (dashed): "Fast-forward a day" while the test runs,
+/// "Run it again from day 1" once it is done. It sits right under the ring so the audience watches the ring
+/// tick up while the presenter taps, and the demo tour shows its touch here.
+struct DemoChip: View {
     @EnvironmentObject var app: AppState
     var progress: ExperimentProgress
 
     var body: some View {
-        HStack(spacing: 12) {
-            Button {
-                if progress.isFinished {
-                    app.setExperimentDay(nil)
-                } else {
-                    app.setExperimentDay(progress.day + 1)
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    Text(progress.isFinished ? "Run it again" : "Fast-forward a day")
-                    Image(systemName: progress.isFinished ? "arrow.counterclockwise" : "forward.fill")
-                        .font(.system(size: 10, weight: .bold))
-                }
-                .font(Twin.Typeface.sans(13, .bold))
-            }
-            .buttonStyle(TwinButtonStyle(fill: Twin.Palette.paper, height: 36, fullWidth: false))
-
-            VStack(alignment: .leading, spacing: 1) {
-                Eyebrow(text: "Demo")
-                Text(progress.isFinished ? "Replay the test from day 1" : "Jump ahead to the result")
-                    .font(Twin.Typeface.sans(12))
+        let done = progress.isFinished
+        Button {
+            StoryTravel.setExperimentDay(done ? 1 : progress.day + 1, app: app)
+        } label: {
+            HStack(spacing: 8) {
+                Text("DEMO")
+                    .font(Twin.Typeface.mono(10, bold: true))
+                    .tracking(0.8)
                     .foregroundStyle(Twin.Palette.inkHint)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
+                Rectangle().fill(Twin.Palette.hairline).frame(width: 1, height: 14)
+                Text(done ? "Run it again from day 1" : "Fast-forward a day")
+                    .font(Twin.Typeface.sans(13, .bold))
+                    .foregroundStyle(Twin.Palette.ink)
+                    .contentTransition(.opacity)
+                Image(systemName: done ? "arrow.counterclockwise" : "forward.fill")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(Twin.Palette.ink)
+                    .contentTransition(.symbolEffect(.replace))
             }
-            Spacer(minLength: 0)
+            .lineLimit(1)
+            .padding(.horizontal, 14)
+            .frame(height: 36)
+            .background(Twin.Palette.paper, in: RoundedRectangle(cornerRadius: Twin.Radius.control, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: Twin.Radius.control, style: .continuous)
+                .strokeBorder(Twin.Palette.inkFaint, style: StrokeStyle(lineWidth: 1, dash: [4, 3])))
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
         }
-        .padding(12)
-        .overlay(RoundedRectangle(cornerRadius: Twin.Radius.card, style: .continuous)
-            .strokeBorder(Twin.Palette.inkFaint, style: StrokeStyle(lineWidth: 1, dash: [4, 4])))
-        .padding(.top, 6)
+        .buttonStyle(PressableStyle())
+        .tourTarget("fastForward")
+        .animation(Twin.Motion.spring, value: done)
+        .accessibilityLabel(done ? "Demo: run the test again from day 1" : "Demo: fast-forward a day")
     }
 }
