@@ -27,6 +27,30 @@ public enum ChatRules {
         return offers.contains { last.contains($0) }
     }
 
+    /// The last sentence of `text` when it is a question that says what the card asks in other words ("Did you
+    /// change your laundry detergent recently?" for "Have you changed your laundry detergent recently?"): it
+    /// shares most of the card's meaningful words, at least two.
+    static func restatedQuestion(in text: String, _ question: String) -> Range<String.Index>? {
+        guard text.hasSuffix("?") else { return nil }
+        let body = text[..<text.index(before: text.endIndex)]
+        let start = body.lastIndex(where: { ".!?:\n".contains($0) }).map { text.index(after: $0) } ?? text.startIndex
+        let sentence = text[start...]
+        let asked = meaningfulWords(question), said = meaningfulWords(String(sentence))
+        guard asked.count >= 2 else { return nil }
+        let shared = asked.filter { a in said.contains { b in a.hasPrefix(b) || b.hasPrefix(a) } }.count
+        guard shared >= 2, Double(shared) >= 0.6 * Double(asked.count) else { return nil }
+        let first = sentence.firstIndex(where: { !$0.isWhitespace }) ?? start
+        return first..<text.endIndex
+    }
+
+    /// Lowercased words of four letters or more, without the small ones every question has.
+    static func meaningfulWords(_ text: String) -> [String] {
+        let common: Set<String> = ["have", "been", "your", "this", "that", "what", "where", "when", "which", "with",
+                                   "does", "were", "there", "they", "them", "than", "from", "into", "about", "would", "could"]
+        return text.lowercased().split(whereSeparator: { !$0.isLetter }).map(String.init)
+            .filter { $0.count >= 4 && !common.contains($0) }
+    }
+
     /// How an offer starts ("Want me to…?", "Shall I…?").
     static let offers = ["want me to", "like me to", "shall i", "should i", "can i ", "may i ", "ok if i", "okay if i",
                          "shall we", "should we", "want to dig", "want to look", "want to find", "ready for me to"]
@@ -44,6 +68,7 @@ public enum ChatRules {
                 let next = bare.upperBound < text.endIndex && text[bare.upperBound] == "?" ? text.index(after: bare.upperBound) : bare.upperBound
                 range = bare.lowerBound..<next
             }
+            if range == nil { range = restatedQuestion(in: text, question) }
             guard let range else { continue }
             text.removeSubrange(range)
             text = text.trimmingCharacters(in: .whitespacesAndNewlines)

@@ -346,6 +346,17 @@ final class ChatStub: URLProtocol {
         #expect(shown("First: where does it itch?", "Where does it itch?") == "")
         #expect(shown("Your orders agree: same detergent for two years.", "Has this week been stressful?")
                 == "Your orders agree: same detergent for two years.")
+        // The same question in other words.
+        #expect(shown("Before I settle on that, I want to rule out a few other things. Did you change your laundry detergent recently?",
+                      "Have you changed your laundry detergent recently?")
+                == "Before I settle on that, I want to rule out a few other things.")
+        #expect(shown("That rules out detergent. Next: was this week more stressful than usual for you?", "Has this week been more stressful than usual?")
+                == "That rules out detergent.")
+        // A different question stays.
+        #expect(shown("Your scratching rose after the wash. Want me to dig deeper?", "Where is the itch worst?")
+                == "Your scratching rose after the wash. Want me to dig deeper?")
+        #expect(shown("Did the itch start on your hands?", "Has this week been more stressful than usual?")
+                == "Did the itch start on your hands?")
     }
 
     @Test func richText() {

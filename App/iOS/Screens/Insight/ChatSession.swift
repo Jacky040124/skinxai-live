@@ -55,7 +55,7 @@ struct ChatToolRow: Identifiable, Equatable {
 /// Hidden development launch arguments (no effect unless passed):
 ///   -chatModel <id>   ask the server for this model ("deepseek/deepseek-v4.1-flash"); never sent otherwise
 ///   -chatAuto 1       sends the first suggestion (2: the second), taps the first answer of every question and "Go ahead"
-///   -chatReplay 1     replays the last saved conversation when Insight first shows
+///   -chatReplay 1     posts .twinReplayChat when Insight first shows (replays the last saved conversation)
 ///   -chatEndpoint <url>  talks to another /api/chat (to see the failed-request row)
 ///   -chatDraft <text>    starts with this text in the box and the keyboard up
 @MainActor
@@ -63,11 +63,11 @@ final class ChatSession: ObservableObject {
     static let shared = ChatSession()
 
     /// Seconds per word of Claude's text.
-    static let wordDelay = 0.032
+    nonisolated static let wordDelay = 0.032
     /// Every tool row spins at least this long, so it can be read.
-    static let toolMinimum = 0.6
+    nonisolated static let toolMinimum = 0.6
     /// "Thinking…" never just flashes.
-    static let thinkMinimum = 0.6
+    nonisolated static let thinkMinimum = 0.6
 
     @Published private(set) var items: [ChatItem] = []
     /// Claude's turn: waiting for the server or playing a reply (also while a question waits for Douglas).
@@ -143,9 +143,10 @@ final class ChatSession: ObservableObject {
         }
         if UserDefaults.standard.bool(forKey: "chatReplay"), !devReplayStarted {
             devReplayStarted = true
-            Task { [weak self] in
+            Task {
                 await Self.pause(1.0)
-                self?.replay()
+                // The same way the hidden "Replay last Claude chat" control asks for it.
+                NotificationCenter.default.post(name: .twinReplayChat, object: nil)
             }
         }
     }
@@ -217,7 +218,8 @@ final class ChatSession: ObservableObject {
         var lead = lead
         for _ in 0..<ChatRules.maxRounds {
             let started = Date()
-            async let asked = client.replyWithRetry(to: messages, today: StageStory.todayLong())
+            let conversation = messages, today = StageStory.todayLong(), client = client
+            async let asked = client.replyWithRetry(to: conversation, today: today)
             if lead > 0 {
                 await Self.pause(lead)
                 lead = 0
