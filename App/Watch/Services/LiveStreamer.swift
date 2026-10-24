@@ -40,6 +40,9 @@ final class LiveStreamer: @unchecked Sendable {
     private var timer: DispatchSourceTimer?
     private var inFlight = false
     private var inFlightSince: Date?
+    /// Stop came while a batch was on its way: the final "live: false" batch goes out as soon as that send finishes,
+    /// so the phone learns about Stop within a second instead of waiting for its 8-second silence rule.
+    private var finalPending = false
     private var task: URLSessionDataTask?
     private var sent = 0
     private var running = false
@@ -94,6 +97,7 @@ final class LiveStreamer: @unchecked Sendable {
             }
             guard !self.running else { return }
             self.running = true
+            self.finalPending = false
             self.sent = 0
             self.samples.removeAll(); self.raw.removeAll(); self.windows.removeAll(); self.events.removeAll(); self.gravity = nil
             print("[live] start → \(self.endpoint?.absoluteString ?? "-")")
@@ -108,10 +112,11 @@ final class LiveStreamer: @unchecked Sendable {
     func stop() {
         queue.async {
             guard self.running else { return }
-            self.flush(force: true)
             self.timer?.cancel()
             self.timer = nil
             self.running = false
+            // flush() skips while a send is in flight (one every 0.3 s), so the final batch could be lost.
+            if self.inFlight { self.finalPending = true } else { self.flush(force: true) }
         }
     }
 
@@ -216,6 +221,10 @@ final class LiveStreamer: @unchecked Sendable {
                 }
                 if self.sent == 1 && ok { print("[live] first batch reached the relay") }
                 self.report(LinkStatus(ok: ok, detail: ok ? "" : detail, sent: self.sent))
+                if self.finalPending && !self.running {
+                    self.finalPending = false
+                    self.flush(force: true)
+                }
             }
         }
         task = t
