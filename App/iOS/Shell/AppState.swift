@@ -5,12 +5,12 @@ enum Tab: String, CaseIterable, Identifiable {
     case today, trends, insight
     var id: String { rawValue }
     var title: String {
-        switch self { case .today: "Today"; case .trends: "Trends"; case .insight: "Insight" }
+        switch self { case .today: "Summary"; case .trends: "Trends"; case .insight: "Insight" }
     }
     /// SF Symbol for the tab bar.
     var icon: String {
         switch self {
-        case .today: "circle.lefthalf.filled"
+        case .today: "heart.text.square.fill"
         case .trends: "chart.bar.fill"
         case .insight: "sparkle"
         }
