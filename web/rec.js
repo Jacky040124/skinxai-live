@@ -16,7 +16,7 @@
   const REST = 4;
   let running = false, cancelled = false;
 
-  const post = (body) => fetch("/api/label", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
+  const post = (body) => fetch(window.twinUI.api("/api/label"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
     .then((r) => r.json()).catch(() => ({}));
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -65,6 +65,7 @@
 
   $("#recBtn").addEventListener("click", run);
   document.addEventListener("keydown", (e) => {
+    if (e.target.closest && e.target.closest("input, textarea, [contenteditable]")) return;
     if ((e.key === "t" || e.key === "T") && $("#p-monitor").classList.contains("on")) run();
     if (e.key === "Escape" && running) cancelled = true;
   });

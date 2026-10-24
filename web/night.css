@@ -1,0 +1,11 @@
+/* Last night page (#p-night). */
+.bars { flex: 1; display: flex; align-items: flex-end; gap: 10px; margin-top: 18px; position: relative; min-height: 120px; }
+.bars i { flex: 1; border-radius: 4px 4px 0 0; background: rgba(233, 239, 228, .14); height: 0; transition: height .9s cubic-bezier(.34, 1.4, .64, 1); position: relative; }
+.bars i.hot { background: var(--orange); box-shadow: 0 0 22px rgba(248, 161, 111, .35); }
+.bars i.live { background: var(--pink); }
+.bars i b { position: absolute; top: -26px; left: 50%; transform: translateX(-50%); font: 700 14px "Space Mono"; color: var(--text); opacity: 0; transition: opacity .4s .6s; }
+.bars.shown i b { opacity: 1; }
+.axis { display: flex; gap: 10px; margin-top: 10px; }
+.axis span { flex: 1; text-align: center; font: 400 12px "Space Mono"; color: var(--muted); }
+.axis span.mark { color: var(--pink); font-weight: 700; }
+.note { margin-top: 12px; font: 400 14px "Space Mono"; color: var(--pink); min-height: 18px; }

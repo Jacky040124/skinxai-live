@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Eczema Twin · Scratch Monitor</title>
 <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/night.css">
+<link rel="stylesheet" href="/history.css">
+<link rel="stylesheet" href="/chat.css">
 </head>
 <body>
 <div id="app">
@@ -82,26 +85,21 @@
     <div class="ptitle"><div><div class="eyebrow">LAST 14 NIGHTS · SAME WATCH, EVERY NIGHT</div><h1><span id="hTitleLead">Since Wednesday:</span> <span class="hl" id="hAvg">0</span> min a night. His usual is <span id="hUsual">12</span>.</h1></div>
       <div class="chip warn" id="hChange">▲ 2.6× his usual</div></div>
     <div class="card grow"><div class="ck">MINUTES OF SCRATCHING PER NIGHT</div><div class="hbars" id="histBars"></div><div class="haxis" id="histAxis"></div></div>
-    <div class="card"><div class="ck">WHAT CHANGED</div><div class="changes" id="changes"></div></div>
   </section>
 
   <!-- CLAUDE -->
   <section class="page" id="p-claude">
-    <div class="ptitle"><div><div class="eyebrow">DOUGLAS ASKED CLAUDE</div><h1>“Why is my eczema so bad today?”</h1></div>
-      <button class="ask" id="askBtn">✶ Ask Claude</button></div>
-    <div class="claude">
-      <div class="thinking card" id="thinking"><div class="pix" id="pix"></div><span id="thinkText">Reading 14 nights of scratching, sleep and weather…</span></div>
-      <div class="card summary" id="summaryCard"><div class="ck">WHAT CLAUDE THINKS <span id="srcTag"></span></div><p id="summary"></p></div>
-      <div class="suspects" id="suspects"></div>
-      <div class="next card" id="nextCard"><div class="ck">TRY THIS</div><p id="nextText"></p></div>
-      <div class="disc" id="disc">Not a diagnosis. Patterns in the log, not proof.</div>
-    </div>
+    <div class="chat-soon">Claude chat — being built (POLISH-SPEC.md §3.4)</div>
   </section>
 
   <div class="sound" id="sound">Click anywhere to turn on sound</div>
 </div>
+<script src="/story.js"></script>
+<script src="/common.js"></script>
 <script src="/monitor.js"></script>
-<script src="/pages.js"></script>
+<script src="/night.js"></script>
+<script src="/history.js"></script>
+<script src="/chat.js"></script>
 <script src="/rec.js"></script>
 </body>
 </html>

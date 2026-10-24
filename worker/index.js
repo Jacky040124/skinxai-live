@@ -23,6 +23,7 @@ export default {
     }
     if (["/api/live", "/api/events", "/api/status", "/api/label", "/api/recording", "/api/recordings"].includes(url.pathname)) return room.fetch(request);
     if (url.pathname === "/api/analyze" && request.method === "POST") return analyze(request, env);
+    if (url.pathname === "/api/chat" && request.method === "POST") return chat(request, env);
     return env.ASSETS.fetch(request);
   },
 };
@@ -154,4 +155,73 @@ async function analyze(request, env) {
     try { return json({ model, caseFile: await ask() }); } catch (e) { last = e; if (String(e).includes("abort")) break; }
   }
   return json({ error: "analysis failed", detail: String(last).slice(0, 160) }, 502);
+}
+
+// ---------- Claude chat (the "Claude" page): real model, our tools, steered by instructions ----------
+// The page runs the tools itself (the data lives in web/story.js) and sends the conversation back;
+// this endpoint only adds the instructions and tool list and asks the model for its next turn.
+const CHAT_MODELS = ["anthropic/claude-sonnet-5.5", "anthropic/claude-opus-5.5", "anthropic/claude-haiku-5.5", "deepseek/deepseek-v4.1-flash"];
+
+const CHAT_SYSTEM = (today) => `You are Claude, connected to Eczema Twin: an app that measures how much a person scratches in their sleep with their Apple Watch. You are talking with Douglas, a 21-year-old student with eczema, on a big screen during a live demo. Today is ${today}.
+
+Style: warm, calm, plain English. Short turns: 1-3 sentences. No markdown headings, no long lists. Never give a diagnosis; you look for patterns in his data.
+
+When he asks why his eczema is bad, work like this:
+1. Gather data first. Call scratch_history, order_history, weather_history, calendar_events and sleep_history (several in one turn is fine). Don't ask him for things a tool can tell you.
+2. Look for what changed one to three days before his scratching started rising. Things that touch the skin every day (soaps, body wash, shampoo, lotion, detergent) are the prime suspects; something bought for the first time is more suspicious than a repeat purchase.
+3. Call show_timeline to mark the most suspicious change on his scratching chart, and show_product for that product (no brand names; describe it generically, e.g. "Body wash").
+4. Then rule out the other explanations before concluding. Ask exactly three short questions, ONE per turn, each with ask_user and 2-3 short answer options: whether he changed his laundry detergent, whether this week has been more stressful than usual, and where the itch is worst. After each answer, say in one sentence what it rules in or out, using his data (e.g. stress was higher during midterms and his scratching didn't change).
+5. Finally call show_conclusion with the most likely cause, your confidence, what you ruled out and why, and a simple test: go back to the old product for 5 nights while the watch keeps measuring. Close with one short sentence.
+Only use facts returned by the tools. If an answer points somewhere else, take it seriously and say what would distinguish the two.`;
+
+const CHAT_TOOLS = [
+  { name: "scratch_history", description: "Minutes of scratching measured by the Apple Watch for each of the last nights, plus his usual level.", parameters: { type: "object", properties: { nights: { type: "integer", description: "How many nights, up to 14" } }, required: ["nights"] } },
+  { name: "order_history", description: "His online orders (Amazon) with item, category and whether he bought it before.", parameters: { type: "object", properties: { days: { type: "integer" } }, required: ["days"] } },
+  { name: "weather_history", description: "Daily outdoor humidity and temperature where he lives.", parameters: { type: "object", properties: { days: { type: "integer" } }, required: ["days"] } },
+  { name: "calendar_events", description: "Events from his calendar (exams, travel, deadlines).", parameters: { type: "object", properties: { days: { type: "integer" } }, required: ["days"] } },
+  { name: "sleep_history", description: "Hours of sleep and wake-ups per night from Apple Health.", parameters: { type: "object", properties: { nights: { type: "integer" } }, required: ["nights"] } },
+  { name: "show_timeline", description: "Show his nightly scratching chart in the artifact panel with one change marked on it.", parameters: { type: "object", properties: { marker_date: { type: "string", description: "YYYY-MM-DD of the change" }, marker_label: { type: "string", description: "Short label, e.g. 'Started new body wash'" }, note: { type: "string", description: "One short sentence about the timing" } }, required: ["marker_date", "marker_label"] } },
+  { name: "show_product", description: "Show the suspected product in the artifact panel.", parameters: { type: "object", properties: { name: { type: "string", description: "Generic name, no brand" }, purchase_date: { type: "string" }, flagged_ingredients: { type: "array", items: { type: "string" } }, note: { type: "string" } }, required: ["name", "purchase_date"] } },
+  { name: "ask_user", description: "Ask Douglas one short question with 2-3 answer buttons. The result is his answer.", parameters: { type: "object", properties: { question: { type: "string" }, options: { type: "array", items: { type: "string" }, minItems: 2, maxItems: 3 } }, required: ["question", "options"] } },
+  { name: "show_conclusion", description: "Show the conclusion card in the artifact panel.", parameters: { type: "object", properties: { cause: { type: "string" }, confidence: { type: "string", enum: ["low", "medium", "high"] }, ruled_out: { type: "array", items: { type: "object", properties: { item: { type: "string" }, reason: { type: "string" } }, required: ["item", "reason"] } }, next_step: { type: "string" } }, required: ["cause", "confidence", "next_step"] } },
+].map((f) => ({ type: "function", function: f }));
+
+async function chat(request, env) {
+  if (!env.OPENROUTER_KEY) return json({ error: "no key" }, 503);
+  let body = {};
+  try { body = await request.json(); } catch { return json({ error: "bad json" }, 400); }
+  const model = CHAT_MODELS.includes(body.model) ? body.model : CHAT_MODELS[0];
+  const today = /^[A-Za-z]+, [A-Za-z]+ \d{1,2}, \d{4}$/.test(body.today || "") ? body.today : new Date().toDateString();
+  const raw = Array.isArray(body.messages) ? body.messages.slice(-80) : [];
+  let size = 0;
+  const messages = [];
+  for (const m of raw) {
+    if (!m || !["user", "assistant", "tool"].includes(m.role)) continue;
+    const content = typeof m.content === "string" ? m.content.slice(0, 12000) : "";
+    size += content.length;
+    const out = { role: m.role, content };
+    if (m.role === "assistant" && Array.isArray(m.tool_calls)) {
+      out.tool_calls = m.tool_calls.slice(0, 8).map((c) => ({ id: String(c.id).slice(0, 80), type: "function",
+        function: { name: String(c.function && c.function.name).slice(0, 40), arguments: String(c.function && c.function.arguments || "{}").slice(0, 4000) } }));
+    }
+    if (m.role === "tool") out.tool_call_id = String(m.tool_call_id || "").slice(0, 80);
+    messages.push(out);
+  }
+  if (!messages.length || size > 80000) return json({ error: "bad conversation" }, 400);
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 40000);
+  try {
+    const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST", signal: controller.signal,
+      headers: { authorization: `Bearer ${env.OPENROUTER_KEY}`, "content-type": "application/json" },
+      body: JSON.stringify({ model, temperature: 0.3, max_tokens: 1200, tools: CHAT_TOOLS, tool_choice: "auto",
+        messages: [{ role: "system", content: CHAT_SYSTEM(today) }, ...messages] }),
+    });
+    const j = await r.json();
+    const msg = j.choices && j.choices[0] && j.choices[0].message;
+    if (!msg) return json({ error: "no reply", status: r.status, detail: JSON.stringify(j).slice(0, 200) }, 502);
+    return json({ model, message: { role: "assistant", content: msg.content || "", tool_calls: msg.tool_calls || [] } });
+  } catch (e) {
+    return json({ error: "chat failed", detail: String(e).slice(0, 160) }, 502);
+  } finally { clearTimeout(timer); }
 }

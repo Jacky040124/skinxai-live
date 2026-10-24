@@ -132,8 +132,7 @@
 
   let ws, retry = 0;
   function connect() {
-    const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    ws = new WebSocket(`${proto}//${location.host}/api/live`);
+    ws = new WebSocket(window.twinUI.wsUrl("/api/live"));
     ws.onopen = () => { retry = 0; };
     ws.onmessage = (ev) => {
       let msg; try { msg = JSON.parse(ev.data); } catch { return; }
@@ -174,6 +173,7 @@
   }
 
   document.addEventListener("keydown", (e) => {
+    if (e.target.closest && e.target.closest("input, textarea, [contenteditable]")) return;   // typing in the chat
     if (e.key === "f" || e.key === "F") { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); }
     if (e.key === "d" || e.key === "D") setSim(!simulate);
     if (e.key === "r" || e.key === "R") reset();
