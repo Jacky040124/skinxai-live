@@ -399,7 +399,7 @@
       return `${cap(String(a.confidence || "medium").toLowerCase())} confidence · ${count(k, "thing")} ruled out`;
     },
   };
-  const DRAW_MS = { show_timeline: 2100, show_product: 1700, show_conclusion: 1500 };
+  const DRAW_MS = { show_timeline: 2200, show_product: 1500, show_conclusion: 1400 };   // from the start of each reveal
 
   // show_timeline / show_product / show_conclusion: an artifact card in the thread and the artifact in the panel.
   async function showArtifact(parent, name, a, my) {
@@ -419,7 +419,7 @@
     await nextPaint();
     if (my !== gen) return;
     slot.firstElementChild.classList.add("on");
-    await sleep(Math.max(CARD_MS, calm ? 0 : DRAW_MS[name]) - (performance.now() - t0));
+    await sleep(Math.max(CARD_MS - (performance.now() - t0), calm ? 0 : DRAW_MS[name]));
     if (my !== gen) return;
     t.done(ART_LINE[name](a, startedAt));
     await sleep(300);
