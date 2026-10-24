@@ -60,8 +60,8 @@ targets:
     dependencies:
       - package: EczemaKit
     configFiles:
-      Debug: App/Watch/Secrets.xcconfig
-      Release: App/Watch/Secrets.xcconfig
+      Debug: App/Watch/Live.xcconfig
+      Release: App/Watch/Live.xcconfig
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.jackyzhong.eczematwin2.watchkitapp

@@ -63,8 +63,14 @@ final class LiveStreamer: @unchecked Sendable {
         let info = Bundle.main.infoDictionary ?? [:]
         let host = (info["TwinLiveHost"] as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
         let k = (info["TwinLiveKey"] as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
-        endpoint = host.isEmpty || host.hasPrefix("$(") ? nil : URL(string: "https://\(host)/api/ingest")
-        key = k.isEmpty || k.hasPrefix("$(") ? nil : k
+        #if targetEnvironment(simulator)
+        // A simulator never streams to the real big screen unless launched with -stream (its sensor is scripted).
+        let allowed = ProcessInfo.processInfo.arguments.contains("-stream")
+        #else
+        let allowed = true
+        #endif
+        endpoint = !allowed || host.isEmpty || host.hasPrefix("$(") ? nil : URL(string: "https://\(host)/api/ingest")
+        key = !allowed || k.isEmpty || k.hasPrefix("$(") ? nil : k
         let nc = NotificationCenter.default
         for (name, state) in [(WKApplication.didBecomeActiveNotification, "active"),
                               (WKApplication.willResignActiveNotification, "inactive"),
