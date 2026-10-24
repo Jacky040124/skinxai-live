@@ -90,7 +90,7 @@ struct EpisodeTracker {
                 state = .active(id: id, windows: windows + [w], gap: 0)
                 return []
             }
-            if gap >= 1 {
+            if gap + 1 >= config.quietWindowsToEnd {
                 state = .idle
                 return [.episodeEnded(makeEpisode(id: id, windows: windows))]
             }
@@ -107,6 +107,13 @@ struct EpisodeTracker {
         if alert { lastAlert = start }
         return [.episodeStarted(EpisodeStart(id: id, start: Date(timeIntervalSinceReferenceDate: start), shouldAlert: alert,
                                              windows: windows.map(\.features), meanHz: Self.meanHz(windows)))]
+    }
+
+    /// The wrist went still: close an open episode now (nothing if none is open).
+    mutating func endNow() -> [DetectorEvent] {
+        guard case let .active(id, windows, _) = state else { return [] }
+        state = .idle
+        return [.episodeEnded(makeEpisode(id: id, windows: windows))]
     }
 
     /// End of the stream: close an open episode, forget a lone scratch window.

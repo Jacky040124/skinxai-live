@@ -25,6 +25,11 @@ public final class ScratchDetector {
     private var zs: [Double] = []
     private var ts: [TimeInterval] = []
     private var lastT: TimeInterval?
+    /// Slow gravity estimate and the last time the wrist moved (for `quietSecondsToEnd`).
+    private var gravity: (Double, Double, Double)?
+    private var lastMotionT: TimeInterval?
+    /// After a stillness end: windows starting before this reach back into the finished bout.
+    private var noStartBefore: TimeInterval = -.infinity
 
     public init(model: ScratchModel = ScratchModel(), config: DetectorConfig = .standard, source: EpisodeSource = .live,
                 lastAlert: Date? = nil) {
@@ -60,17 +65,34 @@ public final class ScratchDetector {
             }
         }
         lastT = sample.t
+        if config.quietSecondsToEnd.isFinite {
+            let g = gravity.map { ($0.0 + (sample.x - $0.0) * 0.04, $0.1 + (sample.y - $0.1) * 0.04, $0.2 + (sample.z - $0.2) * 0.04) }
+                ?? (sample.x, sample.y, sample.z)
+            gravity = g
+            let dx = sample.x - g.0, dy = sample.y - g.1, dz = sample.z - g.2
+            if (dx * dx + dy * dy + dz * dz).squareRoot() > config.stillLevel || lastMotionT == nil { lastMotionT = sample.t }
+            if tracker.isInEpisode, let m = lastMotionT, sample.t - m >= config.quietSecondsToEnd {
+                events += tracker.endNow()
+                noStartBefore = sample.t - config.hopSeconds
+            }
+        }
         xs.append(sample.x); ys.append(sample.y); zs.append(sample.z); ts.append(sample.t)
         if xs.count == config.windowLength {
             let f = extractor.features(x: xs, y: ys, z: zs, start: ts[0])
             let p = model.probability(f)
             let result = WindowResult(features: f, probability: p,
                                      isScratch: f.moving && p >= config.threshold && f.strength <= config.maxStrength
-                                         && (f.kurtosis ?? 0) <= config.maxKurtosis)
+                                         && (f.kurtosis ?? 0) <= config.maxKurtosis
+                                         && (f.impulsiveness ?? 0) <= config.maxImpulsiveness)
             windowCount += 1
             if f.moving { movingCount += 1 }
             events.append(.window(result))
-            events += tracker.feed(result)
+            if result.isScratch, f.start < noStartBefore, !tracker.isInEpisode {
+                // Mostly the bout that just ended: show the window, but don't restart that bout.
+                events += tracker.feed(WindowResult(features: f, probability: p, isScratch: false))
+            } else {
+                events += tracker.feed(result)
+            }
             let hop = min(config.hopLength, xs.count)
             xs.removeFirst(hop); ys.removeFirst(hop); zs.removeFirst(hop); ts.removeFirst(hop)
         }
@@ -95,6 +117,7 @@ public final class ScratchDetector {
     private func clearBuffer() {
         xs.removeAll(keepingCapacity: true); ys.removeAll(keepingCapacity: true)
         zs.removeAll(keepingCapacity: true); ts.removeAll(keepingCapacity: true)
+        gravity = nil; lastMotionT = nil
     }
 
     /// Batch analysis (e.g. one hour of `CMSensorRecorder` data): every finished episode, no alerts.

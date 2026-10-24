@@ -129,7 +129,7 @@ final class LiveStreamer: @unchecked Sendable {
                     self.windows.append(["t": f.start + Self.unixOffset, "p": round3(w.probability), "scratch": w.isScratch,
                                          "strength": round3(f.strength), "hz": round3(f.dominantHz), "moving": f.moving,
                                          "periodicity": round3(f.periodicity), "inBand": round3(f.inBand), "crossingHz": round3(f.crossingHz),
-                                         "kurtosis": round3(f.kurtosis ?? 0)])
+                                         "kurtosis": round3(f.kurtosis ?? 0), "impulsiveness": round3(f.impulsiveness ?? 0)])
                 case let .episodeStarted(s):
                     self.events.append(["type": "start", "id": s.id.uuidString, "t": s.start.timeIntervalSince1970,
                                         "hz": round3(s.meanHz), "intense": false])

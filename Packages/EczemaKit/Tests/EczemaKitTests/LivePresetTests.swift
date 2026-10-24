@@ -55,4 +55,28 @@ import Testing
         w.scratch(10, hz: 1.8, amplitude: 1.8)
         #expect(ScratchDetector.episodes(in: w.samples, model: ScratchModel(), config: .live).isEmpty)
     }
+
+    @Test func twoBoutsWithAPauseAreTwoEpisodes() {
+        var s = SyntheticMotion(start: 0, seed: 21)
+        s.still(3)
+        s.scratch(3, hz: 3.5, amplitude: 0.5)
+        s.still(2.5)
+        s.scratch(3, hz: 3.5, amplitude: 0.5)
+        s.still(4)
+        #expect(ScratchDetector.episodes(in: s.samples, model: ScratchModel(), config: .live).count == 2)
+    }
+
+    @Test func shortBurstIsCaughtWithinAboutTwoSeconds() {
+        var s = SyntheticMotion(start: 0, seed: 23)
+        s.still(4)
+        s.scratch(1.5, hz: 3.5, amplitude: 0.5)
+        s.still(4)
+        let d = ScratchDetector(model: ScratchModel(), config: .live)
+        var startedAt: TimeInterval?
+        for sample in s.samples {
+            for e in d.process(sample) { if case .episodeStarted = e, startedAt == nil { startedAt = sample.t } }
+        }
+        #expect(startedAt != nil)
+        if let t = startedAt { #expect(t - 4 < 2.5) }
+    }
 }

@@ -13,6 +13,10 @@ let env = ProcessInfo.processInfo.environment
 var config = env["PRESET"] == "live" ? DetectorConfig.live : DetectorConfig.standard
 if let m = env["MAXSTRENGTH"].flatMap(Double.init) { config.maxStrength = m }
 if let k = env["MAXKURT"].flatMap(Double.init) { config.maxKurtosis = k }
+if let k = env["MAXIMP"].flatMap(Double.init) { config.maxImpulsiveness = k }
+if let w = env["WINDOW"].flatMap(Double.init) { config.windowSeconds = w }
+if let h = env["HOP"].flatMap(Double.init) { config.hopSeconds = h }
+if let q = env["QUIET"].flatMap(Int.init) { config.quietWindowsToEnd = q }
 if let g = env["GATE"].flatMap(Double.init) { config.movementGate = g }
 if let th = env["THRESHOLD"].flatMap(Double.init) { config.threshold = th }
 var model = ScratchModel()
@@ -27,11 +31,18 @@ for (i, line) in text.split(whereSeparator: \.isNewline).enumerated() where i > 
 }
 let detector = ScratchDetector(model: model, config: config, source: .recorded)
 let events = detector.process(samples) + detector.finish()
-print("start,strength,maxAxisSD,moving,dominantHz,periodicity,inBand,crossingHz,logStrength,crossingScore,kurtosis,p,isScratch")
+print("start,strength,maxAxisSD,moving,dominantHz,periodicity,inBand,crossingHz,logStrength,crossingScore,kurtosis,impulsiveness,p,isScratch")
 for w in events.windows {
     let f = w.features
     print([f.start, f.strength, f.axisSD.max() ?? 0, f.moving ? 1 : 0, f.dominantHz, f.periodicity, f.inBand, f.crossingHz,
-           f.logStrength, f.crossingScore, f.kurtosis ?? 0, w.probability, w.isScratch ? 1 : 0].map { String(format: "%.4f", $0) }.joined(separator: ","))
+           f.logStrength, f.crossingScore, f.kurtosis ?? 0, f.impulsiveness ?? 0, w.probability, w.isScratch ? 1 : 0].map { String(format: "%.4f", $0) }.joined(separator: ","))
 }
 let eps = events.episodes
 FileHandle.standardError.write("samples=\(samples.count) windows=\(events.windows.count) episodes=\(eps.count)\n".data(using: .utf8)!)
+for e in events {
+    switch e {
+    case let .episodeStarted(s): FileHandle.standardError.write(String(format: "EP_START %.2f emitted %.2f\n", s.start.timeIntervalSinceReferenceDate, (s.windows.last?.start ?? 0) + config.windowSeconds).data(using: .utf8)!)
+    case let .episodeEnded(d): FileHandle.standardError.write(String(format: "EP_END %.2f %.2f\n", d.episode.start.timeIntervalSinceReferenceDate, d.episode.end.timeIntervalSinceReferenceDate).data(using: .utf8)!)
+    default: break
+    }
+}

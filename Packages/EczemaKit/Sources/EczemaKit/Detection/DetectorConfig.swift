@@ -51,6 +51,18 @@ public struct DetectorConfig: Sendable, Hashable {
     /// Windows whose dominant axis is spikier than this (kurtosis) never count: impacts such as patting
     /// a thigh (6–10 in recordings) rather than a back-and-forth (scratching 2–4.5).
     public var maxKurtosis: Double = .infinity
+    /// Same idea measured only where the wrist moves (`WindowFeatures.impulsiveness`), so a short
+    /// scratch inside a mostly quiet window is not mistaken for a pat.
+    public var maxImpulsiveness: Double = .infinity
+    /// Quiet windows in a row that end an episode (2 = the SPEC's one-window grace; 1 = end at the
+    /// first quiet window, so a new scratch a few seconds later counts as a new one).
+    public var quietWindowsToEnd: Int = 2
+    /// End an open episode as soon as the wrist has been still this long (seconds), without waiting
+    /// for the overlapping windows to go quiet; windows reaching back into that bout can't restart it.
+    /// Off (infinity) by default.
+    public var quietSecondsToEnd: Double = .infinity
+    /// Motion (gravity removed, g) below which a sample counts as still for `quietSecondsToEnd`.
+    public var stillLevel: Double = 0.04
 
     public init() {}
 
@@ -63,9 +75,13 @@ public struct DetectorConfig: Sendable, Hashable {
     public static let live: DetectorConfig = {
         var c = DetectorConfig()
         c.movementGate = 0.012
-        c.threshold = 0.6
+        c.threshold = LiveTuning.threshold
         c.minWindows = 1
-        c.maxKurtosis = 5.5
+        c.maxImpulsiveness = LiveTuning.maxImpulsiveness
+        c.windowSeconds = LiveTuning.windowSeconds
+        c.hopSeconds = LiveTuning.hopSeconds
+        c.quietWindowsToEnd = 4
+        c.quietSecondsToEnd = LiveTuning.quietSecondsToEnd
         c.alertCooldown = 20
         return c
     }()
@@ -74,4 +90,14 @@ public struct DetectorConfig: Sendable, Hashable {
     public var windowLength: Int { max(8, Int((windowSeconds * sampleRate).rounded())) }
     /// Samples per hop (75 at 50 Hz).
     public var hopLength: Int { max(1, Int((hopSeconds * sampleRate).rounded())) }
+}
+
+/// The live preset's tuned numbers in one place (from labelled recordings on a real watch).
+/// Short bursts spliced from that recording: every 1–3 s scratch caught about 1 s after it starts.
+public enum LiveTuning {
+    public static let threshold = 0.45
+    public static let maxImpulsiveness = 5.0
+    public static let windowSeconds = 3.0
+    public static let hopSeconds = 0.5
+    public static let quietSecondsToEnd = 1.0
 }

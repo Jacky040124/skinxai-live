@@ -27,13 +27,18 @@ public struct WindowFeatures: Sendable, Hashable, Codable {
     /// Kurtosis of the dominant axis: about 1.5–3 for a smooth back-and-forth (scratching), well above 5
     /// for a train of impacts (patting a thigh, tapping). nil in data saved before it existed.
     public var kurtosis: Double?
+    /// Kurtosis of the dominant axis measured only where the wrist is moving: the median over 0.6 s
+    /// pieces that carry real motion. A short scratch inside a quiet window stays low (about 2–4),
+    /// a train of pats stays high (5–10). nil in data saved before it existed.
+    public var impulsiveness: Double?
 
     public init(start: TimeInterval, axisSD: [Double], strength: Double, moving: Bool, axis: Int, dominantHz: Double,
                 periodicity: Double, inBand: Double, crossingHz: Double, logStrength: Double, crossingScore: Double,
-                kurtosis: Double? = nil) {
+                kurtosis: Double? = nil, impulsiveness: Double? = nil) {
         self.start = start; self.axisSD = axisSD; self.strength = strength; self.moving = moving; self.axis = axis
         self.dominantHz = dominantHz; self.periodicity = periodicity; self.inBand = inBand; self.crossingHz = crossingHz
         self.logStrength = logStrength; self.crossingScore = crossingScore; self.kurtosis = kurtosis
+        self.impulsiveness = impulsiveness
     }
 
     /// Inputs of the logistic model, in `ScratchModel.featureNames` order.
@@ -111,7 +116,30 @@ public struct FeatureExtractor: Sendable {
         return WindowFeatures(start: start, axisSD: sds, strength: strength, moving: true, axis: axis,
                               dominantHz: rate.hz, periodicity: rate.height, inBand: inBand, crossingHz: crossingHz,
                               logStrength: logStrength, crossingScore: Self.crossingScore(crossingHz),
-                              kurtosis: Self.kurtosis(d))
+                              kurtosis: Self.kurtosis(d),
+                              impulsiveness: Self.impulsiveness(d, piece: max(8, Int((0.6 * config.sampleRate).rounded())),
+                                                                gate: config.movementGate))
+    }
+
+    /// Median kurtosis over overlapping pieces (`piece` samples, half-piece steps) whose RMS is at
+    /// least the movement gate and 30% of the busiest piece.
+    public static func impulsiveness(_ d: [Double], piece: Int, gate: Double) -> Double {
+        guard d.count >= piece else { return kurtosis(d) }
+        var rms: [Double] = [], ks: [Double] = []
+        var s = 0
+        while s + piece <= d.count {
+            let slice = Array(d[s..<(s + piece)])
+            let mean = slice.reduce(0, +) / Double(piece)
+            let b = slice.map { $0 - mean }
+            let r = (b.reduce(0) { $0 + $1 * $1 } / Double(piece)).squareRoot()
+            rms.append(r); ks.append(kurtosis(b))
+            s += max(1, piece / 2)
+        }
+        let floor = max(gate, 0.3 * (rms.max() ?? 0))
+        let active = zip(rms, ks).filter { $0.0 >= floor }.map(\.1).sorted()
+        guard !active.isEmpty else { return 0 }
+        let m = active.count / 2
+        return active.count % 2 == 1 ? active[m] : (active[m - 1] + active[m]) / 2
     }
 
     /// Fourth moment over the squared second moment of an already de-meaned signal.
