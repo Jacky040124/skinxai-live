@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Eczema Twin · Scratch Monitor</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="app">
+  <header class="bar">
+    <div class="brand"><span class="logo"><i></i><i></i></span><b>ECZEMA TWIN</b><span class="sep">/</span><span id="pageName">SCRATCH MONITOR</span></div>
+    <nav class="tabs">
+      <button data-page="monitor" class="on">Monitor</button>
+      <button data-page="night">Last night</button>
+      <button data-page="history">History</button>
+      <button data-page="claude">Claude</button>
+    </nav>
+    <div class="status"><span id="liveDot" class="dot"></span><span id="liveText">WAITING FOR WATCH</span><span class="clock" id="clock">--:--:--</span></div>
+  </header>
+
+  <!-- MONITOR -->
+  <section class="page on" id="p-monitor">
+    <div class="patient">
+      <div><span class="k">PATIENT</span> DOUGLAS · BED 1</div>
+      <div><span class="k">SENSOR</span> APPLE WATCH · RIGHT WRIST · 50 HZ</div>
+      <div><span class="k">MODE</span> <span id="modeText">LIVE</span></div>
+    </div>
+    <div class="monitor">
+      <div class="trace-wrap">
+        <canvas id="trace"></canvas>
+        <div class="trace-label">WRIST MOTION · SCRATCH DETECTOR</div>
+        <div class="alarm" id="alarm"><span>SCRATCH DETECTED</span></div>
+      </div>
+      <aside class="vitals">
+        <div class="vital big">
+          <div class="vk">SCRATCHES</div>
+          <div class="vv" id="vCount">0</div>
+        </div>
+        <div class="vital">
+          <div class="vk">SCRATCH TIME</div>
+          <div class="vv mid" id="vTime">0:00</div>
+        </div>
+        <div class="vital">
+          <div class="vk">INTENSITY</div>
+          <div class="meter"><i id="vMeter"></i></div>
+          <div class="vsub" id="vHz">— HZ</div>
+        </div>
+        <div class="vital">
+          <div class="vk">LAST SCRATCH</div>
+          <div class="vv small" id="vLast">—</div>
+        </div>
+      </aside>
+    </div>
+    <div class="strip"><div class="strip-k">SESSION</div><div class="strip-track" id="strip"></div></div>
+  </section>
+
+  <section class="page" id="p-night"><div class="soon">Last night · coming next</div></section>
+  <section class="page" id="p-history"><div class="soon">History · coming next</div></section>
+  <section class="page" id="p-claude"><div class="soon">Claude · coming next</div></section>
+
+  <div class="sound" id="sound">Click anywhere to turn on sound</div>
+</div>
+<script src="/monitor.js"></script>
+</body>
+</html>
