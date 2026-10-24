@@ -326,9 +326,9 @@
       grad.addColorStop(i / (n - 1), tint(heatOf(c), 1 - 0.6 * Math.max(0, (age - 0.75) / 0.25)));
     }
     flush();
-    for (const [c2, width, alpha] of [[gctx, 7, 0.6], [ctx, 2.6, 1]]) {   // soft glow, then the crisp line
-      c2.lineJoin = "round"; c2.lineCap = "round"; c2.strokeStyle = grad; c2.lineWidth = width; c2.globalAlpha = alpha;
-      c2.stroke(line);
+    for (const [cx, width, alpha] of [[gctx, 7, 0.6], [ctx, 2.6, 1]]) {   // soft glow, then the crisp line
+      cx.lineJoin = "round"; cx.lineCap = "round"; cx.strokeStyle = grad; cx.lineWidth = width; cx.globalAlpha = alpha;
+      cx.stroke(line);
     }
 
     // pen: a faint scan line, a glow and a bright dot

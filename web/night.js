@@ -48,7 +48,7 @@
     const top = 12, hours = S.LAST_NIGHT_HOURS, [w0, w1] = worstPair(hours);
     const cols = hours.map(([h, m], k) => ({ h: m / top, cls: k === w0 || k === w1 ? "hot" : "", value: `${m} min`, label: hourLabel(h) }));
     if (liveSec > 0) {
-      const s = Math.round(liveSec);
+      const s = Math.max(1, Math.round(liveSec));
       cols.push({ h: Math.max(0.12, liveSec / 60 / top), cls: "live", value: `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`, label: "NOW" });
     }
     bars.innerHTML = cols.map((c, k) => `<div class="col ${c.cls}" style="--h:${Math.min(1, c.h).toFixed(3)};--i:${k}">`
