@@ -90,4 +90,24 @@ enum TodayTrendsLaunch {
         return nil
         #endif
     }
+
+    /// `-trendsTour 1`: a scripted walk through the Trends chart (screen recordings).
+    static var trendsTour: Bool {
+        #if DEBUG
+        return UserDefaults.standard.bool(forKey: "trendsTour")
+        #else
+        return false
+        #endif
+    }
+}
+
+extension View {
+    /// Calls `action` when the calendar day changes (midnight, a time zone or clock change) or the app
+    /// comes back to the front, so "last night" and the dates follow the clock while the app stays open.
+    func onNewDay(_ action: @escaping () -> Void) -> some View {
+        self
+            .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged).receive(on: RunLoop.main)) { _ in action() }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in action() }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in action() }
+    }
 }

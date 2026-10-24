@@ -11,9 +11,10 @@ struct TrendsScreen: View {
     @State private var range: TrendsRange = TodayTrendsLaunch.trendsRange ?? .twoWeeks
     /// The selected night (0 = oldest … 13 = last night).
     @State private var selected = StageStory.lastNightIndex
+    /// Night dates are relative to now; moves on at midnight while the app stays open.
+    @State private var now = Date()
 
     var body: some View {
-        let now = Date()
         ScreenScaffold(title: "Trends", subtitle: range.subtitle) {
             UserAvatar()
         } content: {
@@ -35,11 +36,31 @@ struct TrendsScreen: View {
                 .onAppear { TodayTrendsLaunch.scrollForScreenshot(proxy, bottomID: "trends-bottom") }
             }
         }
+        .onNewDay { now = Date() }
         .task {
             // `-trendsSelect 5` (debug): select a night after the entrance, as if it had been tapped.
-            guard let night = TodayTrendsLaunch.trendsSelect else { return }
-            try? await Task.sleep(for: .seconds(1.6))
-            select(night)
+            if let night = TodayTrendsLaunch.trendsSelect {
+                try? await Task.sleep(for: .seconds(1.6))
+                select(night)
+            }
+            if TodayTrendsLaunch.trendsTour { await tour() }
+        }
+    }
+
+    /// `-trendsTour 1` (debug): select the new wash's night, the exams, zoom to 7 nights, back to 14,
+    /// then last night again.
+    private func tour() async {
+        let steps: [(Double, () -> Void)] = [
+            (2.2, { select(StageStory.bodyWashNight) }),
+            (1.4, { select(TrendsStory.examsMarkerNight) }),
+            (1.4, { withAnimation(Twin.Motion.spring) { setRange(.week) } }),
+            (1.6, { withAnimation(Twin.Motion.spring) { setRange(.twoWeeks) } }),
+            (1.4, { select(StageStory.lastNightIndex) }),
+        ]
+        for (wait, step) in steps {
+            try? await Task.sleep(for: .seconds(wait))
+            if Task.isCancelled { return }
+            step()
         }
     }
 
@@ -49,12 +70,14 @@ struct TrendsScreen: View {
 
     // MARK: Selection
 
-    /// Changing the range keeps the selected night only while the new range shows it.
     private var rangeBinding: Binding<TrendsRange> {
-        Binding(get: { range }, set: { new in
-            range = new
-            if !new.shows(selected) { selected = StageStory.lastNightIndex }
-        })
+        Binding(get: { range }, set: { setRange($0) })
+    }
+
+    /// Changes the range; the selected night stays selected only while the new range shows it.
+    private func setRange(_ new: TrendsRange) {
+        range = new
+        if !new.shows(selected) { selected = StageStory.lastNightIndex }
     }
 
     /// Selects night `i`, widening the range when it is not on the chart.
@@ -81,7 +104,8 @@ struct TrendsScreen: View {
             .padding(.top, 6)
             TrendsWeekSticker(percent: StageStory.weekChangePercent)
                 .padding(.top, 8)
-            NightsChart(bars: TrendsStory.bars(range, now: now), usual: Double(StageStory.usual),
+            NightsChart(bars: TrendsStory.bars(now: now), firstVisible: TrendsStory.firstVisible(range),
+                        usual: Double(StageStory.usual),
                         scaleTop: TrendsStory.scaleTop, markers: TrendsStory.markers,
                         selection: $selected, plotHeight: 170, markerBand: 64, delay: 0.25)
             legend

@@ -22,9 +22,11 @@ struct TodayScreen: View {
     @State private var wasTracking: Bool?
     /// The watch stopped while the live monitor covered Today: replay when Today is back.
     @State private var replayWhenBack = false
+    /// The date in the top bar; moves on at midnight while the app stays open.
+    @State private var now = Date()
 
     var body: some View {
-        ScreenScaffold(title: "Today", subtitle: TodayStory.topBarDate()) {
+        ScreenScaffold(title: "Today", subtitle: TodayStory.topBarDate(now)) {
             HStack(spacing: 10) {
                 LivePill()
                 UserAvatar()
@@ -46,6 +48,7 @@ struct TodayScreen: View {
                     }
                 }
                 .onDisappear { onScreen = false }
+                .onNewDay { now = Date() }
                 .onReceive(LiveSession.shared.$tracking.removeDuplicates()) { tracking in
                     defer { wasTracking = tracking }
                     guard wasTracking == true, !tracking else { return }

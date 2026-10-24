@@ -53,28 +53,25 @@ enum TrendsStory {
         return e.lowerBound + (e.upperBound - e.lowerBound) / 2
     }
 
-    static func bars(_ range: TrendsRange, now: Date = Date()) -> [NightsChart.Bar] {
+    /// All 14 nights (the chart slides the ones before the range out of view).
+    static func bars(now: Date = Date()) -> [NightsChart.Bar] {
         let cal = calendar
-        let first = StageStory.nightCount - range.nights
-        let nights = Array(first..<StageStory.nightCount)
-        let dates = nights.map { StageStory.nightDate($0, now: now, calendar: cal) }
-        // Month labels where the range starts and where a new month begins; the first one is
-        // dropped when a new month begins right after it (they would run into each other).
-        var months = Set(nights.indices.filter { cal.component(.day, from: dates[$0]) == 1 })
-        if let next = months.min(), next < 3 {} else { months.insert(0) }
-        return nights.indices.map { k in
-            let i = nights[k]
-            let date = dates[k]
+        return StageStory.nights.indices.map { i in
+            let date = StageStory.nightDate(i, now: now, calendar: cal)
             return NightsChart.Bar(
                 id: i,
                 value: Double(StageStory.nights[i]),
                 hot: StageStory.isFlare(i),
                 day: "\(cal.component(.day, from: date))",
-                month: months.contains(k) ? StageStory.month(date, calendar: cal).uppercased() : nil,
+                month: StageStory.month(date, calendar: cal).uppercased(),
+                startsMonth: cal.component(.day, from: date) == 1,
                 isLast: i == StageStory.lastNightIndex,
                 accessibility: accessibility(i, date: date))
         }
     }
+
+    /// Index of the first night on the chart for `range`.
+    static func firstVisible(_ range: TrendsRange) -> Int { StageStory.nightCount - range.nights }
 
     /// The markers above the chart: exams and the new wash on the top row, dry air on the row under it
     /// (it ends at its stem, so it stays inside the card over the last night).

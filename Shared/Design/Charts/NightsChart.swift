@@ -11,16 +11,20 @@ import SwiftUI
 /// - Under the bars: a hairline, the month, and the day numbers (the last night in bold).
 /// - Tap a night to select it: a cyan outline moves to its bar (matchedGeometryEffect) with a
 ///   selection haptic.
+/// - A shorter range zooms in: the nights before `firstVisible` slide out to the left and fade while
+///   the others widen (and slide back in when the range grows again).
 struct NightsChart: View {
     struct Bar: Identifiable, Equatable {
-        /// The night (stays the same when the range changes, so bars move instead of being replaced).
+        /// The night.
         var id: Int
         var value: Double
         var hot: Bool
         /// Day number under the bar, e.g. "20".
         var day: String
-        /// Month label that starts at this bar, e.g. "OCT" (the first bar, and the 1st of a month).
-        var month: String?
+        /// Its month, e.g. "OCT".
+        var month: String
+        /// The 1st of a month: its month label sits over its day number.
+        var startsMonth = false
         var isLast = false
         /// VoiceOver description of the night.
         var accessibility = ""
@@ -40,6 +44,8 @@ struct NightsChart: View {
     }
 
     var bars: [Bar]
+    /// Index in `bars` of the first night on the chart (0 = all of them).
+    var firstVisible = 0
     var usual: Double
     /// Minutes at the top of the plot.
     var scaleTop: Double
@@ -49,7 +55,7 @@ struct NightsChart: View {
     /// Room above the plot for the two marker rows.
     var markerBand: CGFloat = 64
     var gap: CGFloat = 4
-    /// Bars never get wider than this (the 7-night range); they stay centered in their slot.
+    /// Bars never get wider than this (a short range); they stay centered in their slot.
     var maxBarWidth: CGFloat = 34
     var delay: Double = 0.12
     var stagger: Double = 0.04
@@ -65,30 +71,32 @@ struct NightsChart: View {
     private let monthGap: CGFloat = 6, monthHeight: CGFloat = 11, dayGap: CGFloat = 2, dayHeight: CGFloat = 12
 
     private var plotBottom: CGFloat { markerBand + plotHeight }
-    private var totalHeight: CGFloat {
-        plotBottom + Twin.Stroke.hairline + monthGap + monthHeight + dayGap + dayHeight
-    }
+    private var monthY: CGFloat { plotBottom + Twin.Stroke.hairline + monthGap }
+    private var totalHeight: CGFloat { monthY + monthHeight + dayGap + dayHeight }
+    private var first: Int { min(max(firstVisible, 0), max(bars.count - 1, 0)) }
 
     var body: some View {
         GeometryReader { g in
-            let m = Metrics(width: g.size.width, count: bars.count, gap: gap, maxBar: maxBarWidth)
+            let m = Metrics(width: g.size.width, count: bars.count - first, first: first, gap: gap, maxBar: maxBarWidth)
             ZStack(alignment: .topLeading) {
                 Rectangle().fill(Twin.Palette.hairline)
                     .frame(width: m.width, height: Twin.Stroke.hairline)
                     .offset(y: plotBottom)
                 ForEach(Array(bars.enumerated()), id: \.element.id) { k, bar in
                     column(bar, k: k, m: m)
-                        .transition(.opacity)
                 }
                 usualLine(m)
-                ForEach(visibleMarkers) { marker in stem(marker, m: m) }
+                ForEach(markers) { marker in stem(marker, m: m) }
+                rangeMonth
                 ForEach(Array(bars.enumerated()), id: \.element.id) { k, bar in
                     labels(bar, k: k, m: m)
                 }
                 // Flags last: they take their own taps above the columns' tap areas.
-                ForEach(visibleMarkers) { marker in flag(marker, m: m) }
+                ForEach(markers) { marker in flag(marker, m: m) }
             }
             .frame(width: m.width, height: totalHeight, alignment: .topLeading)
+            // Nights sliding out of the range disappear at the card's padding, not past it.
+            .clipShape(Rectangle().inset(by: -8))
         }
         .frame(height: totalHeight)
         .sensoryFeedback(.selection, trigger: selection)
@@ -105,23 +113,27 @@ struct NightsChart: View {
     // MARK: Timing
 
     /// The usual line draws once every bar has grown.
-    private var decorationDelay: Double { delay + Double(bars.count) * stagger + 0.2 }
+    private var decorationDelay: Double { delay + Double(bars.count - first) * stagger + 0.2 }
+
+    /// Entrance beat of bar `k`: the first night on the chart grows first.
+    private func beat(_ k: Int) -> Double { delay + Double(max(k - first, 0)) * stagger }
 
     /// A marker drops in right after its own bar has grown.
-    private func markerDelay(_ marker: Marker) -> Double {
-        delay + Double(index(of: marker.bar) ?? 0) * stagger + 0.45
-    }
+    private func markerDelay(_ marker: Marker) -> Double { beat(index(of: marker.bar) ?? 0) + 0.45 }
 
     // MARK: Geometry
 
     private struct Metrics {
         let width: CGFloat
+        /// Nights on the chart.
         let count: Int
+        let first: Int
         let gap: CGFloat
         let maxBar: CGFloat
         var slot: CGFloat { count > 0 ? max(1, (width - gap * CGFloat(count - 1)) / CGFloat(count)) : width }
         var bar: CGFloat { min(slot, maxBar) }
-        func slotX(_ k: Int) -> CGFloat { CGFloat(k) * (slot + gap) }
+        /// Left edge of bar `k`'s slot (negative for the nights before the range).
+        func slotX(_ k: Int) -> CGFloat { CGFloat(k - first) * (slot + gap) }
         func center(_ k: Int) -> CGFloat { slotX(k) + slot / 2 }
     }
 
@@ -130,14 +142,14 @@ struct NightsChart: View {
     }
 
     private func index(of id: Int) -> Int? { bars.firstIndex { $0.id == id } }
-
-    private var visibleMarkers: [Marker] { markers.filter { index(of: $0.bar) != nil } }
+    private func isVisible(_ k: Int) -> Bool { k >= first && k < bars.count }
 
     // MARK: Bars
 
     private func column(_ bar: Bar, k: Int, m: Metrics) -> some View {
         let h = height(bar.value)
         let selected = selection == bar.id
+        let visible = isVisible(k)
         // The bar grows out of the baseline as a render transform (its layout never changes), so the
         // spring only overshoots its own height a little; the selection outline grows with it.
         return ZStack(alignment: .bottom) {
@@ -153,13 +165,15 @@ struct NightsChart: View {
         }
         .scaleEffect(x: 1, y: (grown || reduceMotion) ? 1 : 0.001, anchor: .bottom)
         .opacity(grown ? 1 : 0)
-        .animation(reduceMotion ? nil : Twin.Motion.bouncy.delay(delay + Double(k) * stagger), value: grown)
+        .animation(reduceMotion ? nil : Twin.Motion.bouncy.delay(beat(k)), value: grown)
         .frame(width: m.slot, height: plotHeight, alignment: .bottom)
         .offset(x: m.slotX(k), y: markerBand)
+        .opacity(visible ? 1 : 0)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(bar.accessibility)
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
         .accessibilityAction { select(bar.id) }
+        .accessibilityHidden(!visible)
     }
 
     @ViewBuilder private func barShape(_ hot: Bool) -> some View {
@@ -192,8 +206,9 @@ struct NightsChart: View {
             .trim(from: 0, to: decorated ? 1 : 0)
             .stroke(Twin.Palette.seam, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [0.01, 3.2]))
             .frame(width: 2, height: length)
-            .offset(x: m.center(k) - 1, y: top)
             .animation(reduceMotion ? nil : .easeOut(duration: 0.45).delay(markerDelay(marker) + 0.1), value: decorated)
+            .offset(x: m.center(k) - 1, y: top)
+            .opacity(isVisible(k) ? 1 : 0)
             .allowsHitTesting(false)
             .accessibilityHidden(true)
     }
@@ -201,6 +216,7 @@ struct NightsChart: View {
     private func flag(_ marker: Marker, m: Metrics) -> some View {
         let k = index(of: marker.bar) ?? 0
         let x = marker.trailing ? m.center(k) + 6 : m.center(k)
+        let visible = isVisible(k)
         return Button { select(marker.bar) } label: {
             HStack(spacing: 3) {
                 Text(marker.emoji).font(.system(size: 10))
@@ -219,17 +235,33 @@ struct NightsChart: View {
         .animation(reduceMotion ? .easeOut(duration: 0.3) : Twin.Motion.bouncy.delay(markerDelay(marker)), value: decorated)
         .frame(width: 0, alignment: marker.trailing ? .trailing : .center)
         .offset(x: x, y: rowTops[min(max(marker.row, 0), rowTops.count - 1)])
+        .opacity(visible ? 1 : 0)
+        .allowsHitTesting(visible)
         .accessibilityHidden(true)   // each bar's own label names its marker
     }
 
     // MARK: Labels and taps
 
-    /// The month and day under a bar, and the night's tap area (its whole column).
+    /// The month of the first night on the chart, at the left edge (it stays put when the range
+    /// changes). Left out when a new month begins right after it: that month's own label shows.
+    private var rangeMonth: some View {
+        let soon = bars.indices.contains(first) && (first + 1...first + 2).contains { bars.indices.contains($0) && bars[$0].startsMonth }
+        return Text(bars.indices.contains(first) ? bars[first].month : "")
+            .font(Twin.Typeface.mono(9, bold: true))
+            .tracking(0.45)
+            .foregroundStyle(Twin.Palette.inkHint)
+            .fixedSize()
+            .offset(y: monthY)
+            .opacity(soon ? 0 : 1)
+            .accessibilityHidden(true)
+    }
+
+    /// The day under a bar (and its month on the 1st of a month), and the night's tap area (its column).
     private func labels(_ bar: Bar, k: Int, m: Metrics) -> some View {
-        let monthY = plotBottom + Twin.Stroke.hairline + monthGap
+        let visible = isVisible(k)
         return ZStack(alignment: .topLeading) {
-            if let month = bar.month {
-                Text(month)
+            if bar.startsMonth && k > first {
+                Text(bar.month)
                     .font(Twin.Typeface.mono(9, bold: true))
                     .tracking(0.45)
                     .foregroundStyle(Twin.Palette.inkHint)
@@ -250,7 +282,9 @@ struct NightsChart: View {
                 .contentShape(Rectangle())
                 .offset(x: m.slotX(k) - gap / 2, y: rowTops[0])
                 .onTapGesture { select(bar.id) }
+                .allowsHitTesting(visible)
         }
+        .opacity(visible ? 1 : 0)
         .accessibilityHidden(true)
     }
 
