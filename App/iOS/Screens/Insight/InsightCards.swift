@@ -569,46 +569,6 @@ struct RedFlagsCard: View {
     }
 }
 
-/// Pink "Start a 10-day test" (or, once a test runs, a cyan way back to it).
-struct StartTestButton: View {
-    /// Scroll target (the demo tour brings the button on screen before it taps it).
-    static let scrollID = "insight-start-test"
-
-    @EnvironmentObject var app: AppState
-    @EnvironmentObject var data: DataModeController
-    var plan: ExperimentPlan
-    var experiment: Experiment?
-    var day: Int
-    /// Red flags: the doctor comes first, so the test is not the main action.
-    var quiet: Bool
-
-    var body: some View {
-        if let experiment {
-            let done = experiment.status != .running
-            Button { app.select(.experiment) } label: {
-                HStack(spacing: 8) {
-                    Text(done ? "Test finished · see the result" : "Your test · day \(max(day, 1)) of \(experiment.plan.lengthDays)")
-                    Image(systemName: "arrow.right").font(.system(size: 14, weight: .bold))
-                }
-            }
-            .buttonStyle(TwinButtonStyle(fill: done ? Twin.Palette.lime : Twin.Palette.cyan))
-        } else {
-            Button { StoryTravel.startExperiment(app: app, storyDay: data.storyDay) } label: {
-                HStack(spacing: 8) {
-                    Text("Start a \(plan.lengthDays)-day test: \(lowerFirst(plan.title))")
-                        .lineLimit(2)
-                        .multilineTextAlignment(.center)
-                    Image(systemName: "arrow.right").font(.system(size: 14, weight: .bold))
-                }
-                .padding(.vertical, 4)
-            }
-            .buttonStyle(TwinButtonStyle(fill: quiet ? Twin.Palette.paper : Twin.Palette.pink))
-        }
-    }
-
-    private func lowerFirst(_ s: String) -> String { s.prefix(1).lowercased() + s.dropFirst() }
-}
-
 /// "Share with my doctor", "Re-run analysis" and the small print about where the analysis came from.
 struct InsightActions: View {
     /// e.g. "Bundled analysis · offline", "Live analysis · claude-sonnet-5.5".

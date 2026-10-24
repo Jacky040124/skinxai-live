@@ -57,28 +57,22 @@ struct ScreenScaffold<Trailing: View, Content: View>: View {
     }
 }
 
-/// Square initial avatar (the user), used in top bars. Opens Settings.
+/// Square initial avatar (the user, Douglas), used in top bars. Opens "What it can read".
 struct UserAvatar: View {
     @EnvironmentObject var app: AppState
-    /// Settings → name (default: Douglas, the demo story).
-    @AppStorage("profileName") private var name = "Douglas"
-    private var initial: String? {
-        name.trimmingCharacters(in: .whitespaces).first.map { String($0).uppercased() }
-    }
+    /// The person whose skin this is (the greeting, the toasts and the avatar all say Douglas).
+    static let name = "Douglas"
+
     var body: some View {
-        Button { app.showSettings = true } label: {
-            Group {
-                if let initial {
-                    Text(initial).font(Twin.Typeface.sans(15, .bold))
-                } else {
-                    Image(systemName: "person.fill").font(.system(size: 14, weight: .semibold))
-                }
-            }
-            .foregroundStyle(Twin.Palette.ink)
-            .frame(width: 36, height: 36)
-            .sticker(Twin.Palette.pink)
+        Button { app.showPermissions = true } label: {
+            Text(String(Self.name.prefix(1)))
+                .font(Twin.Typeface.sans(15, .bold))
+                .foregroundStyle(Twin.Palette.ink)
+                .frame(width: 36, height: 36)
+                .sticker(Twin.Palette.pink)
         }
         .buttonStyle(PressableStyle())
-        .accessibilityLabel("Settings")
+        .accessibilityLabel(Self.name)
+        .accessibilityHint("Shows what Eczema Twin can read")
     }
 }

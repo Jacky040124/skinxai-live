@@ -47,7 +47,7 @@ struct TrendsScreen: View {
                         section(3) {
                             TrendsBodyCard(snap: snap, selectedIndex: selectedIndex,
                                            canAskHealth: access.health == .notAsked || access.health == .off,
-                                           onConnect: access.health == .unavailable ? nil : { app.showSettings = true })
+                                           onConnect: access.health == .unavailable ? nil : { app.showPermissions = true })
                         }
                     }
                     Color.clear.frame(height: 1).id("trends-bottom")

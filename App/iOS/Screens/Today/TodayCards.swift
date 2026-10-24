@@ -294,9 +294,6 @@ struct TodayAroundYouCard: View {
     /// Opens Settings (location permission, weather refresh).
     var onFix: () -> Void = {}
 
-    /// Settings → Units. Observed so the temperature sticker follows a change right away.
-    @AppStorage(TwinUnits.temperatureKey) private var tempUnit = "c"
-
     private struct Item: Identifiable { let id: String; let emoji: String; let text: String; let fill: Color }
 
     var body: some View {
@@ -344,8 +341,7 @@ struct TodayAroundYouCard: View {
                 out.append(Item(id: "pollen", emoji: "🌼", text: "Pollen · \(day.pollen.label.lowercased())",
                                 fill: day.pollen == .high ? Twin.Palette.orange : Twin.Palette.paper))
             }
-            // `tempUnit` is read here so the sticker re-renders (and re-pops) when the unit changes.
-            out.append(Item(id: "temp-\(tempUnit)", emoji: "🌡️", text: TwinUnits.temperature(day.tempC), fill: Twin.Palette.paper))
+            out.append(Item(id: "temp", emoji: "🌡️", text: "\(Int(day.tempC.rounded()))°C", fill: Twin.Palette.paper))
         }
         for e in auto {
             out.append(Item(id: e.id.uuidString, emoji: e.kind.emoji, text: e.title, fill: Twin.Palette.paper))

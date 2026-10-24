@@ -6,8 +6,6 @@ import EczemaKit
 /// "start a test" action. Plays once per launch (and again for the demo tour); fades only with Reduce Motion.
 struct InsightScreen: View {
     @EnvironmentObject var app: AppState
-    @EnvironmentObject var tour: DemoTour
-    @EnvironmentObject var data: DataModeController
     @EnvironmentObject var toasts: ShellToasts
     @ObservedObject private var session = InsightSession.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -41,13 +39,13 @@ struct InsightScreen: View {
                                isDemo: app.dataset.isDemo) {
                     session.rerun(app: app, reduceMotion: reduceMotion, bundledAllowed: bundledAllowed)
                 } openSettings: {
-                    app.showSettings = true
+                    app.showPermissions = true
                 }
                 .entranceRise(0.05)
             }
         }
         .onAppear(perform: appear)
-        .onChange(of: app.showSettings) { _, open in if !open { session.refreshKeyState() } }
+        .onChange(of: app.showPermissions) { _, open in if !open { session.refreshKeyState() } }
         .onChange(of: session.miss) { _, miss in
             // A re-run with no key over a live case file: nothing to replay, so say what would help.
             if miss == .needsKey, app.dataset.caseFile != nil {
@@ -64,9 +62,9 @@ struct InsightScreen: View {
         #endif
     }
 
-    /// The bundled analysis is Douglas's: it only stands in on his story's day 14 or during the test.
+    /// The bundled analysis is Douglas's: it stands in for his story.
     private var bundledAllowed: Bool {
-        app.dataset.isDemo && (app.experimentDay != nil || data.storyDay >= StoryPoint.flareLength)
+        app.dataset.isDemo
     }
 
     private var noCaseFileState: NoCaseFileCard.State {
@@ -82,43 +80,12 @@ struct InsightScreen: View {
     }
 
     private func appear() {
-        // The demo tour always shows the whole reveal, even when it already played this launch.
-        if tour.isRunning, session.phase != .idle {
-            session.replay(app: app, reduceMotion: reduceMotion, bundledAllowed: bundledAllowed)
-        } else {
-            session.appear(app: app, reduceMotion: reduceMotion, bundledAllowed: bundledAllowed)
-        }
+        session.appear(app: app, reduceMotion: reduceMotion, bundledAllowed: bundledAllowed)
     }
 
-    /// The reveal finished (the #1 timeline has landed its "+2 DAYS"). In the demo tour the next touch is
-    /// "Start test": glide down so the "can't separate yet" note and the pink button are on camera before the
-    /// finger arrives.
+    /// The reveal finished (the #1 timeline has landed its "+2 DAYS").
     private func revealDone(_ proxy: ScrollViewProxy) {
         ScrollHook.scrollIfAsked(proxy)
-        if tour.isRunning {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
-                guard tour.isRunning else { return }
-                withAnimation(reduceMotion ? .easeInOut(duration: 0.3) : .smooth(duration: 0.85)) {
-                    proxy.scrollTo(StartTestButton.scrollID, anchor: UnitPoint(x: 0.5, y: 0.6))
-                }
-            }
-        }
-        #if DEBUG
-        if DebugHooks.script?.hasPrefix("startTest") == true, app.dataset.experiment == nil,
-           !DebugHooks.autoRerun || DebugHooks.didAutoRerun {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
-                withAnimation(Twin.Motion.spring) { proxy.scrollTo(StartTestButton.scrollID, anchor: .center) }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
-                    guard app.dataset.experiment == nil, app.tab == .insight else { return }
-                    StoryTravel.startExperiment(app: app, storyDay: data.storyDay)
-                    // `-insightQA startTestBack`: then come back to Insight (the live case file must survive).
-                    if UserDefaults.standard.string(forKey: "insightQA") == "startTestBack" {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { app.select(.insight) }
-                    }
-                }
-            }
-        }
-        #endif
     }
 
     private func subtitle(_ caseFile: CaseFile?) -> String {
@@ -150,13 +117,6 @@ struct InsightScreen: View {
                 if !caseFile.redFlags.isEmpty {
                     RedFlagsCard(flags: caseFile.redFlags)
                 }
-                if let plan = StoryTravel.plan(for: caseFile, in: app.dataset) {
-                    StartTestButton(plan: plan, experiment: app.dataset.experiment,
-                                    day: app.dataset.experimentDays().count, quiet: !caseFile.redFlags.isEmpty)
-                        .tourTarget("startTest")
-                        .id(StartTestButton.scrollID)
-                        .padding(.top, 4)
-                }
                 Text("Not a diagnosis. If skin oozes, crusts or you get a fever, see a doctor today.")
                     .font(Twin.Typeface.sans(12))
                     .foregroundStyle(Twin.Palette.inkHint)
@@ -165,9 +125,7 @@ struct InsightScreen: View {
                     .padding(.horizontal, 12)
                 InsightActions(note: sourceNote(caseFile), asking: session.isAsking) {
                     session.rerun(app: app, reduceMotion: reduceMotion, bundledAllowed: bundledAllowed)
-                } share: {
-                    app.showReport = true
-                }
+                } share: {}
             }
             .transition(.opacity.combined(with: .offset(y: reduceMotion ? 0 : 16)))
             .entranceRise(Double(suspects.count + 1) * Twin.Motion.stagger + 0.04, enabled: revisit)
