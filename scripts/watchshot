@@ -1,7 +1,8 @@
 #!/bin/bash
 # Screenshot the watch app on Mac mini 2 (run scripts/rb <name> watch first).
 # Usage: scripts/watchshot <name> <screen> [wait_seconds=4] [extra launch args...]
-#   <screen>: ring|prompt|recent (passed as -screen)
+#   <screen>: names the output file (passed as -screen; the watch app has one screen, e.g. ring)
+#   -live 1 starts monitoring with the simulator's scripted wrist. Never pass -stream here.
 set -uo pipefail
 NAME=${1:?usage}; SCREEN=${2:?usage}; WAIT=${3:-4}; shift 3 2>/dev/null || shift $#
 EXTRA="$*"

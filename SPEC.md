@@ -171,17 +171,18 @@ Experiment → fast-forward to day 10 result → Trends) so we can record a back
 
 ### Apple Watch (`App/Watch`)
 
-- **Ring** (default): "Twin" title (yellow), big orange/lime ring of today's minutes vs usual,
-  counted number, "MIN TODAY", episodes count and intense count (orange flame).
-  Digital Crown scrolls to **Recent**: last episodes with time, length, flame.
-- **Scratch alert** (`-screen prompt`, and live when detected): the screen pulses (orange
-  rounded-square hand icon with ripple rings), a strong haptic, "Were you scratching?" with
-  **No** (dark) / **Yes** (yellow) buttons. The answer trains the personal model, then animates
-  back to the ring with the number ticking up.
+One screen (stage polish; it replaces the ring, the Recent page and the scratch alert):
+- "Twin" title (yellow) with the big screen's two-circle mark on the clock's line.
+- A big round button: **Start** (pink) / **Stop** (dark, cyan ring, the running time). While it
+  monitors, a ring pings out of it (orange while a scratch is going on).
+- Tonight's scratch count under it: a big number that rolls up and bumps with a light haptic on
+  each detected episode (counted from Start, kept after Stop until the next Start).
+- One status line from the live stream: "Connected to screen" (cyan) / "Can’t reach screen (why)"
+  (orange) / "Not monitoring".
 - **Live detection** (real device): `CMMotionManager` at 50 Hz inside an `HKWorkoutSession`
   (fallback `WKExtendedRuntimeSession` "physical-therapy", 1 h) + all-day `CMSensorRecorder`
   (12 h at a time, re-armed when the app opens, analysed in 1-hour slices).
-  Start/stop button on the ring screen. Detection algorithm in §5.
+  Detection algorithm in §5. Motion and episodes stream to the big screen (`LiveStreamer`).
 - Sends episodes to the iPhone with `WatchConnectivity` (`transferFile` / `transferUserInfo`);
   the iPhone merges real episodes into today (real data wins over demo for today when present).
 
