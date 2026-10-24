@@ -46,9 +46,9 @@ struct WatchRootView: View {
         model.alert == nil && model.page == .recent ? "Recent" : "Twin"
     }
 
-    /// After an answer the alert folds away first (quick scale-down and fade), and only then does
-    /// the ring rise in, so the question never shows through the ring. Coming up, the alert fades
-    /// in over the pages.
+    /// One screen at a time: when the alert comes up the pages are gone in a blink while it fades
+    /// in (its tile springs up on its own), and after an answer the alert folds away first (quick
+    /// scale-down and fade) before the ring rises in, so neither ever shows through the other.
     private var alertTransition: AnyTransition {
         .asymmetric(insertion: .opacity,
                     removal: (reduceMotion ? AnyTransition.opacity : .scale(scale: 0.84).combined(with: .opacity))
@@ -58,7 +58,7 @@ struct WatchRootView: View {
     private var pagesTransition: AnyTransition {
         .asymmetric(insertion: (reduceMotion ? AnyTransition.opacity : .scale(scale: 1.08).combined(with: .opacity))
                         .animation(.spring(response: 0.45, dampingFraction: 0.85).delay(Self.ringReturnDelay)),
-                    removal: .opacity)
+                    removal: AnyTransition.opacity.animation(.easeOut(duration: 0.12)))
     }
 
     /// How long the ring waits for the alert to leave.
