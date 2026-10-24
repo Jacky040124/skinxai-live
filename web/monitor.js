@@ -68,7 +68,7 @@
     const v = $("#vCount"); v.textContent = count; v.classList.add("bump"); setTimeout(() => v.classList.remove("bump"), 260);
     $("#alarm").classList.add("on"); document.querySelector(".trace-wrap").classList.add("hot");
     strip.push({ start: Date.now(), end: null, intense });
-    markRecent(RATE * 2.4);   // the detector needs a moment: recolour the last seconds of the trace too
+    markRecent(RATE * 1.5);   // the detector needs about a second: recolour that stretch of the trace too
     beep(1318, 0.09, 0.2); beep(1318, 0.09, 0.2, 0.14);
   }
   function scratchEnd(seconds) {
@@ -116,7 +116,7 @@
       lastWin = w;
       const ok = passes(w);
       if (ok) {
-        scratchUntil = performance.now() + 3200; if (w.hz) currentHz = w.hz;
+        scratchUntil = performance.now() + 1200; if (w.hz) currentHz = w.hz;
         if (ignoring && !scratching) { ignoring = false; scratchStart(w.hz, false); }
       }
       const mtr = $("#vMeter"); mtr.style.width = Math.min(100, (ok ? (w.p || 0) : (w.p || 0) * 0.25) * 100) + "%";
@@ -230,7 +230,8 @@
     for (let k = 0; k < n; k++) {
       const c = cols[(cursor + 8 + k) % n];
       if (!c) continue;
-      const target = c.s ? 0.55 + 0.45 * c.g : 0;
+      // up while the scratching hand moves, straight back down the moment it stops
+      const target = c.s ? (c.g > 0.12 ? 0.35 + 0.65 * c.g : 0.04) : 0;
       L += (target - L) * (target > L ? 0.16 : 0.07);
       c.L = L;
     }
