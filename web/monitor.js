@@ -1,25 +1,44 @@
 // Eczema Twin · big-screen scratch monitor.
 // Live data: WebSocket /api/live (batches from the Apple Watch via the Worker).
-// Keys: 1-4 pages · F fullscreen · D demo simulation on/off · R reset counters.
+// Keys: 1-4 pages · F fullscreen · D demo simulation on/off · R reset counters (on Monitor).
 (() => {
   const $ = (s) => document.querySelector(s);
   const RATE = 25;                 // samples per second sent by the watch
   const PX_PER_SAMPLE = 4;         // sweep speed: 100 px per second
+  const motion = !matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   // ---------- pages ----------
   const names = { monitor: "SCRATCH MONITOR", night: "LAST NIGHT", history: "HISTORY", claude: "CLAUDE" };
-  function show(page) {
+  const tabs = [...document.querySelectorAll(".tabs button")];
+  let page = "monitor";
+  function show(next) {
+    if (!names[next]) return;
+    const changed = next !== page;
+    page = next;
     document.querySelectorAll(".page").forEach((p) => p.classList.toggle("on", p.id === "p-" + page));
-    document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", b.dataset.page === page));
-    $("#pageName").textContent = names[page] || "";
+    tabs.forEach((b) => b.classList.toggle("on", b.dataset.page === page));
+    const tab = tabs.find((b) => b.dataset.page === page);
+    $("#tabInk").style.transform = `translateX(${tab.offsetLeft - tabs[0].offsetLeft}px)`;
+    const name = $("#pageName");
+    name.textContent = names[page];
+    if (changed && motion) name.animate([{ opacity: 0, transform: "translateY(6px)" }, { opacity: 1, transform: "none" }], { duration: 400, easing: "cubic-bezier(.2,.7,.2,1)" });
     window.dispatchEvent(new CustomEvent("twin:page", { detail: page }));
   }
-  document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => show(b.dataset.page)));
+  tabs.forEach((b) => b.addEventListener("click", () => show(b.dataset.page)));
   window.twinShow = show;
-  if (names[location.hash.slice(1)]) setTimeout(() => show(location.hash.slice(1)), 0);
+  // #night, #history, #claude open that page: no cross-fade, and only once every page script is listening
+  window.addEventListener("DOMContentLoaded", () => {
+    const first = location.hash.slice(1);
+    if (!names[first] || first === "monitor") return;
+    document.body.classList.add("instant");
+    show(first);
+    requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.remove("instant")));
+  });
+  window.addEventListener("hashchange", () => show(location.hash.slice(1) || "monitor"));
 
   // ---------- clock ----------
-  setInterval(() => { $("#clock").textContent = new Date().toLocaleTimeString([], { hour12: false }); }, 500);
+  const tick = () => { $("#clock").textContent = new Date().toLocaleTimeString([], { hour12: false }); };
+  tick(); setInterval(tick, 500);
 
   // ---------- sound ----------
   let audio = null;
@@ -48,16 +67,18 @@
   let scratchUntil = 0;            // performance.now() until which samples are "scratch"
   let scratching = false, scratchStartedAt = 0;
   let count = 0, totalSeconds = 0, lastScratchAt = null, currentHz = null;
-  const sessionStart = Date.now();
-  const strip = [];                // {start, end} in Date.now() ms
+  let sessionStart = Date.now();
+  const strip = [];                // {start, end, intense, el} in Date.now() ms
   let lastBatchAt = 0, simulate = false;
 
   function setLive() {
     const live = simulate || Date.now() - lastBatchAt < 3500;
-    $("#liveDot").classList.toggle("live", live);
-    document.querySelector(".status").classList.toggle("live", live);
+    $("#livePill").classList.toggle("live", live && !simulate);
+    $("#livePill").classList.toggle("sim", simulate);
     $("#liveText").textContent = simulate ? "SIMULATION" : live ? "WATCH LIVE" : "WAITING FOR WATCH";
     $("#modeText").textContent = simulate ? "SIMULATION" : "LIVE";
+    $("#traceWrap").classList.toggle("idle", !live);
+    if (!live) setMeter(0);
   }
   setInterval(setLive, 500);
 
@@ -65,8 +86,8 @@
     if (scratching) return;
     scratching = true; scratchStartedAt = Date.now();
     count += 1; lastScratchAt = Date.now(); if (hz) currentHz = hz;
-    const v = $("#vCount"); v.textContent = count; v.classList.add("bump"); setTimeout(() => v.classList.remove("bump"), 260);
-    $("#alarm").classList.add("on"); document.querySelector(".trace-wrap").classList.add("hot");
+    bump();
+    $("#alarm").classList.add("on"); $("#traceWrap").classList.add("hot");
     strip.push({ start: Date.now(), end: null, intense });
     markRecent(RATE * 1.5);   // the detector needs about a second: recolour that stretch of the trace too
     beep(1318, 0.09, 0.2); beep(1318, 0.09, 0.2, 0.14);
@@ -75,16 +96,29 @@
     if (!scratching) return;
     scratching = false;
     const dur = seconds || (Date.now() - scratchStartedAt) / 1000;
-    totalSeconds += dur;
+    totalSeconds += dur; lastScratchAt = Date.now();
     const last = strip[strip.length - 1]; if (last && !last.end) last.end = Date.now();
-    $("#alarm").classList.remove("on"); document.querySelector(".trace-wrap").classList.remove("hot");
+    $("#alarm").classList.remove("on"); $("#traceWrap").classList.remove("hot");
   }
   // while scratching: a soft monitor beep every 0.6 s
   setInterval(() => { if (scratching) beep(988, 0.07, 0.12); }, 600);
 
+  // the counter jumps and flashes on each new scratch
+  function bump() {
+    const v = $("#vCount");
+    v.textContent = count;
+    if (!motion) return;
+    v.animate([{ transform: "scale(1)" }, { transform: "scale(1.16)", offset: 0.3 }, { transform: "scale(1)" }], { duration: 700, easing: "cubic-bezier(.2,.7,.2,1)" });
+    $("#vFlash").animate([{ opacity: 0.35, transform: "scale(.8)" }, { opacity: 1, transform: "scale(1.15)", offset: 0.25 }, { opacity: 0.35, transform: "scale(1)" }], { duration: 1300, easing: "ease-out" });
+  }
+  // the intensity meter's dark cover slides back to light up the share f (0…1)
+  function setMeter(f) { $("#vMeter").style.transform = `scaleX(${1 - Math.min(1, Math.max(0, f))})`; }
+
   function reset() {
-    count = 0; totalSeconds = 0; lastScratchAt = null; strip.length = 0; currentHz = null;
-    $("#vCount").textContent = "0"; scratchEnd(0);
+    scratchEnd(0);
+    count = 0; totalSeconds = 0; lastScratchAt = null; currentHz = null; sessionStart = Date.now();
+    strip.length = 0; $("#strip").textContent = "";
+    $("#vCount").textContent = "0";
     localStorage.setItem("twinSince", String(Date.now()));   // "last night" ignores stored scratches before this
   }
 
@@ -93,19 +127,27 @@
     episodes: strip.map((s) => ({ seconds: ((s.end || Date.now()) - s.start) / 1000, intense: !!s.intense })),
   });
 
-  // vitals text
+  // vitals text and the session strip
+  const mmss = (t) => `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
+  const ago = (s) => s < 60 ? `${s} s ago` : s < 3600 ? `${Math.floor(s / 60)} min ago` : `${Math.floor(s / 3600)} h ago`;
   setInterval(() => {
-    const live = scratching ? (Date.now() - scratchStartedAt) / 1000 : 0;
-    const t = Math.round(totalSeconds + live);
-    $("#vTime").textContent = `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
-    $("#vLast").textContent = lastScratchAt ? (scratching ? "now" : `${Math.round((Date.now() - lastScratchAt) / 1000)} s ago`) : "—";
+    const now = Date.now();
+    const live = scratching ? (now - scratchStartedAt) / 1000 : 0;
+    $("#vTime").textContent = mmss(Math.round(totalSeconds + live));
+    $("#vLast").textContent = lastScratchAt ? (scratching ? "now" : ago(Math.round((now - lastScratchAt) / 1000))) : "—";
+    $("#vTime").classList.toggle("hot", scratching); $("#vLast").classList.toggle("hot", scratching);
     $("#vHz").textContent = currentHz ? `${currentHz.toFixed(1)} HZ BACK-AND-FORTH` : "— HZ";
-    // strip
-    const el = $("#strip"); const span = Math.max(60000, Date.now() - sessionStart);
-    el.innerHTML = strip.map((s) => {
-      const l = ((s.start - (Date.now() - span)) / span) * 100, w = (((s.end || Date.now()) - s.start) / span) * 100;
-      return `<i style="left:${Math.max(0, l)}%;width:${Math.max(0.3, w)}%"></i>`;
-    }).join("");
+    $("#vIntense").textContent = strip.filter((s) => s.intense).length;
+    $("#vLongest").textContent = mmss(Math.round(Math.max(0, ...strip.map((s) => ((s.end || now) - s.start) / 1000))));
+    // the whole session (at least a minute) left → right, each scratch an orange mark
+    const span = Math.max(60000, now - sessionStart);
+    for (const s of strip) {
+      if (!s.el) s.el = $("#strip").appendChild(document.createElement("i"));
+      s.el.style.left = `${Math.max(0, ((s.start - (now - span)) / span) * 100)}%`;
+      s.el.style.width = `${Math.max(0.3, (((s.end || now) - s.start) / span) * 100)}%`;
+      s.el.classList.toggle("live", !s.end);
+    }
+    $("#stripT").textContent = mmss(Math.floor((now - sessionStart) / 1000));
   }, 250);
 
   // ---------- data in ----------
@@ -119,7 +161,7 @@
         scratchUntil = performance.now() + 1200; if (w.hz) currentHz = w.hz;
         if (ignoring && !scratching) { ignoring = false; scratchStart(w.hz, false); }
       }
-      const mtr = $("#vMeter"); mtr.style.width = Math.min(100, (ok ? (w.p || 0) : (w.p || 0) * 0.25) * 100) + "%";
+      setMeter(ok ? (w.p || 0) : (w.p || 0) * 0.25);
     }
     for (const e of msg.events || []) {
       if (e.type === "start") { if (passes(lastWin)) scratchStart(e.hz, e.intense); else ignoring = true; }
@@ -146,7 +188,7 @@
   setInterval(() => { if (ws && ws.readyState === 1) ws.send("ping"); }, 15000);
 
   // ---------- simulation (rehearsal without a watch) ----------
-  let simT = 0, simNextScratch = 4, simScratchLeft = 0, simTimer = null;
+  let simT = 0, simNextScratch = 4, simScratchLeft = 0, simScratchLen = 0, simTimer = null;
   function simTick() {
     const batch = { samples: [], windows: [], events: [] };
     for (let i = 0; i < RATE / 5; i++) {
@@ -155,9 +197,9 @@
       if (simScratchLeft > 0) {
         m = 0.16 + 0.22 * Math.abs(Math.sin(simT * 2 * Math.PI * 4.4)) + Math.random() * 0.05;
         simScratchLeft -= 1 / RATE;
-        if (simScratchLeft <= 0) batch.events.push({ type: "end", seconds: 5.2 });
+        if (simScratchLeft <= 0) batch.events.push({ type: "end", seconds: simScratchLen });
       } else if (simT >= simNextScratch) {
-        simScratchLeft = 4 + Math.random() * 3; simNextScratch = simT + simScratchLeft + 7 + Math.random() * 6;
+        simScratchLeft = simScratchLen = 4 + Math.random() * 3; simNextScratch = simT + simScratchLeft + 7 + Math.random() * 6;
         batch.events.push({ type: "start", hz: 4.2 + Math.random(), intense: Math.random() < 0.3 });
       }
       batch.samples.push([simT, m]);
@@ -174,23 +216,28 @@
 
   document.addEventListener("keydown", (e) => {
     if (e.target.closest && e.target.closest("input, textarea, [contenteditable]")) return;   // typing in the chat
-    if (e.key === "f" || e.key === "F") { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); }
-    if (e.key === "d" || e.key === "D") setSim(!simulate);
-    if (e.key === "r" || e.key === "R") reset();
+    if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;                              // browser shortcuts (⌘R, ⌘D …)
+    const k = e.key.toLowerCase();
+    if (k === "f") { document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen(); }
+    if (k === "d") setSim(!simulate);
+    if (k === "r" && page === "monitor") reset();
     if (["1", "2", "3", "4"].includes(e.key)) show(["monitor", "night", "history", "claude"][+e.key - 1]);
   });
   if (new URLSearchParams(location.search).get("sim") === "1") setSim(true);
 
   // ---------- trace (hospital-monitor sweep) ----------
   const cv = $("#trace"), ctx = cv.getContext("2d");
+  const gv = $("#traceGlow"), gctx = gv.getContext("2d");   // the glow: drawn at half size, blurred by CSS
   let W = 0, H = 0, dpr = 1, cols = [], cursor = 0, phase = 0, carry = 0, lastFrame = performance.now(), smooth = 0;
   function resize() {
     dpr = window.devicePixelRatio || 1;
     const r = cv.getBoundingClientRect(); W = r.width; H = r.height;
-    cv.width = W * dpr; cv.height = H * dpr;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    gv.width = Math.round(W / 2); gv.height = Math.round(H / 2);
     const n = Math.ceil(W / PX_PER_SAMPLE) + 1;
     if (cols.length !== n) { cols = new Array(n).fill(null); cursor = 0; }
   }
+  new ResizeObserver(resize).observe(cv);
   window.addEventListener("resize", resize); resize();
 
   function frame(now) {
@@ -210,7 +257,7 @@
       cols[cursor] = null;                                                   // erase ahead of the pen
       for (let k = 1; k < 8; k++) cols[(cursor + k) % cols.length] = null;
     }
-    draw();
+    if (page === "monitor") draw(dt);   // behind the other pages the sweep keeps running, undrawn
     requestAnimationFrame(frame);
   }
 
@@ -223,52 +270,78 @@
       c.s = true;
     }
   }
-  // Walk the columns oldest → newest so the hump rises and falls smoothly.
-  function levels() {
-    const n = cols.length;
-    let L = 0;
+  // Walk the columns oldest → newest so the hump rises and falls smoothly. A second pass rounds
+  // the corners (an S-curve, no kink where it lifts off), and the drawn level D eases toward the
+  // result, so a stretch recoloured by markRecent() rises smoothly instead of jumping.
+  // q (1 steady … 0 climbing) quiets the ripple on the slopes, where it would look like stairs.
+  function levels(dt) {
+    const n = cols.length, follow = 1 - Math.exp(-dt * 8);
+    let L = 0, S = 0, Q = 1;
     for (let k = 0; k < n; k++) {
       const c = cols[(cursor + 8 + k) % n];
       if (!c) continue;
       // up while the scratching hand moves, straight back down the moment it stops
-      const target = c.s ? (c.g > 0.12 ? 0.35 + 0.65 * c.g : 0.04) : 0;
-      L += (target - L) * (target > L ? 0.16 : 0.07);
-      c.L = L;
+      const target = c.s && c.g > 0.12 ? 0.35 + 0.65 * c.g : 0;
+      L += (target - L) * (target > L ? 0.12 : 0.07);
+      const step = (L - S) * 0.25;
+      S += step;
+      const quiet = Math.max(0, 1 - Math.abs(step) * 40);
+      Q += (quiet - Q) * (quiet < Q ? 0.3 : 0.08);
+      c.L = S; c.q = Q;
+      c.D = c.D === undefined ? S : c.D + (S - c.D) * follow;
     }
   }
-  const yOf = (c, base) => base - (c.L || 0) * H * 0.58 - Math.sin(c.ph) * (c.s ? 0.004 + 0.012 * c.g : 0.006 + 0.03 * c.g) * H * c.r;
+  // ripple height as a share of H: small and calm, a little livelier for big ordinary motion
+  const ampOf = (c) => (c.s ? 0.004 + 0.012 * c.g : 0.006 + 0.03 * c.g) * c.r * c.q;
+  const yOf = (c, base) => base - c.D * H * 0.58 - Math.sin(c.ph) * ampOf(c) * H;
+  // 0 calm (lime) … 1 lifted into the hump (orange)
+  const heatOf = (c) => { const t = Math.min(1, Math.max(0, (c.D - 0.05) / 0.2)); return t * t * (3 - 2 * t); };
+  const LIME = [169, 216, 119], ORANGE = [248, 161, 111];
+  const tint = (t, a) => `rgba(${LIME.map((v, k) => Math.round(v + (ORANGE[k] - v) * t))},${a})`;
 
-  function draw() {
+  function draw(dt) {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
-    const base = H * 0.76;
-    levels();
-    ctx.lineJoin = "round"; ctx.lineCap = "round";
-    // two passes: glow, then core
-    for (const pass of [0, 1]) {
-      ctx.lineWidth = pass ? 2.6 : 9;
-      let prev = null;
-      for (let i = 0; i < cols.length; i++) {
-        const c = cols[i];
-        if (!c) { prev = null; continue; }
-        const x = i * PX_PER_SAMPLE, y = yOf(c, base);
-        if (prev) {
-          const hot = (c.L || 0) > 0.08;
-          ctx.strokeStyle = hot ? (pass ? "#f8a16f" : "rgba(248,161,111,.3)") : (pass ? "#a9d877" : "rgba(169,216,119,.18)");
-          ctx.beginPath(); ctx.moveTo(prev.x, prev.y); ctx.lineTo(x, y); ctx.stroke();
-        }
-        prev = { x, y };
+    gctx.setTransform(0.5, 0, 0, 0.5, 0, 0);
+    gctx.clearRect(0, 0, W, H);
+    const n = cols.length, base = H * 0.76;
+    levels(dt);
+    // One smooth curve through the columns (the erase gap splits it in two), coloured along x:
+    // lime where calm, orange where lifted. The oldest stretch, about to be erased, fades a little.
+    const line = new Path2D(), grad = ctx.createLinearGradient(0, 0, (n - 1) * PX_PER_SAMPLE, 0);
+    let run = [];
+    const flush = () => {
+      if (run.length > 1) {
+        line.moveTo(run[0].x, run[0].y);
+        for (let k = 1; k < run.length - 1; k++) line.quadraticCurveTo(run[k].x, run[k].y, (run[k].x + run[k + 1].x) / 2, (run[k].y + run[k + 1].y) / 2);
+        line.lineTo(run[run.length - 1].x, run[run.length - 1].y);
       }
+      run = [];
+    };
+    for (let i = 0; i < n; i++) {
+      const c = cols[i];
+      if (!c) { flush(); continue; }
+      run.push({ x: i * PX_PER_SAMPLE, y: yOf(c, base) });
+      const age = ((cursor - 1 - i + n) % n) / n;
+      grad.addColorStop(i / (n - 1), tint(heatOf(c), 1 - 0.6 * Math.max(0, (age - 0.75) / 0.25)));
     }
-    // pen dot
-    const pi = (cursor - 1 + cols.length) % cols.length, pc = cols[pi];
-    if (pc) {
-      const hot = (pc.L || 0) > 0.08;
-      ctx.fillStyle = hot ? "#f8a16f" : "#d8ffb0";
-      ctx.shadowColor = hot ? "#f8a16f" : "#a9d877"; ctx.shadowBlur = 18;
-      ctx.beginPath(); ctx.arc(pi * PX_PER_SAMPLE, yOf(pc, base), 4.5, 0, Math.PI * 2); ctx.fill();
-      ctx.shadowBlur = 0;
+    flush();
+    for (const [c2, width, alpha] of [[gctx, 7, 0.6], [ctx, 2.6, 1]]) {   // soft glow, then the crisp line
+      c2.lineJoin = "round"; c2.lineCap = "round"; c2.strokeStyle = grad; c2.lineWidth = width; c2.globalAlpha = alpha;
+      c2.stroke(line);
     }
+
+    // pen: a faint scan line, a glow and a bright dot
+    const pi = (cursor - 1 + n) % n, pc = cols[pi];
+    if (!pc) return;
+    const x = pi * PX_PER_SAMPLE, y = yOf(pc, base), heat = heatOf(pc);
+    const scan = ctx.createLinearGradient(0, y - 180, 0, y + 180);
+    scan.addColorStop(0, tint(heat, 0)); scan.addColorStop(0.5, tint(heat, 0.22)); scan.addColorStop(1, tint(heat, 0));
+    ctx.fillStyle = scan; ctx.fillRect(x - 0.75, y - 180, 1.5, 360);
+    gctx.fillStyle = tint(heat, 1);
+    gctx.beginPath(); gctx.arc(x, y, 10, 0, Math.PI * 2); gctx.fill();
+    ctx.fillStyle = heat > 0.5 ? "#ffe3d2" : "#ecffd9";
+    ctx.beginPath(); ctx.arc(x, y, 4, 0, Math.PI * 2); ctx.fill();
   }
   requestAnimationFrame(frame);
 })();

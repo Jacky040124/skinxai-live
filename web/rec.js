@@ -32,7 +32,8 @@
 
   function show(step, text, num, frac, hint) {
     $("#recStep").textContent = step; $("#recText").textContent = text;
-    $("#recNum").textContent = num; $("#recBar").style.width = `${Math.round(frac * 100)}%`;
+    $("#recNum").textContent = num; $("#recBar").style.transform = `scaleX(${frac})`;
+    $("#recOv").classList.toggle("msg", num === "");   // a message, not a countdown: no number, no bar
     if (hint !== undefined) $("#recHint").textContent = hint;
   }
 
@@ -66,6 +67,7 @@
   $("#recBtn").addEventListener("click", run);
   document.addEventListener("keydown", (e) => {
     if (e.target.closest && e.target.closest("input, textarea, [contenteditable]")) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;   // ⌘T opens a browser tab, not a recording
     if ((e.key === "t" || e.key === "T") && $("#p-monitor").classList.contains("on")) run();
     if (e.key === "Escape" && running) cancelled = true;
   });

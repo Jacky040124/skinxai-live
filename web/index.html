@@ -14,27 +14,37 @@
   <header class="bar">
     <div class="brand"><span class="logo"><i></i><i></i></span><b>ECZEMA TWIN</b><span class="sep">/</span><span id="pageName">SCRATCH MONITOR</span></div>
     <nav class="tabs">
+      <span class="tab-ink" id="tabInk"></span>
       <button data-page="monitor" class="on">Monitor</button>
       <button data-page="night">Last night</button>
       <button data-page="history">History</button>
       <button data-page="claude">Claude</button>
     </nav>
-    <div class="status"><span id="liveDot" class="dot"></span><span id="liveText">WAITING FOR WATCH</span><span class="clock" id="clock">--:--:--</span></div>
+    <div class="status">
+      <span class="live-pill" id="livePill"><span class="dot"></span><span id="liveText">WAITING FOR WATCH</span></span>
+      <span class="clock" id="clock">--:--:--</span>
+    </div>
   </header>
 
   <!-- MONITOR -->
   <section class="page on" id="p-monitor">
     <div class="patient">
-      <div><span class="k">PATIENT</span> DOUGLAS · BED 1</div>
-      <div><span class="k">SENSOR</span> APPLE WATCH · RIGHT WRIST · 50 HZ</div>
-      <div><span class="k">MODE</span> <span id="modeText">LIVE</span></div>
-      <button class="recbtn" id="recBtn" title="Record a labelled test (T)">● Record test</button>
+      <div class="field"><span class="k">PATIENT</span>DOUGLAS · BED 1</div>
+      <div class="field"><span class="k">SENSOR</span>APPLE WATCH · RIGHT WRIST · 50 HZ</div>
+      <div class="field"><span class="k">MODE</span><span id="modeText">LIVE</span></div>
+      <div class="pactions">
+        <button class="sound" id="sound" title="The monitor beeps after one click"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 6h3l4-3v10L5 10H2z" fill="currentColor"/><path d="M11.5 6l3 4m0-4l-3 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Click for sound</button>
+        <button class="recbtn" id="recBtn" title="Record a labelled test (T)"><i></i>Record test</button>
+      </div>
     </div>
     <div class="monitor">
-      <div class="trace-wrap">
+      <div class="trace-wrap idle" id="traceWrap">
+        <canvas id="traceGlow"></canvas>
         <canvas id="trace"></canvas>
         <div class="trace-label">WRIST MOTION · SCRATCH DETECTOR</div>
-        <div class="alarm" id="alarm"><span>SCRATCH DETECTED</span></div>
+        <div class="trace-legend"><span>MOTION</span><span class="hot">SCRATCHING</span></div>
+        <div class="trace-idle">NO SIGNAL · START MONITORING ON THE WATCH</div>
+        <div class="alarm" id="alarm"><span><i></i>SCRATCH DETECTED</span></div>
         <div class="recov" id="recOv">
           <div class="rk" id="recStep">TEST RECORDING</div>
           <div class="rt" id="recText">Hold your arm still</div>
@@ -45,11 +55,12 @@
       </div>
       <aside class="vitals">
         <div class="vital big">
-          <div class="vk">SCRATCHES</div>
-          <div class="vv" id="vCount">0</div>
+          <div class="vk">SCRATCHES<span>THIS SESSION</span></div>
+          <div class="vbig"><i class="vflash" id="vFlash"></i><div class="vv" id="vCount">0</div></div>
+          <div class="vfoot"><div><span>INTENSE</span><b id="vIntense">0</b></div><div><span>LONGEST</span><b id="vLongest">0:00</b></div></div>
         </div>
         <div class="vital">
-          <div class="vk">SCRATCH TIME</div>
+          <div class="vk">SCRATCH TIME<span>MIN:SEC</span></div>
           <div class="vv mid" id="vTime">0:00</div>
         </div>
         <div class="vital">
@@ -63,7 +74,7 @@
         </div>
       </aside>
     </div>
-    <div class="strip"><div class="strip-k">SESSION</div><div class="strip-track" id="strip"></div></div>
+    <div class="strip"><div class="strip-k">SESSION</div><div class="strip-track" id="strip"></div><div class="strip-t" id="stripT">0:00</div></div>
   </section>
 
   <!-- LAST NIGHT -->
@@ -76,7 +87,7 @@
       <div class="card"><div class="ck">WOKE UP</div><div class="cv" id="nWake">0×</div></div>
       <div class="card"><div class="ck">WORST HOURS</div><div class="cv small" id="nWorst">2–4 AM</div></div>
     </div>
-    <div class="card grow"><div class="ck">MINUTES OF SCRATCHING · EACH HOUR</div><div class="bars" id="nightBars"></div><div class="axis" id="nightAxis"></div>
+    <div class="card grow"><div class="ck">MINUTES OF SCRATCHING · EACH HOUR</div><div class="bars" id="nightBars"></div>
       <div class="note" id="nLive"></div></div>
   </section>
 
@@ -92,7 +103,6 @@
     <div class="chat-soon">Claude chat — being built (POLISH-SPEC.md §3.4)</div>
   </section>
 
-  <div class="sound" id="sound">Click anywhere to turn on sound</div>
 </div>
 <script src="/story.js"></script>
 <script src="/common.js"></script>
