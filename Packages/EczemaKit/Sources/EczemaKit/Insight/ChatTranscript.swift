@@ -14,11 +14,22 @@ public enum ChatRules {
         messages.contains { $0.toolCalls.contains { $0.name == ChatTools.conclusion } }
     }
 
-    /// Offer "Go ahead" after a turn that ended with `text`: not once concluded, and not when Claude asked
-    /// something in its text (Douglas answers in the box).
+    /// Offer "Go ahead" after a turn that ended with `text`, until the conclusion: when Claude stopped without
+    /// asking anything, or when its last sentence offers to do something ("Want me to look into it?"), which
+    /// "Go ahead" answers. An open question ("Where does it itch?") is answered in the box instead.
     public static func offersNudge(after text: String, in messages: [ChatMessage]) -> Bool {
-        !concluded(messages) && !text.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("?")
+        guard !concluded(messages) else { return false }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasSuffix("?") else { return true }
+        let body = trimmed.dropLast()
+        let start = body.lastIndex(where: { ".!?\n".contains($0) }).map { body.index(after: $0) } ?? body.startIndex
+        let last = body[start...].lowercased()
+        return offers.contains { last.contains($0) }
     }
+
+    /// How an offer starts ("Want me to…?", "Shall I…?").
+    static let offers = ["want me to", "like me to", "shall i", "should i", "can i ", "may i ", "ok if i", "okay if i",
+                         "shall we", "should we", "want to dig", "want to look", "want to find", "ready for me to"]
 
     /// The text of Claude's reply as shown: trimmed, without a question it also asks on a question card (any
     /// case, with or without its "?"), and without the lead-in it leaves dangling ("… other things. First:").

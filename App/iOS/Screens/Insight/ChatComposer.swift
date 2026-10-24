@@ -6,6 +6,7 @@ import EczemaKit
 /// A white fade above it lets the thread slide under softly.
 struct ChatComposer: View {
     @ObservedObject var session: ChatSession
+    @ObservedObject var draft: ChatDraft
     var typing: FocusState<Bool>.Binding
     /// Space under the box: the tab bar's height, or the keyboard's.
     var bottom: CGFloat
@@ -15,7 +16,7 @@ struct ChatComposer: View {
     var body: some View {
         VStack(spacing: 6) {
             HStack(spacing: 8) {
-                TextField("", text: $session.draft,
+                TextField("", text: $draft.text,
                           prompt: Text(session.placeholder).foregroundStyle(Twin.Palette.inkHint))
                     .font(Twin.Typeface.sans(15))
                     .foregroundStyle(Twin.Palette.ink)
@@ -62,10 +63,11 @@ struct ChatComposer: View {
     /// Sends what's in the box. With nothing to send, the tap opens the keyboard instead.
     private func send() {
         guard !session.replaying else { return }
-        guard session.canSend else {
-            if session.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { typing.wrappedValue = true }
+        if draft.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            typing.wrappedValue = true
             return
         }
+        guard session.canSend else { return }
         typing.wrappedValue = false
         session.submitDraft()
     }

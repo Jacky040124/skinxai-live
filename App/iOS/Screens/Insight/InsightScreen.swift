@@ -38,7 +38,7 @@ struct InsightScreen: View {
                 .scrollIndicators(.hidden)
                 .scrollDismissesKeyboard(.interactively)
                 .safeAreaInset(edge: .bottom, spacing: 0) {
-                    ChatComposer(session: session, typing: $typing, bottom: composerBottom)
+                    ChatComposer(session: session, draft: session.draft, typing: $typing, bottom: composerBottom)
                 }
                 .onAppear { scrollDown(proxy, animated: false) }
                 .onChange(of: session.scrollTick) { _, _ in scrollDown(proxy, animated: true) }
@@ -56,9 +56,9 @@ struct InsightScreen: View {
         .onAppear {
             session.appear()
             // -chatDraft <text> (hidden, development): text in the box and the keyboard up.
-            if let draft = UserDefaults.standard.string(forKey: "chatDraft"), session.draft.isEmpty, !draftShown {
+            if let draft = UserDefaults.standard.string(forKey: "chatDraft"), session.draft.text.isEmpty, !draftShown {
                 draftShown = true
-                session.draft = draft
+                session.draft.text = draft
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { typing = true }
             }
         }

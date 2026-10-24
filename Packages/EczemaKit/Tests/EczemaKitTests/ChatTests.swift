@@ -322,6 +322,11 @@ final class ChatStub: URLProtocol {
         #expect(!ChatRules.offersNudge(after: "Did you change anything?  ", in: open))
         let done = open + [ChatMessage(role: .assistant, content: "", toolCalls: [ChatToolCall(id: "c", name: "show_conclusion")])]
         #expect(ChatRules.concluded(done) && !ChatRules.offersNudge(after: "Take care.", in: done))
+        // An offer is answered by "Go ahead"; an open question is not.
+        #expect(ChatRules.offersNudge(after: "Your sleep dropped too. Want me to look into what changed a few days back?", in: open))
+        #expect(ChatRules.offersNudge(after: "Shall I check your orders?", in: open))
+        #expect(!ChatRules.offersNudge(after: "Want me to check? Where does it itch most?", in: open))
+        #expect(!ChatRules.offersNudge(after: "Want me to look into it?", in: done))
     }
 
     @Test func questionShownOnce() {

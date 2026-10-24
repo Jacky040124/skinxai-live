@@ -30,6 +30,12 @@ struct ChatItem: Identifiable, Equatable {
     var isFresh: Bool { Date().timeIntervalSince(born) < 1.2 }
 }
 
+/// The composer's text.
+@MainActor
+final class ChatDraft: ObservableObject {
+    @Published var text = ""
+}
+
 /// One row of a tool card: the tool's icon and name, then its one-line result (nil while it runs).
 struct ChatToolRow: Identifiable, Equatable {
     let id: Int
@@ -48,7 +54,7 @@ struct ChatToolRow: Identifiable, Equatable {
 ///
 /// Hidden development launch arguments (no effect unless passed):
 ///   -chatModel <id>   ask the server for this model ("deepseek/deepseek-v4.1-flash"); never sent otherwise
-///   -chatAuto 1       sends the first suggestion, taps the first answer of every question and "Go ahead"
+///   -chatAuto 1       sends the first suggestion (2: the second), taps the first answer of every question and "Go ahead"
 ///   -chatReplay 1     replays the last saved conversation when Insight first shows
 ///   -chatEndpoint <url>  talks to another /api/chat (to see the failed-request row)
 ///   -chatDraft <text>    starts with this text in the box and the keyboard up
@@ -74,15 +80,13 @@ final class ChatSession: ObservableObject {
     @Published private(set) var pressed: String?
     /// Bumps whenever the thread should glide to its newest line.
     @Published private(set) var scrollTick = 0
-    /// The text in the composer.
-    @Published var draft = ""
+    /// The text in the composer (its own object, so typing only redraws the composer).
+    let draft = ChatDraft()
 
     /// Claude is working on its turn (not waiting for Douglas): the ✶ badge pulses.
     var working: Bool { busy && askingID == nil }
-    /// The send button can send what's in the box.
-    var canSend: Bool {
-        !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && (askingID != nil || !busy)
-    }
+    /// Something typed in the box can go out now: an answer to the open question, or a new message.
+    var canSend: Bool { askingID != nil || !busy }
     var placeholder: String { askingID != nil ? "Type your own answer…" : "Ask Claude…" }
 
     private var messages: [ChatMessage] = []
@@ -98,6 +102,8 @@ final class ChatSession: ObservableObject {
     private let client: ChatClient
     private let devModel: String?
     private let autoPlay: Bool
+    /// Which suggestion -chatAuto sends: 1 (default) or 2.
+    private let autoSuggestion: Int
     private var autoStarted = false
     private var autoNudges = 0
     private var devReplayStarted = false
@@ -111,7 +117,8 @@ final class ChatSession: ObservableObject {
         devModel = dev?.isEmpty == false ? dev : nil
         let endpoint = defaults.string(forKey: "chatEndpoint").flatMap(URL.init(string:))
         client = ChatClient(endpoint: endpoint ?? ChatWire.endpoint, model: devModel)
-        autoPlay = defaults.bool(forKey: "chatAuto")
+        autoPlay = defaults.integer(forKey: "chatAuto") > 0 || defaults.bool(forKey: "chatAuto")
+        autoSuggestion = defaults.integer(forKey: "chatAuto") == 2 ? 1 : 0
         items = opening()
         replayObserver = NotificationCenter.default.addObserver(forName: .twinReplayChat, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.replay() }
@@ -128,9 +135,10 @@ final class ChatSession: ObservableObject {
             Task { [weak self] in
                 await Self.pause(1.4)
                 guard let self, gen == self.generation, self.messages.isEmpty, !self.busy, !self.replaying,
-                      let first = ChatRules.suggestions.first else { return }
-                await self.press(first)
-                self.send(first)
+                      ChatRules.suggestions.indices.contains(self.autoSuggestion) else { return }
+                let suggestion = ChatRules.suggestions[self.autoSuggestion]
+                await self.press(suggestion)
+                self.send(suggestion)
             }
         }
         if UserDefaults.standard.bool(forKey: "chatReplay"), !devReplayStarted {
@@ -156,13 +164,13 @@ final class ChatSession: ObservableObject {
 
     /// The send button / return key: an answer to the open question, or a new message.
     func submitDraft() {
-        let text = draft.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = draft.text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !replaying else { return }
         if askingID != nil, answer != nil {
-            draft = ""
+            draft.text = ""
             resolve(text)
         } else if !busy {
-            draft = ""
+            draft.text = ""
             send(text)
         }
     }
@@ -446,11 +454,11 @@ final class ChatSession: ObservableObject {
     private func typeIn(_ text: String, gen: Int) async {
         for k in 1...max(1, text.count) {
             guard gen == generation else { return }
-            draft = String(text.prefix(k))
+            draft.text = String(text.prefix(k))
             await Self.pause(1.0 / 32)
         }
         await Self.pause(0.3)
-        if gen == generation { draft = "" }
+        if gen == generation { draft.text = "" }
     }
 
     /// Back to the greeting: everything from the old conversation stops.
@@ -470,7 +478,7 @@ final class ChatSession: ObservableObject {
         model = nil
         busy = false
         replaying = false
-        draft = ""
+        draft.text = ""
         withAnimation(.easeOut(duration: 0.2)) { items = opening() }
         scrollTick += 1
     }
