@@ -32,8 +32,8 @@ body:has(#sound:not(.off)) #p-history { padding-bottom: 64px; }   /* keep the ax
 .hval { position: absolute; left: 0; right: 0; bottom: calc(var(--h) * 1% + 10px); z-index: 3; text-align: center; white-space: nowrap;
   font: 700 16px/1 "Space Mono"; color: var(--muted); }
 .hcol:not(.hot) .hval { bottom: calc(var(--row) * 1% + 14px); }
-.hot .hval { font: 700 34px/1 "Space Grotesk"; letter-spacing: -.02em; color: var(--text); }
-.hot .hval small { margin-left: 5px; font: 700 13px "Space Mono"; letter-spacing: .06em; color: var(--muted); }
+.hot .hval { font: 700 clamp(34px, 2.1vw, 42px)/1 "Space Grotesk"; letter-spacing: -.02em; color: var(--text); }
+.hot .hval small { display: inline-block; width: 0; text-indent: 5px; font: 700 13px "Space Mono"; letter-spacing: .06em; color: var(--muted); }   /* zero width: the number centres on its bar */
 
 .haxis { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; margin: 12px var(--hm) 0 0; }
 .haxis span { text-align: center; font: 500 17px/1.2 "Space Grotesk"; color: rgba(233, 239, 228, .7); }
