@@ -25,7 +25,7 @@ body:has(#sound:not(.off)) #p-history { padding-bottom: 64px; }   /* keep the ax
 /* bars: calm nights neutral; hot nights orange, brightest above his usual */
 .hbar { position: absolute; left: 0; right: 0; bottom: 0; margin: 0 auto; width: 56%; max-width: 84px; height: calc(var(--h) * 1%);
   border-radius: 6px 6px 0 0; background: #484d49; transform-origin: bottom; z-index: 1; }
-.hot .hbar { background: #965a38; }
+.hot .hbar { background: #a5623b; }
 .hx { position: absolute; left: 0; right: 0; top: 0; border-radius: inherit; background: var(--orange); box-shadow: 0 0 30px rgba(248, 161, 111, .45); }
 
 /* values: calm nights in one quiet row above the band, hot nights big on their caps */
