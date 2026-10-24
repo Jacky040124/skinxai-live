@@ -44,16 +44,22 @@ import Testing
         #expect(firstStart != nil)
     }
 
-    @Test func wavingAndWalkingAreIgnoredLive() {
+    @Test func walkingAndTypingAreIgnoredLive() {
         var s = SyntheticMotion(start: 0, seed: 11)
         s.walk(20)
         s.still(3)
         s.type(15)
         #expect(ScratchDetector.episodes(in: s.samples, model: ScratchModel(), config: .live).isEmpty)
-        // big waving: measured at about 1.75 Hz with 1.2–1.6 g of arm motion
+    }
+
+    /// Trade-off chosen for the demo (rather a false alarm than a miss): slow ~1.8 Hz strokes count,
+    /// so big waving at that rate counts too.
+    @Test func slowStrokesCountLive() {
         var w = SyntheticMotion(start: 0, seed: 12)
-        w.scratch(10, hz: 1.8, amplitude: 1.8)
-        #expect(ScratchDetector.episodes(in: w.samples, model: ScratchModel(), config: .live).isEmpty)
+        w.still(3)
+        w.scratch(6, hz: 1.8, amplitude: 0.5)
+        w.still(3)
+        #expect(ScratchDetector.episodes(in: w.samples, model: ScratchModel(), config: .live).count == 1)
     }
 
     @Test func twoBoutsWithAPauseAreTwoEpisodes() {

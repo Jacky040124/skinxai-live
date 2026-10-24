@@ -115,7 +115,7 @@ public struct FeatureExtractor: Sendable {
         let crossingHz = crossingRate(d, sd: maxSD)
         return WindowFeatures(start: start, axisSD: sds, strength: strength, moving: true, axis: axis,
                               dominantHz: rate.hz, periodicity: rate.height, inBand: inBand, crossingHz: crossingHz,
-                              logStrength: logStrength, crossingScore: Self.crossingScore(crossingHz),
+                              logStrength: logStrength, crossingScore: Self.crossingScore(crossingHz, band: config.crossingBand),
                               kurtosis: Self.kurtosis(d),
                               impulsiveness: Self.impulsiveness(d, piece: max(8, Int((0.6 * config.sampleRate).rounded())),
                                                                 gate: config.movementGate))
@@ -152,6 +152,17 @@ public struct FeatureExtractor: Sendable {
     }
 
     /// 1 inside 2.5–7.5 Hz, fading linearly to 0 at 1.5 Hz and at 12 Hz (sensor noise crosses ~12 Hz).
+    /// 1 inside `band`, fading linearly to 0 one hertz below it and at 12 Hz (or 4.5 Hz above it if higher).
+    public static func crossingScore(_ hz: Double, band: ClosedRange<Double>) -> Double {
+        if band == 2.5...7.5 { return crossingScore(hz) }
+        let lo = band.lowerBound, hi = band.upperBound, top = max(12, hi + 1)
+        if hz < lo - 1 { return 0 }
+        if hz < lo { return hz - (lo - 1) }
+        if hz <= hi { return 1 }
+        if hz < top { return (top - hz) / (top - hi) }
+        return 0
+    }
+
     public static func crossingScore(_ hz: Double) -> Double {
         switch hz {
         case ..<1.5: return 0

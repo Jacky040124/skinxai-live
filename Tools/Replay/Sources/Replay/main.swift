@@ -17,6 +17,9 @@ if let k = env["MAXIMP"].flatMap(Double.init) { config.maxImpulsiveness = k }
 if let w = env["WINDOW"].flatMap(Double.init) { config.windowSeconds = w }
 if let h = env["HOP"].flatMap(Double.init) { config.hopSeconds = h }
 if let q = env["QUIET"].flatMap(Int.init) { config.quietWindowsToEnd = q }
+if let lo = env["BANDLO"].flatMap(Double.init), let hi = env["BANDHI"].flatMap(Double.init) { config.scratchBand = lo...hi }
+if let lo = env["CROSSLO"].flatMap(Double.init), let hi = env["CROSSHI"].flatMap(Double.init) { config.crossingBand = lo...hi }
+if let s = env["STILL"].flatMap(Double.init) { config.stillLevel = s }
 if let g = env["GATE"].flatMap(Double.init) { config.movementGate = g }
 if let th = env["THRESHOLD"].flatMap(Double.init) { config.threshold = th }
 var model = ScratchModel()

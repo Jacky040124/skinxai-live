@@ -32,6 +32,8 @@ public struct DetectorConfig: Sendable, Hashable {
     public var rateBand: ClosedRange<Double> = 1.5...10
     /// Band that scratching usually lives in (in-band power score), Hz.
     public var scratchBand: ClosedRange<Double> = 2.5...7
+    /// Zero-crossing rates scored 1 (scratch-like); the score fades to 0 one hertz below and at 12 Hz.
+    public var crossingBand: ClosedRange<Double> = 2.5...7.5
     /// A pure rhythm also peaks at 2x and 3x its period: take the first peak at least this high
     /// relative to the highest one.
     public var peakFraction: Double = 0.85
@@ -82,6 +84,9 @@ public struct DetectorConfig: Sendable, Hashable {
         c.hopSeconds = LiveTuning.hopSeconds
         c.quietWindowsToEnd = 4
         c.quietSecondsToEnd = LiveTuning.quietSecondsToEnd
+        c.stillLevel = LiveTuning.stillLevel
+        c.scratchBand = LiveTuning.scratchBand
+        c.crossingBand = LiveTuning.crossingBand
         c.alertCooldown = 20
         return c
     }()
@@ -100,4 +105,9 @@ public enum LiveTuning {
     public static let windowSeconds = 3.0
     public static let hopSeconds = 0.5
     public static let quietSecondsToEnd = 1.0
+    public static let stillLevel = 0.02
+    /// Wider than the standard 2.5–7 Hz: slow strokes (~2 Hz) and fast finger scratching (~9 Hz)
+    /// count too. Waving (~1.7 Hz) sometimes passes; preferred over missing a scratch.
+    public static let scratchBand: ClosedRange<Double> = 1.4...10
+    public static let crossingBand: ClosedRange<Double> = 1.5...10
 }
