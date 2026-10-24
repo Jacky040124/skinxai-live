@@ -98,6 +98,9 @@ final class LiveRelayClient {
             isConnected = true
             retry = 0
             lastPingAt = now
+            #if DEBUG
+            print("[live] relay connected")
+            #endif
             onConnect?()
         }
         if case .batch = message { lastBatchAt = now }
@@ -113,6 +116,9 @@ final class LiveRelayClient {
         reconnectPending = true
         let delay = min(5, 0.5 * pow(2, Double(retry)))
         retry += 1
+        #if DEBUG
+        print("[live] relay dropped, again in \(delay) s")
+        #endif
         Task { @MainActor [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
             guard let self else { return }

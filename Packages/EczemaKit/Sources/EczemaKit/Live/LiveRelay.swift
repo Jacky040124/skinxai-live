@@ -119,6 +119,10 @@ public struct LiveBatch: Sendable, Equatable {
 /// - a **new session** (count from 0) starts when batches resume after ≥ 60 s of silence or after a
 ///   `live: false` batch;
 /// - the **watch stopped** = a `live: false` batch, or 8 s without batches while a session runs.
+///
+/// One safety the page doesn't have: an `end` lost on the way (the socket reconnected at the wrong
+/// moment) would leave "scratching" on for good. The watch ends an episode after ~2 s of quiet
+/// windows, so when batches keep coming for 6 s without a scratch window, the episode is over.
 public struct LiveRelayState: Sendable {
     public struct Episode: Sendable, Equatable, Identifiable {
         /// 1, 2, 3 … in the order the episodes started tonight.
@@ -142,6 +146,7 @@ public struct LiveRelayState: Sendable {
     public static let scratchHold: TimeInterval = 1.2
     public static let stopAfter: TimeInterval = 8
     public static let newSessionAfter: TimeInterval = 60
+    public static let lostEndAfter: TimeInterval = 6
 
     /// Episodes started in this session.
     public private(set) var count = 0
@@ -163,6 +168,9 @@ public struct LiveRelayState: Sendable {
     private var ignoring = false
     /// monitor.js `passes(lastWin)`.
     private var lastWindowPassed = false
+    /// When the last scratch window arrived, and when `ignoring` began (for the lost-end safety).
+    private var lastScratchWindowAt: Date?
+    private var ignoringSince: Date?
     /// Seconds since the last batch during which the phone couldn't hear the relay
     /// (see `notListening(from:to:)`): they don't count as the watch's silence.
     private var deafSeconds: TimeInterval = 0
@@ -198,6 +206,7 @@ public struct LiveRelayState: Sendable {
                 ignoring = false
                 scratchUntil = nil
                 lastWindowPassed = false
+                lastScratchWindowAt = nil
                 needsNewSession = false
                 changes.append(.sessionStarted)
             }
@@ -213,6 +222,7 @@ public struct LiveRelayState: Sendable {
                 lastWindowPassed = window.passes
                 guard window.passes else { continue }
                 scratchUntil = now.addingTimeInterval(Self.scratchHold)
+                lastScratchWindowAt = now
                 if ignoring && !episodeOpen {
                     ignoring = false
                     changes += startEpisode(at: now, intense: false)
@@ -221,10 +231,23 @@ public struct LiveRelayState: Sendable {
             for event in batch.events {
                 switch event.kind {
                 case .start:
-                    if lastWindowPassed { changes += startEpisode(at: now, intense: event.intense) } else { ignoring = true }
+                    if lastWindowPassed {
+                        changes += startEpisode(at: now, intense: event.intense)
+                    } else if !ignoring {
+                        ignoring = true
+                        ignoringSince = now
+                    }
                 case .end:
                     if ignoring { ignoring = false } else { changes += endEpisode(at: now, intense: event.intense) }
                 }
+            }
+            // Lost `end`: batches flow, but no scratch window for 6 s.
+            if episodeOpen, let last = lastScratchWindowAt ?? episodes.last?.start,
+               now.timeIntervalSince(last) >= Self.lostEndAfter {
+                changes += endEpisode(at: last.addingTimeInterval(Self.scratchHold), intense: false)
+            }
+            if ignoring, let since = ignoringSince, now.timeIntervalSince(since) >= Self.lostEndAfter {
+                ignoring = false
             }
         }
 

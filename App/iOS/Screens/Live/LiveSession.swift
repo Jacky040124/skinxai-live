@@ -44,6 +44,9 @@ final class LiveSession: ObservableObject {
     private var rules = LiveRelayState()
     private let relay: LiveRelayClient?
     private let simulator: LiveSimulator?
+    #if DEBUG
+    private var replay: LiveReplay?
+    #endif
     /// The phone can hear the watch right now (socket up, or the stand-in running).
     private var listening = false
     /// When the phone stopped hearing the relay (socket down, app in the background).
@@ -53,9 +56,16 @@ final class LiveSession: ObservableObject {
 
     private init() {
         let defaults = UserDefaults.standard
+        var replayID: String?
+        #if DEBUG
+        replayID = defaults.string(forKey: "liveReplay")
+        #endif
         if let sim = defaults.string(forKey: "liveSim"), !["", "0", "NO", "no", "false"].contains(sim) {
             let stop = defaults.double(forKey: "liveSimStop")
             simulator = LiveSimulator(stopAfter: stop > 0 ? stop : nil)
+            relay = nil
+        } else if replayID != nil {
+            simulator = nil
             relay = nil
         } else {
             simulator = nil
@@ -65,6 +75,13 @@ final class LiveSession: ObservableObject {
         relay?.onConnect = { [weak self] in self?.startedListening() }
         relay?.onDisconnect = { [weak self] in self?.stoppedListening() }
         simulator?.onBatch = { [weak self] batch in self?.receive(.batch(batch)) }
+        #if DEBUG
+        if let replayID {
+            let replay = LiveReplay(id: replayID)
+            replay.onBatch = { [weak self] batch in self?.receive(.batch(batch)) }
+            self.replay = replay
+        }
+        #endif
 
         let center = NotificationCenter.default
         // Hidden control "Reset tonight's count".
@@ -84,7 +101,7 @@ final class LiveSession: ObservableObject {
 
         // `-screen live` opens the monitor at launch (after this object exists: the presenter reads it).
         if defaults.string(forKey: "screen") == "live" {
-            let waitForTracking = simulator != nil
+            let waitForTracking = relay == nil
             DispatchQueue.main.async {
                 LiveMonitorPresenter.shared.openWhenReady(waitForTracking: waitForTracking)
             }
@@ -108,6 +125,12 @@ final class LiveSession: ObservableObject {
             simulator.start()
             if !listening { startedListening() }
         }
+        #if DEBUG
+        if let replay {
+            replay.start()
+            if !listening { startedListening() }
+        }
+        #endif
     }
 
     private func startedListening() {
@@ -128,6 +151,9 @@ final class LiveSession: ObservableObject {
         case .batch(let batch):
             let changes = rules.take(batch, at: now)
             publish(now)
+            #if DEBUG
+            for change in changes { print("[live] \(change) · count \(rules.count)") }
+            #endif
             if changes.contains(.watchStopped) { watchStopped() }
             startTicking()
         case .reset:
@@ -162,6 +188,9 @@ final class LiveSession: ObservableObject {
         // Silence only counts while the phone can hear the relay.
         let changes = listening ? rules.tick(at: now) : []
         publish(now)
+        #if DEBUG
+        for change in changes { print("[live] \(change) (silence)") }
+        #endif
         if changes.contains(.watchStopped) { watchStopped() }
         return rules.isRunning || tracking || scratching
     }

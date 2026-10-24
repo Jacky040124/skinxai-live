@@ -117,6 +117,40 @@ import Testing
         #expect(s.take(batch([], [.init(.start)]), at: at(0.3)) == [.episodeStarted(1)])
     }
 
+    @Test func aLostEndDoesNotLeaveScratchingOn() {
+        // The `end` went missing (the socket reconnected at that moment): batches keep coming with
+        // calm windows. The watch would have ended it within ~2 s; after 6 s the phone does.
+        var s = LiveRelayState()
+        s.take(batch([Self.scratchWindow], [.init(.start)]), at: at(0))
+        s.take(batch([Self.scratchWindow]), at: at(1))
+        for t in stride(from: 1.5, to: 6.9, by: 0.5) {
+            #expect(s.take(batch([Self.calmWindow]), at: at(t)).isEmpty)
+        }
+        #expect(s.isScratching(at: at(6.9)))
+        #expect(s.take(batch([Self.calmWindow]), at: at(7)) == [.episodeEnded(1)])
+        #expect(!s.isScratching(at: at(7)))
+        // It ends where the last scratch window's hold ran out, not when the phone noticed.
+        #expect(s.episodes[0].end == at(2.2))
+        // The late `end` changes nothing; the next episode counts normally.
+        #expect(s.take(batch([], [.init(.end)]), at: at(8)).isEmpty)
+        #expect(s.take(batch([Self.scratchWindow], [.init(.start)]), at: at(9)) == [.episodeStarted(2)])
+
+        // A long silence is the stop rule's business, not this one's: no batches, nothing ends here.
+        var quiet = LiveRelayState()
+        quiet.take(batch([Self.scratchWindow], [.init(.start)]), at: at(0))
+        #expect(quiet.tick(at: at(7)).isEmpty && quiet.isScratching(at: at(7)))
+    }
+
+    @Test func aStaleWaitingStartExpires() {
+        // A start that waited for a scratch window, whose `end` was lost, doesn't start a phantom
+        // episode on a stray window much later.
+        var s = LiveRelayState()
+        s.take(batch([Self.calmWindow], [.init(.start)]), at: at(0))
+        for t in stride(from: 0.5, to: 7, by: 0.5) { s.take(batch([Self.calmWindow]), at: at(t)) }
+        #expect(s.take(batch([Self.scratchWindow]), at: at(7)).isEmpty)
+        #expect(s.count == 0)
+    }
+
     // MARK: Tracking and sessions
 
     @Test func trackingNeedsARecentLiveBatch() {

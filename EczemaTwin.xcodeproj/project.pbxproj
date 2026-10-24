@@ -45,6 +45,7 @@
 		558DF6DCEFC8FDF1D72D9448 /* MonitorScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53312E31F08FE80F384BD385 /* MonitorScreen.swift */; };
 		575C311180B313796A89B293 /* SpaceGrotesk.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 34F1487CBB263DD93F8907CC /* SpaceGrotesk.ttf */; };
 		593F59C9DCAAA6DC5176AE89 /* StoryTravel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D79E83ABB5FC50CB3B97A87E /* StoryTravel.swift */; };
+		5D8AFA25300C7981940B9159 /* LiveReplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 533848905591F2813A5E3EA9 /* LiveReplay.swift */; };
 		6120A254393C824E106A6B6B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2041CCD0264F87E0A11694E2 /* Assets.xcassets */; };
 		691B72E4533D20FBCA0779AF /* DataMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 095BAB6E0D33BE679798EBC4 /* DataMode.swift */; };
 		6A5BCBECDB6B748A679BAB02 /* InsightCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EBA8BBF881EF8EA2585D098 /* InsightCards.swift */; };
@@ -162,6 +163,7 @@
 		4D1A918DABAA9FFD8538504E /* Units.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Units.swift; sourceTree = "<group>"; };
 		4E03FADE1874C4C509264EC8 /* LiveMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveMonitor.swift; sourceTree = "<group>"; };
 		53312E31F08FE80F384BD385 /* MonitorScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitorScreen.swift; sourceTree = "<group>"; };
+		533848905591F2813A5E3EA9 /* LiveReplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveReplay.swift; sourceTree = "<group>"; };
 		570EC8EF09994F162B38DB16 /* Live.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Live.xcconfig; sourceTree = "<group>"; };
 		5808DD3E3B07C0808DABFD4C /* OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = OFL.txt; sourceTree = "<group>"; };
 		59666E413FAD8FCAACA96F91 /* HourlyScratchChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HourlyScratchChart.swift; sourceTree = "<group>"; };
@@ -474,6 +476,7 @@
 				DE35167A82BBFBAF22509A89 /* LivePill.swift */,
 				6F62057DD333871EA66459D3 /* LivePillHarness.swift */,
 				81469EE688A63C6968697870 /* LiveRelayClient.swift */,
+				533848905591F2813A5E3EA9 /* LiveReplay.swift */,
 				1C51CCC0F091E681A181E4C7 /* LiveSession.swift */,
 				014BDD3C1323481999354AAB /* LiveSimulator.swift */,
 			);
@@ -685,6 +688,7 @@
 				0C47E3279B980203D1702F0C /* LivePill.swift in Sources */,
 				AF4D133AC33F342368291A4D /* LivePillHarness.swift in Sources */,
 				B56138DA790475C50A2F4DA9 /* LiveRelayClient.swift in Sources */,
+				5D8AFA25300C7981940B9159 /* LiveReplay.swift in Sources */,
 				9D9B9FC68BFEAFB2383B40AC /* LiveSession.swift in Sources */,
 				B6FA149DF727D940229BFB48 /* LiveSimulator.swift in Sources */,
 				306805DC6C1BCACF24BFF5D8 /* OnboardingArt.swift in Sources */,

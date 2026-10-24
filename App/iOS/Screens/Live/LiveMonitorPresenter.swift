@@ -47,6 +47,15 @@ final class LiveMonitorPresenter: ObservableObject {
             // The content fades in when the page reports a landscape size; this is the fallback.
             self.after(1.1) { self.reveal() }
         }
+        // UIKit can refuse a presentation (the screen below is mid-transition): then the completion
+        // never runs. Don't stay stuck half-open; the next tap tries again.
+        after(1.5) {
+            guard self.phase == .opening, monitor.presentingViewController == nil else { return }
+            self.phase = .closed
+            self.controller = nil
+            UIApplication.shared.isIdleTimerDisabled = false
+            if OrientationLock.mask != .portrait { OrientationLock.set(.portrait) }
+        }
     }
 
     /// "Done": back to portrait and to the screen underneath.
