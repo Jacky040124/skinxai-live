@@ -10,7 +10,7 @@
   const DEFAULT_MODEL = "anthropic/claude-sonnet-5.5";
   const STARTER = "My eczema has been really bad the last few nights. Can you look at my scratching history and help me figure out why?";
   const NUDGE = "Go ahead";        // the suggested reply when Claude stops before its conclusion (see offerNudge)
-  const SAVE_KEY = "twinChat";     // localStorage: the last completed conversation
+  const SAVE_KEY = "twinChat";     // localStorage: the last completed conversation of each model ("twinChat:<model>")
   const CPS = 80;                  // typewriter speed, characters per second
   const CARD_MS = 600;             // every tool card spins at least this long, so it can be read
   const THINK_MS = 600;            // "Claude is thinking…" never just flashes
@@ -106,18 +106,21 @@
 
   function row(kind, html) { const r = el("div", `msg ${kind}`, html); feed.append(r); return r; }
   // Douglas's message. When it comes from the suggestion, an answer button or the input box, the bubble flies
-  // from there into place (transform only).
+  // from there into place (transform only). His first message waits a moment where it starts while the greeting
+  // fades, so it doesn't fly across it. Returns when the bubble lands (ms after now).
   function userSays(text, from) {
     const f = from && !calm ? from.getBoundingClientRect() : null;
+    const hold = leaveEmpty() && f ? 120 : 0;
     dropNudge();
+    feed.querySelectorAll(".msg.error").forEach((e) => e.remove());   // an old "Try again" would resend a finished turn
     const r = row("user", `<div class="bubble">${esc(text)}</div>`);
-    if (!f) return r;
+    if (!f) return 0;
     const b = $(".bubble", r);
     r.style.animation = "none";
     const t = b.getBoundingClientRect();
-    b.animate([{ transform: `translate(${f.left - t.left}px, ${f.top - t.top}px)`, opacity: 0.5 }, { transform: "none", opacity: 1 }],
-      { duration: 650, easing: "cubic-bezier(.2, .8, .25, 1)" });
-    return r;
+    b.animate([{ transform: `translate(${f.left - t.left}px, ${f.top - t.top}px)` }, { transform: "none" }],
+      { duration: 650, delay: hold, fill: "backwards", easing: "cubic-bezier(.2, .8, .25, 1)" });
+    return hold + 650;
   }
   const claudeRow = () => row("claude", `<div class="av">${SPARK}</div><div class="body"></div>`);
   // Where Claude's next block goes: the current Claude message, or a new one after Douglas spoke.
@@ -136,21 +139,33 @@
   // one-click reply under it, like the suggestion on the empty page; nothing is sent unless he clicks it.
   const SUGGEST_ICON = icon('<path d="M7 17 17 7M9 7h8v8"/>', 2.2);
   function offerNudge(text, upTo) {
+    dropNudge();
     if (concluded(upTo) || /\?\s*$/.test(text)) return;
     const r = row("nudge", `<button type="button" class="suggest"><span class="sg-ico">${SUGGEST_ICON}</span><span>${NUDGE}</span></button>`);
     $("button", r).onclick = (e) => { if (!busy && !replaying) send(NUDGE, e.currentTarget); };
   }
   function dropNudge() { const n = $(".msg.nudge", feed); if (n) n.remove(); }
-  function leaveEmpty() { $("#chatEmpty").classList.add("gone"); }
+  // The greeting goes on Douglas's first message; true if it was still there.
+  function leaveEmpty() { const e = $("#chatEmpty"); if (e.classList.contains("gone")) return false; e.classList.add("gone"); return true; }
 
   // Claude's text → HTML: paragraphs, simple lists, **bold**, *italic*. Everything else stays plain text.
+  // In each block, consecutive list lines become a list ("1." ones numbered) and the lines between them a paragraph,
+  // so "Here's my plan:" followed by bullets reads as an intro and a list.
   function rich(text) {
     const inline = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\*\*/g, "").replace(/\*([^*\s][^*]*?)\*/g, "<i>$1</i>");
     const bullet = /^([-*•]|\d+[.)])\s+/;
+    const part = (lines) => {
+      if (!bullet.test(lines[0])) return `<p>${lines.map(inline).join("<br>")}</p>`;
+      const tag = /^\d/.test(lines[0]) ? "ol" : "ul";
+      return `<${tag}>${lines.map((l) => `<li>${inline(l.replace(bullet, ""))}</li>`).join("")}</${tag}>`;
+    };
     return String(text).trim().split(/\n\s*\n/).map((block) => {
-      const lines = block.split("\n").map((l) => l.trim().replace(/^#+\s*/, "")).filter(Boolean);
-      if (lines.length > 1 && lines.every((l) => bullet.test(l))) return `<ul>${lines.map((l) => `<li>${inline(l.replace(bullet, ""))}</li>`).join("")}</ul>`;
-      return `<p>${lines.map(inline).join("<br>")}</p>`;
+      const runs = [];
+      for (const l of block.split("\n").map((x) => x.trim().replace(/^#+\s*/, "")).filter(Boolean)) {
+        const last = runs[runs.length - 1];
+        if (last && bullet.test(last[0]) === bullet.test(l)) last.push(l); else runs.push([l]);
+      }
+      return runs.map(part).join("");
     }).join("");
   }
 
@@ -220,6 +235,8 @@
     opts.addEventListener("pointermove", () => opts.classList.remove("fresh"), { once: true });
     card.append(opts);
     const buttons = [...opts.children];
+    // a long answer that wraps reads better as a left-aligned box than as a centred two-line pill
+    buttons.forEach((b) => b.classList.toggle("wrap", b.offsetHeight > 2 * parseFloat(getComputedStyle(b).lineHeight)));
     const answer = await new Promise((resolve) => {
       pendingAsk = resolve;
       composerState();
@@ -265,7 +282,7 @@
       <i style="height:${y(m)}%">${hot(m) ? `<u style="height:${(((m - S.USUAL) / m) * 100).toFixed(1)}%"></u>` : ""}</i>
       <b style="bottom:${y(hot(m) ? m : hi)}%">${m}</b></div>`).join("");
     const marker = mi < 0 ? "" : `<div class="tl-mark" style="left:${x(mi)}%"></div>
-      <span class="tl-flag${left ? " left" : ""}" style="${left ? `right:${100 - x(mi)}%;max-width:${x(mi)}%` : `left:${x(mi)}%;max-width:${100 - x(mi)}%`}">${esc(a.marker_label || "Change")} · ${S.wd(days[mi])} ${S.md(days[mi])}</span>`;
+      <span class="tl-flag${left ? " left" : ""}" style="${left ? `right:${100 - x(mi)}%;max-width:${x(mi)}%` : `left:${x(mi)}%;max-width:${100 - x(mi)}%`}"><span class="lbl">${esc(a.marker_label || "Change")}</span><span>· ${S.wd(days[mi])} ${S.md(days[mi])}</span></span>`;
     const bracket = !lag ? "" : `<div class="tl-lag${left ? "" : " low"}" style="left:${x(mi)}%;width:${x(ri) - x(mi)}%"><span>${lag === 1 ? "1 day later" : `${lag} days later`}</span></div>
       <i class="tl-drop${left ? "" : " low"}" style="left:${x(ri)}%;bottom:calc(${y(S.NIGHTS[ri])}% + var(--lab))"></i>`;
     const axis = days.map((d, i) => `<span class="${i === mi ? "mark" : hot(S.NIGHTS[i]) ? "hot" : ""}"><b>${S.wd(d).toUpperCase()}</b>${d.getDate()}</span>`).join("");
@@ -356,7 +373,7 @@
   }
 
   function addTab(name, label) {
-    const tabs = $("#artTabs");
+    const tabs = $("#artTabs"), was = new Map([...tabs.children].map((t) => [t, t.getBoundingClientRect().left]));
     let b = tabs.querySelector(`[data-tool="${name}"]`);
     if (!b) {
       b = el("button");
@@ -367,6 +384,11 @@
       tabs.append(b);
     }
     b.innerHTML = `${icon(ART[name].icon)}<span>${esc(label)}</span>`;
+    // the tabs sit at the right edge: the ones already there glide over to make room instead of jumping
+    if (!calm) was.forEach((x, t) => {
+      const dx = x - t.getBoundingClientRect().left;
+      if (Math.abs(dx) > 0.5) t.animate([{ transform: `translateX(${dx}px)` }, { transform: "none" }], { duration: 400, easing: "cubic-bezier(.2, .8, .25, 1)" });
+    });
   }
 
   // Very long model text: the card steps its whole type scale down (at most twice) until it fits.
@@ -510,6 +532,7 @@
       if (my !== gen) return;
       latencies.push(Math.round(performance.now() - t0));
       await sleep(THINK_MS - (performance.now() - t0));
+      if (my !== gen) return;
       settle(think);
       messages.push(reply);
       said = reply.content.trim();
@@ -531,30 +554,38 @@
 
   function send(text, from) {
     if (!messages.length) startedAt = Date.now();
-    leaveEmpty();
-    userSays(text, from);
+    $("#chatTag").classList.remove("on");   // after a replay, Douglas carries on live
+    const landed = userSays(text, from);
     messages.push({ role: "user", content: text });
-    converse(gen, from && !calm ? 450 : 0);
+    converse(gen, Math.max(0, landed - 200));   // "Claude is thinking…" shows up as his bubble settles
   }
 
   // ---------- save and replay ----------
   const concluded = (list = messages) => list.some((m) => (m.tool_calls || []).some((c) => c.function.name === "show_conclusion"));
   function save() {
     if (replaying || !concluded()) return;
-    try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, model: modelId, at: startedAt, messages, ms: latencies })); } catch {}
+    try { localStorage.setItem(`${SAVE_KEY}:${modelId}`, JSON.stringify({ v: 1, model: modelId, at: startedAt, messages, ms: latencies })); } catch {}
+  }
+  // What P replays: the newest conversation with this page's model (Claude on stage), else the newest of any model.
+  // The plain "twinChat" key is the single save of earlier versions.
+  function saved() {
+    const all = Object.keys(localStorage).filter((k) => k === SAVE_KEY || k.startsWith(SAVE_KEY + ":"))
+      .map((k) => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } })
+      .filter((r) => r && Array.isArray(r.messages) && r.messages.length)
+      .sort((a, b) => (b.at || 0) - (a.at || 0));
+    return all.find((r) => r.model === (MODEL || DEFAULT_MODEL)) || all[0] || null;
   }
 
   // A recorded message Douglas typed: it appears in the box, then goes out.
   async function typeIn(text, my) {
-    for (let i = 1; i <= text.length && my === gen; i++) { input.value = text.slice(0, i); await sleep(1000 / 32); }
+    for (let i = 1; i <= text.length && my === gen; i++) { input.value = text.slice(0, i); composerState(); await sleep(1000 / 32); }
     await sleep(300);
-    if (my === gen) input.value = "";
+    if (my === gen) { input.value = ""; composerState(); }
   }
 
   async function replay() {
-    let rec = null;
-    try { rec = JSON.parse(localStorage.getItem(SAVE_KEY)); } catch {}
-    if (!rec || !Array.isArray(rec.messages) || !rec.messages.length) { toast("No saved conversation yet. Finish one first."); return; }
+    const rec = saved();
+    if (!rec) { toast("No saved conversation yet. Finish one first."); return; }
     const my = await wipe();
     if (my !== gen) return;
     replaying = true; busy = true; startedAt = rec.at || Date.now(); setModel(rec.model || modelId);
@@ -571,7 +602,6 @@
         if (chip) { await sleep(900); chip.classList.add("press"); await sleep(180); } else await typeIn(m.content, my);
         if (my !== gen) return;
         userSays(m.content, chip || input);
-        leaveEmpty();
       } else if (m.role === "assistant") {
         const think = thinkingRow();
         await sleep(Math.min(3500, Math.max(THINK_MS + 200, (rec.ms && rec.ms[k++]) || 1500)));
@@ -589,12 +619,12 @@
   // Fade the page out, clear everything, fade back in. Returns the new generation.
   async function wipe() {
     const my = ++gen;
-    pendingAsk = null; busy = false; replaying = false;
+    pendingAsk = null; busy = true; replaying = false;   // busy: nothing goes into the old thread while it fades out
     if (inflight) inflight.abort();
     chat.classList.add("wipe");
     await sleep(calm ? 0 : 260);
     if (my !== gen) return my;
-    messages = []; latencies = []; startedAt = 0; shownProduct = null;
+    messages = []; latencies = []; startedAt = 0; shownProduct = null; busy = false;
     feed.innerHTML = "";
     Object.values(slots).forEach((s) => { s.innerHTML = ""; s.style.transform = ""; });
     $("#artTabs").innerHTML = "";
@@ -620,6 +650,8 @@
     input.placeholder = replaying ? "Replaying a saved conversation…" : asking ? "Type your own answer…" : busy ? "Claude is working…"
       : messages.length ? "Reply to Claude…" : "How can I help you today?";
     sendBtn.disabled = replaying || (busy && !asking) || !input.value.trim();
+    input.style.height = "auto";   // the box grows with the text, up to three lines (chat.css max-height)
+    input.style.height = `${input.scrollHeight}px`;
   }
 
   function submit() {
@@ -652,7 +684,10 @@
   $("#chatSuggest").addEventListener("click", () => { if (!busy && !replaying && !messages.length) send(STARTER, $("#chatSuggest")); });
   $("#composer").addEventListener("submit", (e) => { e.preventDefault(); submit(); });
   input.addEventListener("input", composerState);
-  input.addEventListener("keydown", (e) => { if (e.key === "Escape") input.blur(); });
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") input.blur();
+    if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); submit(); }   // Shift+Enter: a new line
+  });
   document.addEventListener("keydown", (e) => {
     if (e.target.closest && e.target.closest("input, textarea, [contenteditable]")) return;   // typing in the chat
     if (!page.classList.contains("on") || e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;

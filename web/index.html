@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Eczema Twin · Scratch Monitor</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='11' cy='16' r='8' fill='none' stroke='%23e9efe4' stroke-width='3'/%3E%3Ccircle cx='21' cy='16' r='9.5' fill='%23f8a16f'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="/style.css">
 <link rel="stylesheet" href="/night.css">
 <link rel="stylesheet" href="/history.css">
@@ -115,7 +116,7 @@
           <div class="chat-toast" id="chatToast"></div>
         </div>
         <form class="composer" id="composer" autocomplete="off">
-          <input id="chatInput" type="text" placeholder="How can I help you today?" aria-label="Message Claude">
+          <textarea id="chatInput" rows="1" placeholder="How can I help you today?" aria-label="Message Claude"></textarea>
           <span class="tag" id="chatTag">REPLAY</span>
           <span class="model" id="chatModel"></span>
           <button class="send" id="chatSend" type="submit" aria-label="Send" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/></svg></button>

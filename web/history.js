@@ -18,11 +18,12 @@
     $("#hSince").textContent = `Since ${S.wd(S.nightDate(first), true)}:`;
     $("#hUsual").textContent = usual;
     $("#hChange").textContent = `▲ ${(avg / usual).toFixed(1)}× his usual, ${HOT} nights running`;
-    const num = $("#hAvg");
+    // the average counts up while the three hot nights rise, so it lands together with its evidence
+    const num = $("#hAvg"), t0 = performance.now();
     num.style.minWidth = ""; num.textContent = Math.round(avg);
     document.fonts.ready.then(() => {   // reserve the final width (in em, so it survives a resize): no reflow while counting
       num.style.minWidth = `${num.getBoundingClientRect().width / parseFloat(getComputedStyle(num).fontSize)}em`;
-      if (!still.matches) countUp(num, avg, 1400);
+      countUp(num, avg, { ms: T.hotMs + (HOT - 1) * T.hotStep, delay: Math.max(0, T.hot - (performance.now() - t0)) });
     });
 
     // plot: usual range band, dashed usual line with its label in the right margin, one column per night

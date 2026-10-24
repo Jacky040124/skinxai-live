@@ -10,6 +10,10 @@
   // ---------- pages ----------
   const names = { monitor: "SCRATCH MONITOR", night: "LAST NIGHT", history: "HISTORY", claude: "CLAUDE" };
   const tabs = [...document.querySelectorAll(".tabs button")];
+  // The yellow pill carries the tab labels again in dark ink, shifted back by as much as the pill moves: whatever
+  // part of a label it covers is dark at every frame of the slide.
+  const ink = $("#tabInk");
+  ink.innerHTML = `<span>${tabs.map((b) => `<b>${b.textContent}</b>`).join("")}</span>`;
   let page = "monitor";
   function show(next) {
     if (!names[next]) return;
@@ -17,8 +21,11 @@
     page = next;
     document.querySelectorAll(".page").forEach((p) => p.classList.toggle("on", p.id === "p-" + page));
     tabs.forEach((b) => b.classList.toggle("on", b.dataset.page === page));
-    const tab = tabs.find((b) => b.dataset.page === page);
-    $("#tabInk").style.transform = `translateX(${tab.offsetLeft - tabs[0].offsetLeft}px)`;
+    const x = tabs.find((b) => b.dataset.page === page).offsetLeft - tabs[0].offsetLeft;
+    ink.style.transform = `translateX(${x}px)`;
+    ink.firstChild.style.transform = `translateX(${-x}px)`;
+    // a reload stays on this page (replaceState fires no hashchange)
+    history.replaceState(null, "", page === "monitor" ? location.pathname + location.search : "#" + page);
     const name = $("#pageName");
     name.textContent = names[page];
     if (changed && motion) name.animate([{ opacity: 0, transform: "translateY(6px)" }, { opacity: 1, transform: "none" }], { duration: 400, easing: "cubic-bezier(.2,.7,.2,1)" });
@@ -41,12 +48,23 @@
   tick(); setInterval(tick, 500);
 
   // ---------- sound ----------
+  // The browser allows sound after one user gesture: the first click or key press anywhere (or the yellow pill).
   let audio = null;
-  function enableSound() { if (!audio) { audio = new (window.AudioContext || window.webkitAudioContext)(); } $("#sound").classList.add("off"); }
-  document.addEventListener("pointerdown", enableSound, { once: true });
+  function enableSound() {
+    audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+    audio.resume().then(() => {
+      if (audio.state !== "running") return;
+      $("#sound").classList.add("off");
+      document.removeEventListener("pointerdown", enableSound);
+      document.removeEventListener("keydown", enableSound);
+    }, () => {});
+  }
+  document.addEventListener("pointerdown", enableSound);
+  document.addEventListener("keydown", enableSound);
   $("#sound").addEventListener("click", enableSound);
+  // the monitor only beeps while it is on screen (the watch keeps streaming behind the other pages)
   function beep(freq = 1046, dur = 0.09, vol = 0.18, when = 0) {
-    if (!audio) return;
+    if (!audio || audio.state !== "running" || page !== "monitor") return;
     const t = audio.currentTime + when;
     const o = audio.createOscillator(), g = audio.createGain();
     o.type = "sine"; o.frequency.value = freq;
@@ -69,10 +87,11 @@
   let count = 0, totalSeconds = 0, lastScratchAt = null, currentHz = null;
   let sessionStart = Date.now();
   const strip = [];                // {start, end, intense, el} in Date.now() ms
-  let lastBatchAt = 0, simulate = false;
+  let lastBatchAt = 0, simulate = false, idle = true;
 
   function setLive() {
     const live = simulate || Date.now() - lastBatchAt < 3500;
+    idle = !live;
     $("#livePill").classList.toggle("live", live && !simulate);
     $("#livePill").classList.toggle("sim", simulate);
     $("#liveText").textContent = simulate ? "SIMULATION" : live ? "WATCH LIVE" : "WAITING FOR WATCH";
@@ -111,10 +130,11 @@
     v.animate([{ transform: "scale(1)" }, { transform: "scale(1.16)", offset: 0.3 }, { transform: "scale(1)" }], { duration: 700, easing: "cubic-bezier(.2,.7,.2,1)" });
     $("#vFlash").animate([{ opacity: 0.35, transform: "scale(.8)" }, { opacity: 1, transform: "scale(1.15)", offset: 0.25 }, { opacity: 0.35, transform: "scale(1)" }], { duration: 1300, easing: "ease-out" });
   }
-  // the intensity meter's dark cover slides back to light up the share f (0…1), in whole segments
+  // the intensity meter's dark cover slides back to light up the share f (0…1), in whole segments; an arm at
+  // rest (under 6%) stays dark instead of blinking one segment on and off
   function setMeter(f) {
-    const n = Math.max(1, Math.round($(".meter").clientWidth / 12));
-    $("#vMeter").style.transform = `scaleX(${1 - Math.round(Math.min(1, Math.max(0, f)) * n) / n})`;
+    const n = Math.max(1, Math.round($(".meter").clientWidth / 12)), lit = f < 0.06 ? 0 : Math.min(1, f);
+    $("#vMeter").style.transform = `scaleX(${1 - Math.round(lit * n) / n})`;
   }
 
   function reset() {
@@ -127,7 +147,7 @@
 
   // what this session caught, for the "last night" page
   window.twinSession = () => ({
-    episodes: strip.map((s) => ({ seconds: ((s.end || Date.now()) - s.start) / 1000, intense: !!s.intense })),
+    episodes: strip.map((s) => ({ seconds: ((s.end || Date.now()) - s.start) / 1000, intense: !!s.intense, at: s.end || Date.now() })),
   });
 
   // vitals text and the session strip
@@ -154,8 +174,9 @@
   }, 250);
 
   // ---------- data in ----------
-  function onBatch(msg) {
-    lastBatchAt = Date.now();
+  // A batch from the watch (through the relay) also proves the watch is live; simulated batches only take().
+  function onBatch(msg) { lastBatchAt = Date.now(); take(msg); }
+  function take(msg) {
     for (const s of msg.samples || []) queue.push({ m: +s[1] || 0 });
     for (const w of msg.windows || []) {
       lastWin = w;
@@ -209,7 +230,7 @@
     }
     if (simScratchLeft > 0) batch.windows.push({ p: 0.9, scratch: true, hz: 4.4 });
     else batch.windows.push({ p: 0.05 + Math.random() * 0.1, scratch: false });
-    onBatch(batch);
+    take(batch);
   }
   function setSim(on) {
     simulate = on; clearInterval(simTimer);
@@ -255,7 +276,8 @@
       smooth += (s.m - smooth) * 0.5;
       const g = Math.min(1, Math.pow(Math.max(0, smooth - 0.014) / 0.25, 0.6));   // 0 at rest … 1 for big motion
       phase += 1.1;
-      cols[cursor] = { g, ph: phase, r: 0.75 + Math.random() * 0.25, s: isScratch };
+      // no watch: a flat line under "NO SIGNAL" (r scales the ripple)
+      cols[cursor] = { g, ph: phase, r: idle ? 0 : 0.75 + Math.random() * 0.25, s: isScratch };
       cursor = (cursor + 1) % cols.length;
       cols[cursor] = null;                                                   // erase ahead of the pen
       for (let k = 1; k < 8; k++) cols[(cursor + k) % cols.length] = null;

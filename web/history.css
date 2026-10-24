@@ -1,10 +1,8 @@
 /* History page (#p-history): 14 nights against his usual, the last three emphasized. No causes on this page. */
 #p-history { --hm: 132px; }                             /* right margin for the usual label */
-#p-history h1 { max-width: none; font-size: clamp(44px, 2.7vw, 52px); }
 #p-history h1 .hs { white-space: nowrap; }              /* wrap only between the two sentences */
 #p-history h1 .hu { color: var(--lime); }
 #hAvg { display: inline-block; text-align: right; font-variant-numeric: tabular-nums; }
-#p-history .chip { font-size: 18px; padding: 9px 16px; }
 
 /* chart: the plot (bars, then the right margin) over the weekday/date axis */
 .hchart { flex: 1; min-height: 0; display: grid; grid-template-rows: 1fr auto; margin-top: 14px; }

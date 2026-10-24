@@ -14,7 +14,7 @@
     ["gesture", "Talk with your hands", 10],
   ];
   const REST = 4;
-  let running = false, cancelled = false;
+  let running = false, cancelled = false, msgTimer = 0;
 
   const post = (body) => fetch(window.twinUI.api("/api/label"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) })
     .then((r) => r.json()).catch(() => ({}));
@@ -40,10 +40,12 @@
   async function run() {
     if (running) return;
     const ov = $("#recOv");
+    clearTimeout(msgTimer);   // one timer for the message below: a second press shows it for the full time again
     if (!window.twinLive || !window.twinLive()) {
       ov.classList.add("on");
       show("TEST RECORDING", "Start monitoring on the watch first", "", 0, "Then press Record test again");
-      await wait(3500); ov.classList.remove("on"); return;
+      msgTimer = setTimeout(() => ov.classList.remove("on"), 3500);
+      return;
     }
     running = true; cancelled = false; ov.classList.add("on"); ov.classList.remove("go");
     const start = await post({ action: "start", name: "labelled test" });
@@ -67,7 +69,7 @@
   $("#recBtn").addEventListener("click", run);
   document.addEventListener("keydown", (e) => {
     if (e.target.closest && e.target.closest("input, textarea, [contenteditable]")) return;
-    if (e.metaKey || e.ctrlKey || e.altKey) return;   // ⌘T opens a browser tab, not a recording
+    if (e.metaKey || e.ctrlKey || e.altKey || e.repeat) return;   // ⌘T opens a browser tab, not a recording; a held T is one press
     if ((e.key === "t" || e.key === "T") && $("#p-monitor").classList.contains("on")) run();
     if (e.key === "Escape" && running) cancelled = true;
   });
