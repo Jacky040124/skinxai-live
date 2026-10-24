@@ -276,23 +276,26 @@
   // q (1 steady … 0 climbing) quiets the ripple on the slopes, where it would look like stairs.
   function levels(dt) {
     const n = cols.length, follow = 1 - Math.exp(-dt * 8);
-    let L = 0, S = 0, Q = 1;
+    let L = 0, S = 0, Q = 1, prev = null;
     for (let k = 0; k < n; k++) {
       const c = cols[(cursor + 8 + k) % n];
       if (!c) continue;
       // up while the scratching hand moves, straight back down the moment it stops
       const target = c.s && c.g > 0.12 ? 0.35 + 0.65 * c.g : 0;
-      L += (target - L) * (target > L ? 0.12 : 0.07);
+      L += (target - L) * (target > L ? 0.12 : 0.1);
       const step = (L - S) * 0.25;
       S += step;
       const quiet = Math.max(0, 1 - Math.abs(step) * 40);
       Q += (quiet - Q) * (quiet < Q ? 0.3 : 0.08);
       c.L = S; c.q = Q;
-      c.D = c.D === undefined ? S : c.D + (S - c.D) * follow;
+      // a new column carries on from its neighbour while a recoloured stretch is still easing up
+      if (c.D === undefined) c.D = prev && Math.abs(prev.D - prev.L) > 0.01 ? prev.D : S;
+      else c.D += (S - c.D) * follow;
+      prev = c;
     }
   }
   // ripple height as a share of H: small and calm, a little livelier for big ordinary motion
-  const ampOf = (c) => (c.s ? 0.004 + 0.012 * c.g : 0.006 + 0.03 * c.g) * c.r * c.q;
+  const ampOf = (c) => (c.s ? 0.004 + 0.012 * c.g : 0.006 + 0.016 * c.g) * c.r * c.q;
   const yOf = (c, base) => base - c.D * H * 0.58 - Math.sin(c.ph) * ampOf(c) * H;
   // 0 calm (lime) … 1 lifted into the hump (orange)
   const heatOf = (c) => { const t = Math.min(1, Math.max(0, (c.D - 0.05) / 0.2)); return t * t * (3 - 2 * t); };
