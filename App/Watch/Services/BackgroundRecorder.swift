@@ -72,47 +72,19 @@ final class BackgroundRecorder: @unchecked Sendable {
         return await withCheckedContinuation { continuation in
             queue.async {
                 let deadline = Date().addingTimeInterval(budget.seconds)
-                func outOfTime() -> Bool { cancel.isCancelled || Date() >= deadline }
-                let detector = ScratchDetector(model: model, source: .recorded)
-                var found: [DetectedEpisode] = []
-                var through = from
-                var sliceStart = from
-                while sliceStart < end, !outOfTime() {
-                    let sliceEnd = min(sliceStart.addingTimeInterval(Self.sliceLength), end)
-                    var cutAt: Date?
+                let run = RecordingAnalysis.run(from: from, to: end, sliceLength: Self.sliceLength, model: model,
+                                                outOfTime: { cancel.isCancelled || Date() >= deadline }) { sliceStart, sliceEnd, body in
                     autoreleasepool {
                         guard let list = recorder.accelerometerData(from: sliceStart, to: sliceEnd) else { return }
                         var iterator = NSFastEnumerationIterator(list)
-                        var count = 0
-                        var last: Date?
                         while let item = iterator.next() {
                             guard let d = item as? CMRecordedAccelerometerData else { continue }
-                            count += 1
-                            if count % 1000 == 0, outOfTime() {
-                                cutAt = last.map { $0.addingTimeInterval(0.001) } ?? sliceStart
-                                return
-                            }
                             let sample = MotionSample(date: d.startDate, x: d.acceleration.x, y: d.acceleration.y, z: d.acceleration.z)
-                            found += detector.process(sample).episodes
-                            last = d.startDate
+                            if !body(sample) { return }
                         }
                     }
-                    if let cutAt {
-                        through = cutAt
-                        break
-                    }
-                    through = sliceEnd
-                    sliceStart = sliceEnd
                 }
-                // Don't split a bout of scratching between two runs: if one is still going where
-                // this run stops, the next run reads it again from its first window. (Unless it
-                // began where this run began: then it is longer than a whole run, so close it.)
-                if let pending = detector.pendingSince, pending > from.addingTimeInterval(1) {
-                    through = min(through, pending)
-                } else {
-                    found += detector.finish().episodes
-                }
-                continuation.resume(returning: Result(episodes: found, through: through))
+                continuation.resume(returning: Result(episodes: run.episodes, through: run.through))
             }
         }
     }

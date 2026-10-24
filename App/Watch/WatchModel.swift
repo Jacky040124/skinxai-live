@@ -147,7 +147,7 @@ final class WatchModel: ObservableObject {
                 page = .ring
                 Task { @MainActor [weak self] in
                     try? await Task.sleep(for: .milliseconds(450))
-                    self?.presentDemoAlert()
+                    self?.presentDemoAlert(evenWithRealData: true)
                 }
             }
         }
@@ -444,8 +444,9 @@ final class WatchModel: ObservableObject {
 
     /// The demo moment: the real detector scores a synthetic scratch, so the answer teaches the
     /// personal model with honest features; a "Yes" adds the episode to today (on the iPhone too).
-    func presentDemoAlert() {
-        guard alert == nil, canAskDemoQuestion else { return }
+    /// `evenWithRealData`: `-screen prompt` always opens it (a Yes then teaches but doesn't count).
+    func presentDemoAlert(evenWithRealData: Bool = false) {
+        guard alert == nil, canAskDemoQuestion || evenWithRealData else { return }
         let now = Date()
         var signal = SyntheticMotion(start: now.timeIntervalSinceReferenceDate - 9, seed: UInt64(now.timeIntervalSince1970))
         signal.scratch(7, hz: 4.3, amplitude: 0.24)
