@@ -233,19 +233,26 @@
     const days = nightsAsOf(at), N = days.length;
     const mi = days.map(S.iso).indexOf(String(a.marker_date || "").trim().slice(0, 10));
     const ri = S.NIGHTS.findIndex(hot), lag = mi >= 0 && ri > mi ? ri - mi : 0;
+    const calmNights = S.NIGHTS.filter((m) => !hot(m)), lo = Math.min(...calmNights), hi = Math.max(...calmNights);   // his usual range
     const x = (i) => ((i + 0.5) / N) * 100, y = (m) => (m / TOP) * 100;
     const left = mi >= N / 2;                      // the flag hangs to the left of the marker when it is on the right half
+    // Same language as History: calm nights grey with their values in one row above the usual band; hot nights
+    // dim orange up to his usual and bright above it, values big on their caps.
     const cols = S.NIGHTS.map((m, i) => `<div class="tl-col${hot(m) ? " hot" : ""}${i === mi ? " mark" : ""}" style="--i:${i}">
-      <i style="height:${y(m)}%"></i><b style="bottom:${y(m)}%">${m}</b></div>`).join("");
-    const marker = mi < 0 ? "" : `<div class="tl-mark${left ? " left" : ""}" style="left:${x(mi)}%"><span>${esc(a.marker_label || "Change")} · ${S.wd(days[mi])} ${S.md(days[mi])}</span></div>`;
+      <i style="height:${y(m)}%">${hot(m) ? `<u style="height:${(((m - S.USUAL) / m) * 100).toFixed(1)}%"></u>` : ""}</i>
+      <b style="bottom:${y(hot(m) ? m : hi)}%">${m}</b></div>`).join("");
+    const marker = mi < 0 ? "" : `<div class="tl-mark" style="left:${x(mi)}%"></div>
+      <span class="tl-flag${left ? " left" : ""}" style="${left ? `right:${100 - x(mi)}%;max-width:${x(mi)}%` : `left:${x(mi)}%;max-width:${100 - x(mi)}%`}">${esc(a.marker_label || "Change")} · ${S.wd(days[mi])} ${S.md(days[mi])}</span>`;
     const bracket = !lag ? "" : `<div class="tl-lag${left ? "" : " low"}" style="left:${x(mi)}%;width:${x(ri) - x(mi)}%"><span>${lag === 1 ? "1 day later" : `${lag} days later`}</span></div>
       <i class="tl-drop${left ? "" : " low"}" style="left:${x(ri)}%;bottom:calc(${y(S.NIGHTS[ri])}% + var(--lab))"></i>`;
-    const axis = days.map((d, i) => `<span class="${i === mi ? "mark" : hot(S.NIGHTS[i]) ? "hot" : ""}">${S.wd(d).toUpperCase()}<br>${d.getDate()}</span>`).join("");
+    const axis = days.map((d, i) => `<span class="${i === mi ? "mark" : hot(S.NIGHTS[i]) ? "hot" : ""}"><b>${S.wd(d).toUpperCase()}</b>${d.getDate()}</span>`).join("");
     return `<div class="art-card tl">
       <div class="art-head"><span class="ek">MINUTES OF SCRATCHING · LAST 14 NIGHTS</span>
-        <span class="legend"><span><i class="lg-norm"></i>usual range</span><span><i class="lg-hot"></i>above usual</span>${mi < 0 ? "" : `<span><i class="lg-mark"></i>change</span>`}</span></div>
-      <div class="tl-plot"><div class="tl-cols">${cols}${marker}${bracket}</div>
-        <div class="tl-usual" style="bottom:${y(S.USUAL)}%"><span>USUAL<br>${S.USUAL} MIN</span></div></div>
+        <span class="legend"><span><i class="lg-band"></i>his usual range</span><span><i class="lg-hot"></i>above usual</span>${mi < 0 ? "" : `<span><i class="lg-mark"></i>change</span>`}</span></div>
+      <div class="tl-plot">
+        <div class="tl-band" style="bottom:${y(lo)}%;height:${y(hi - lo)}%"></div>
+        <div class="tl-usual" style="bottom:${y(S.USUAL)}%"><span><b>USUAL</b>${S.USUAL} min</span></div>
+        <div class="tl-cols">${cols}${marker}${bracket}</div></div>
       <div class="tl-axis">${axis}</div>
       ${a.note ? `<p class="art-note rv" style="--t:2.3s">${esc(a.note)}</p>` : ""}
     </div>`;
@@ -290,7 +297,7 @@
       <div class="prod-pic">${BOTTLE(size, "bwProd")}</div>
       <div class="prod-info">
         <span class="ek rv" style="--t:.2s">SUSPECTED PRODUCT</span>
-        <h3 class="rv" style="--t:.3s">${esc(name)}</h3>
+        <h3 class="rv${name.length > 22 ? " long" : ""}" style="--t:.3s">${esc(name)}</h3>
         <div class="prod-meta rv" style="--t:.4s">${meta}</div>
         ${list.length ? `<div class="ingr-head rv" style="--t:.55s"><span class="ek">INGREDIENTS</span><span class="prod-hint"><i></i>common contact allergens</span></div>
         <div class="ingr">${list.map((i, n) => `<span class="rv${i.flag ? " flag" : ""}" style="--t:${(0.6 + n * 0.05).toFixed(2)}s${i.flag ? `;--f:${(1.15 + k++ * 0.22).toFixed(2)}s` : ""}">${esc(i.name)}</span>`).join("")}</div>` : ""}
@@ -308,7 +315,7 @@
     return `<div class="art-card concl">
       <div class="concl-top"><div class="concl-cause">
         <span class="ek rv" style="--t:.15s">MOST LIKELY CAUSE</span>
-        <h3 class="cause rv ${cause.length > 90 ? "s" : cause.length > 50 ? "m" : ""}" style="--t:.25s">${esc(cause)}</h3>
+        <h3 class="cause rv ${cause.length > 140 ? "xs" : cause.length > 90 ? "s" : cause.length > 50 ? "m" : ""}" style="--t:.25s">${esc(cause)}</h3>
         <div class="conf rv" style="--t:.5s"><span class="ek">CONFIDENCE</span><span class="meter3 lv${lv}"><i></i><i></i><i></i></span><b>${["LOW", "MEDIUM", "HIGH"][lv - 1]}</b></div>
       </div>${pic}</div>
       ${ruled.length ? `<span class="ek rv" style="--t:.9s">RULED OUT</span>
@@ -318,7 +325,9 @@
     </div>`;
   }
 
+  let artPage = 0;
   function showPage(p) {
+    artPage = p;
     $("#artTrack").style.transform = p ? "translateY(-100%)" : "";
     $("#artTabs").querySelectorAll("button").forEach((b) => b.classList.toggle("on", +b.dataset.page === p));
   }
@@ -335,6 +344,15 @@
       tabs.append(b);
     }
     b.innerHTML = `${icon(ART[name].icon)}<span>${esc(label)}</span>`;
+  }
+
+  // Very long model text: the card steps its whole type scale down (at most twice) until it fits.
+  function fit(card) {
+    card.classList.remove("tight", "tighter");
+    for (const step of ["tight", "tighter"]) {
+      if (!card.clientHeight || card.scrollHeight <= card.clientHeight + 1) return;
+      card.classList.add(step);
+    }
   }
 
   // Timeline and product share the first page; while only one of them is there, it waits in the middle.
@@ -377,15 +395,16 @@
     const t = toolCard(parent, ART[name].color, ART[name].icon, `<b>${esc(TITLES[name](a))}</b><span class="kind">ARTIFACT</span>`, "Drawing…", "button");
     t.card.type = "button";
     t.card.onclick = () => showPage(ART[name].page);
-    const t0 = performance.now(), opening = !chat.classList.contains("open");
+    const t0 = performance.now(), opening = !chat.classList.contains("open"), paging = artPage !== ART[name].page;
     const slot = slots[name];
     if (name === "show_product") shownProduct = a;
     slot.innerHTML = name === "show_timeline" ? timelineHTML(a, startedAt) : name === "show_product" ? productHTML(a) : conclusionHTML(a);
+    fit(slot.firstElementChild);
     addTab(name, name === "show_product" ? TITLES[name](a) : name === "show_timeline" ? "Timeline" : "Conclusion");
     chat.classList.add("open");
     showPage(ART[name].page);
     const moved = layoutEvidence(slot);
-    if (opening || moved) await sleep(calm ? 0 : 650);   // let the panel slide in, or the other card make room
+    if (opening || paging || moved) await sleep(calm ? 0 : 650);   // let the panel (or its page) slide in, or the other card make room
     await nextPaint();
     if (my !== gen) return;
     slot.firstElementChild.classList.add("on");
@@ -608,7 +627,8 @@
     if (e.key === "r" || e.key === "R") wipe();
     if (e.key === "p" || e.key === "P") replay();
   });
-  window.addEventListener("twin:page", (e) => { if (e.detail === "claude") { greet(); follow(); layoutEvidence(); } });
-  window.addEventListener("resize", () => layoutEvidence());
+  const refit = () => Object.values(slots).forEach((s) => s.firstElementChild && fit(s.firstElementChild));
+  window.addEventListener("twin:page", (e) => { if (e.detail === "claude") { greet(); follow(); refit(); layoutEvidence(); } });
+  window.addEventListener("resize", () => { refit(); layoutEvidence(); });
   setModel(modelId); greet(); composerState();
 })();
