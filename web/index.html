@@ -102,7 +102,37 @@
 
   <!-- CLAUDE -->
   <section class="page" id="p-claude">
-    <div class="chat-soon">Claude chat — being built (POLISH-SPEC.md §3.4)</div>
+    <div class="chat" id="chat">
+      <div class="chat-col">
+        <div class="thread" id="thread">
+          <div class="feed" id="feed"></div>
+          <div class="chat-empty" id="chatEmpty">
+            <div class="hello"><span class="spark"></span><span id="chatHello">Hello, Douglas</span></div>
+            <p class="lead">Claude can read your Eczema Twin data and the apps you connected.</p>
+            <div class="servers" id="chatServers"></div>
+            <button class="suggest" id="chatSuggest" type="button"></button>
+          </div>
+          <div class="chat-toast" id="chatToast"></div>
+        </div>
+        <form class="composer" id="composer" autocomplete="off">
+          <input id="chatInput" type="text" placeholder="How can I help you today?" aria-label="Message Claude">
+          <span class="tag" id="chatTag">REPLAY</span>
+          <span class="model" id="chatModel"></span>
+          <button class="send" id="chatSend" type="submit" aria-label="Send" disabled><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5.5 11.5 12 5l6.5 6.5"/></svg></button>
+        </form>
+      </div>
+      <aside class="artifact" id="artifact">
+        <header class="art-bar">
+          <span class="art-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="3.5" width="15" height="17" rx="2.5"/><path d="M8.5 8.5h7M8.5 12h7M8.5 15.5h4"/></svg></span>
+          <div class="art-title"><b>Flare investigation</b><span>Artifact · from Douglas's data</span></div>
+          <nav class="art-tabs" id="artTabs"></nav>
+        </header>
+        <div class="art-view"><div class="art-track" id="artTrack">
+          <div class="art-page evidence"><div class="slot" id="slotTimeline"></div><div class="slot" id="slotProduct"></div></div>
+          <div class="art-page" id="slotConclusion"></div>
+        </div></div>
+      </aside>
+    </div>
   </section>
 
 </div>
