@@ -4,6 +4,7 @@ import EczemaKit
 /// No test running: explain the test Claude suggested, with a big start button.
 struct SuggestedExperimentView: View {
     @EnvironmentObject var app: AppState
+    @EnvironmentObject var data: DataModeController
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var caseFile: CaseFile?
 
@@ -16,21 +17,24 @@ struct SuggestedExperimentView: View {
 
     private var content: some View {
         VStack(alignment: .leading, spacing: Twin.Space.m) {
-            if let caseFile, let plan = caseFile.nextExperiment {
+            if let caseFile, let plan = StoryTravel.plan(for: caseFile, in: app.dataset) {
                 hero(plan)
-                    .riseIn(0.04)
+                    .entranceRise(0.04)
                 if let why = caseFile.cannotSeparate.first {
                     WhyTestCard(text: why, suspects: Array(caseFile.suspects.prefix(2)))
-                        .riseIn(0.04 + Twin.Motion.stagger)
+                        .entranceRise(0.04 + Twin.Motion.stagger)
                 }
                 HowItWorksCard(plan: plan)
-                    .riseIn(0.04 + 2 * Twin.Motion.stagger)
+                    .entranceRise(0.04 + 2 * Twin.Motion.stagger)
             } else {
-                noPlan.riseIn(0.04)
+                noPlan.entranceRise(0.04)
             }
             Color.clear.frame(height: 1).id(ScrollHook.bottomID)
         }
-        .onAppear { ExperimentSession.shared.celebrated = false }
+        .onAppear {
+            ExperimentSession.shared.celebrated = false
+            ExperimentSession.shared.resultShown = false
+        }
     }
 
     private func hero(_ plan: ExperimentPlan) -> some View {
@@ -58,7 +62,7 @@ struct SuggestedExperimentView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 6)
 
-            Button { app.startExperiment() } label: {
+            Button { StoryTravel.startExperiment(app: app, storyDay: data.storyDay) } label: {
                 HStack(spacing: 8) {
                     Text("Start the \(plan.lengthDays)-day test")
                     Image(systemName: "arrow.right").font(.system(size: 14, weight: .bold))

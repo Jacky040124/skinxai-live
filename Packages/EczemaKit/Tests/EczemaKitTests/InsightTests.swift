@@ -260,10 +260,21 @@ private func record(_ i: Int, _ minutes: Double, _ exposures: [(ExposureKind, St
 final class MockURLProtocol: URLProtocol {
     nonisolated(unsafe) static var handler: ((URLRequest) throws -> (Int, Data))?
     nonisolated(unsafe) static var lastRequest: URLRequest?
+    /// Seconds before the response arrives (0 = at once). The wait never blocks the loading thread.
+    nonisolated(unsafe) static var delay: TimeInterval = 0
+    private let lock = NSLock()
+    private var stopped = false
+
     override class func canInit(with request: URLRequest) -> Bool { true }
     override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
     override func startLoading() {
         Self.lastRequest = request
+        guard Self.delay > 0 else { respond(); return }
+        DispatchQueue.global().asyncAfter(deadline: .now() + Self.delay) { [weak self] in self?.respond() }
+    }
+    private func respond() {
+        lock.lock(); let cancelled = stopped; lock.unlock()
+        guard !cancelled else { return }
         do {
             guard let handler = Self.handler else { throw URLError(.unknown) }
             let (status, data) = try handler(request)
@@ -275,7 +286,9 @@ final class MockURLProtocol: URLProtocol {
             client?.urlProtocol(self, didFailWithError: error)
         }
     }
-    override func stopLoading() {}
+    override func stopLoading() {
+        lock.lock(); stopped = true; lock.unlock()
+    }
 
     static var session: URLSession {
         let config = URLSessionConfiguration.ephemeral
@@ -347,6 +360,62 @@ final class MockURLProtocol: URLProtocol {
         MockURLProtocol.handler = { _ in (200, MockURLProtocol.chat("Sorry, I can't do that.")) }
         let junk = await InsightService.analyze(dataset: demo, apiKey: "k", model: "m", now: now, calendar: cal, session: MockURLProtocol.session)
         #expect(junk.source == .bundled(.failed))
+
+        MockURLProtocol.handler = { _ in
+            (401, try JSONSerialization.data(withJSONObject: ["error": ["code": 401, "message": "No auth credentials found"]]))
+        }
+        let badKey = await InsightService.analyze(dataset: demo, apiKey: "k", model: "m", now: now, calendar: cal, session: MockURLProtocol.session)
+        #expect(badKey.source == .bundled(.badKey))
+        #expect(badKey.bundledReason == .badKey)
+
+        MockURLProtocol.handler = { _ in
+            (402, try JSONSerialization.data(withJSONObject: ["error": ["code": 402, "message": "Insufficient credits"]]))
+        }
+        let broke = await InsightService.analyze(dataset: demo, apiKey: "k", model: "m", now: now, calendar: cal, session: MockURLProtocol.session)
+        #expect(broke.source == .bundled(.noCredits))
+        #expect(!broke.isLive && broke.caseFile == demo.caseFile)
+    }
+
+    @Test func slowModelFallsBackAtTheLimit() async {
+        MockURLProtocol.handler = { _ in (200, MockURLProtocol.chat(InsightReplyTests.clean)) }
+        MockURLProtocol.delay = 3
+        defer { MockURLProtocol.delay = 0 }
+        let started = Date()
+        let outcome = await InsightService.analyze(dataset: demo, apiKey: "k", model: "m", now: now, calendar: cal,
+                                                   session: MockURLProtocol.session, limit: 0.4)
+        #expect(outcome.source == .bundled(.slow))
+        #expect(outcome.caseFile == demo.caseFile)
+        #expect(Date().timeIntervalSince(started) < 2.5)
+        #expect(InsightOutcome.BundledReason.slow.note == "Bundled analysis · model slow")
+    }
+
+    @Test func modelWithinTheLimitIsLive() async {
+        MockURLProtocol.handler = { _ in (200, MockURLProtocol.chat(InsightReplyTests.clean)) }
+        MockURLProtocol.delay = 0.1
+        defer { MockURLProtocol.delay = 0 }
+        let outcome = await InsightService.analyze(dataset: demo, apiKey: "k", model: "m", now: now, calendar: cal,
+                                                   session: MockURLProtocol.session, limit: 10)
+        #expect(outcome.isLive)
+    }
+
+    @Test func timeLimitHelper() async {
+        let quick = await InsightService.withTimeLimit(5) { 42 }
+        #expect(quick == 42)
+        let late = await InsightService.withTimeLimit(0.05) { () async -> Int in
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            return 7
+        }
+        #expect(late == nil)
+    }
+
+    @Test func caseFileKnowsWhereItCameFrom() throws {
+        let bundled = try #require(demo.caseFile)
+        #expect(bundled.isBundled)
+        #expect(bundled.liveModel == nil)
+        var live = bundled
+        live.producedBy = "claude-sonnet-5.5 · live"
+        #expect(!live.isBundled)
+        #expect(live.liveModel == "claude-sonnet-5.5")
     }
 
     @Test func bundledCaseFileIsRebuiltWhenALiveOneReplacedIt() throws {
@@ -402,5 +471,55 @@ final class MockURLProtocol: URLProtocol {
         #expect(plan.shortSubject == "wash")
         #expect(ExperimentPlan(title: "Stop dairy for 10 days", instruction: "", trigger: .dairy, lengthDays: 10).subject == "dairy")
         #expect(ExperimentPlan(title: "Run a humidifier", instruction: "", trigger: .dryAir, lengthDays: 10).subject == nil)
+    }
+}
+
+// MARK: - Demo time travel: moving a case file's dates
+
+@Suite struct CaseFileDateShiftTests {
+    let ref = cal.date(from: DateComponents(year: 2026, month: 10, day: 23))!
+
+    func shift(_ s: String, _ days: Int, near: Date? = nil) -> String {
+        DateText.shift(s, byDays: days, near: near ?? ref, calendar: cal)
+    }
+
+    @Test func movesDatesInText() {
+        #expect(shift("Your scratching nearly tripled from Oct 16.", -1) == "Your scratching nearly tripled from Oct 15.")
+        #expect(shift("You started it on Oct 9 and the air dried Oct 10.", 3) == "You started it on Oct 12 and the air dried Oct 13.")
+        #expect(shift("Exams on Oct 14–15 came later.", -1) == "Exams on Oct 13–14 came later.")
+        #expect(shift("Exams on Oct 14-15 came later.", 9) == "Exams on Oct 23-24 came later.")
+        #expect(shift("Since October 9, it rose.", 3) == "Since October 12, it rose.")
+        #expect(shift("Oct. 30", 2) == "Nov. 1")
+        #expect(shift("Oct 30–31", 1) == "Oct 31–Nov 1")
+    }
+
+    @Test func picksTheNearestYear() {
+        let newYear = cal.date(from: DateComponents(year: 2027, month: 1, day: 2))!
+        #expect(shift("Dec 31", 1, near: newYear) == "Jan 1")
+        #expect(shift("Jan 1", -1, near: newYear) == "Dec 31")
+    }
+
+    @Test func leavesEverythingElseAlone() {
+        let plain = "It may be the wash. Lag 1–3 days, 48–72 hours, March on. Market 5 is not a date."
+        #expect(shift(plain, -4) == plain)
+        #expect(shift("Oct 16", 0) == "Oct 16")
+        #expect(shift("", 2) == "")
+    }
+
+    @Test func caseFileMovesWithTheStory() throws {
+        // A "live" case file written on story day 14; the test's day 1 re-dates the story one day earlier.
+        let story = DemoData.make(today: now, calendar: cal)
+        var live = try #require(story.caseFile)
+        live.producedBy = "claude-sonnet-5.5 · live"
+        let testDay1 = DemoData.make(today: now, experimentDay: 1, calendar: cal)
+        let moved = live.shiftingDates(byDays: -1, calendar: cal)
+        let bundled = try #require(testDay1.caseFile)
+        #expect(moved.createdAt == bundled.createdAt)
+        #expect(moved.windowStart == bundled.windowStart && moved.windowEnd == bundled.windowEnd)
+        #expect(moved.suspects.map(\.startedOn) == bundled.suspects.map(\.startedOn))
+        #expect(moved.suspects.map(\.flareOn) == bundled.suspects.map(\.flareOn))
+        #expect(moved.summary == bundled.summary)              // "…tripled from <flare day>." moved too
+        #expect(moved.producedBy == live.producedBy && moved.id == live.id)
+        #expect(live.shiftingDates(byDays: 0, calendar: cal) == live)
     }
 }
