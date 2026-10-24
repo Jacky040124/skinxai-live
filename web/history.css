@@ -1,12 +1,59 @@
-/* History page (#p-history). */
-.hbars { flex: 1; display: flex; align-items: flex-end; gap: 8px; margin-top: 18px; position: relative; min-height: 120px; padding-right: 132px; }
-.hbars i { flex: 1; border-radius: 4px 4px 0 0; background: rgba(233, 239, 228, .14); height: 0; transition: height .9s cubic-bezier(.34, 1.4, .64, 1); position: relative; }
-.hbars i.hot { background: var(--orange); box-shadow: 0 0 22px rgba(248, 161, 111, .35); }
-.hbars i b { position: absolute; top: -26px; left: 50%; transform: translateX(-50%); font: 700 14px "Space Mono"; color: var(--text); opacity: 0; transition: opacity .4s .6s; background: var(--panel); padding: 0 3px; border-radius: 2px; z-index: 2; }
-.hbars.shown i b { opacity: 1; }
-.hbars .col { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; position: relative; }
-.hbars .col i { flex: none; z-index: 1; }
-.haxis { display: flex; gap: 10px; margin-top: 10px; padding-right: 132px; }
-.haxis span { flex: 1; text-align: center; font: 400 12px "Space Mono"; color: var(--muted); line-height: 1.25; }
-.usual { position: absolute; left: 0; right: 0; border-top: 2px dashed rgba(233, 239, 228, .45); z-index: 2; transition: bottom .9s; }
-.usual span { position: absolute; top: -17px; right: 4px; font: 700 11px "Space Mono"; letter-spacing: .1em; color: var(--muted); background: var(--panel); padding: 3px 6px; border-radius: 3px; text-align: center; line-height: 1.3; }
+/* History page (#p-history): 14 nights against his usual, the last three emphasized. No causes on this page. */
+#p-history { --hm: 132px; }                             /* right margin for the usual label */
+body:has(#sound:not(.off)) #p-history { padding-bottom: 64px; }   /* keep the axis clear of the sound button while it shows */
+#p-history h1 { max-width: none; font-size: clamp(44px, 2.7vw, 52px); }
+#p-history h1 .hs { white-space: nowrap; }              /* wrap only between the two sentences */
+#p-history h1 .hu { color: var(--lime); }
+#hAvg { display: inline-block; text-align: right; font-variant-numeric: tabular-nums; }
+#p-history .chip { font-size: 18px; padding: 9px 16px; }
+
+/* chart: the plot (bars, then the right margin) over the weekday/date axis */
+.hchart { flex: 1; min-height: 0; display: grid; grid-template-rows: 1fr auto; margin-top: 14px; }
+.hplot { position: relative; container-type: size; }
+.hcols { position: absolute; inset: 0 var(--hm) 0 0; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border-bottom: 1px solid rgba(233, 239, 228, .2); }
+.hcol { position: relative; --ease: cubic-bezier(.22, 1, .36, 1); }
+.hcol.hot { --ease: cubic-bezier(.3, 1.25, .5, 1); }   /* a small overshoot for the hot nights */
+
+/* his usual: a faint band over the range of the earlier nights, a dashed line at the usual */
+.hband { position: absolute; left: 0; right: 0; background: rgba(169, 216, 119, .11); }
+.hline { position: absolute; left: 0; right: 0; height: 2px; margin-bottom: -1px; z-index: 2; overflow: hidden; }
+.hline i { display: block; height: 100%; background: repeating-linear-gradient(90deg, rgba(169, 216, 119, .85) 0 10px, transparent 10px 17px); }
+.hlabel { position: absolute; right: 0; width: calc(var(--hm) - 24px); height: 0; z-index: 3; white-space: nowrap; }
+.hlabel b { position: absolute; left: 0; bottom: 8px; font: 700 13px/1 "Space Mono"; letter-spacing: .14em; color: rgba(233, 239, 228, .7); }
+.hlabel span { position: absolute; left: 0; top: 8px; font: 700 24px/1 "Space Grotesk"; color: var(--text); }
+
+/* bars: calm nights neutral; hot nights orange, brightest above his usual */
+.hbar { position: absolute; left: 0; right: 0; bottom: 0; margin: 0 auto; width: 56%; max-width: 84px; height: calc(var(--h) * 1%);
+  border-radius: 6px 6px 0 0; background: #484d49; transform-origin: bottom; z-index: 1; }
+.hot .hbar { background: #965a38; }
+.hx { position: absolute; left: 0; right: 0; top: 0; border-radius: inherit; background: var(--orange); box-shadow: 0 0 30px rgba(248, 161, 111, .45); }
+
+/* values: calm nights in one quiet row above the band, hot nights big on their caps */
+.hval { position: absolute; left: 0; right: 0; bottom: calc(var(--h) * 1% + 10px); z-index: 3; text-align: center; white-space: nowrap;
+  font: 700 16px/1 "Space Mono"; color: var(--muted); }
+.hcol:not(.hot) .hval { bottom: calc(var(--row) * 1% + 14px); }
+.hot .hval { font: 700 34px/1 "Space Grotesk"; letter-spacing: -.02em; color: var(--text); }
+.hot .hval small { margin-left: 5px; font: 700 13px "Space Mono"; letter-spacing: .06em; color: var(--muted); }
+
+.haxis { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; margin: 12px var(--hm) 0 0; }
+.haxis span { text-align: center; font: 500 17px/1.2 "Space Grotesk"; color: rgba(233, 239, 228, .7); }
+.haxis b { display: block; margin-bottom: 4px; font: 700 12px/1.2 "Space Mono"; letter-spacing: .14em; color: var(--muted); }
+.haxis .hot, .haxis .hot b { color: var(--text); }
+
+/* choreography: history.js adds .play on every show (not under reduced motion) */
+#p-history.play .hband { animation: hfade .6s ease-out .1s both; }
+#p-history.play .hline { animation: hwipe .8s cubic-bezier(.65, 0, .35, 1) .15s both; }       /* the clip slides right, */
+#p-history.play .hline i { animation: hunwipe .8s cubic-bezier(.65, 0, .35, 1) .15s both; }   /* the dashes stay put */
+#p-history.play .hlabel { animation: hfade .5s ease-out .75s both; }
+#p-history.play .hbar { animation: hgrow var(--dur) var(--ease) var(--d) both; }
+#p-history.play .hval { animation: hrise .35s ease-out calc(var(--d) + var(--dur) * .6) both; }
+#p-history.play .hot .hval { animation: hride var(--dur) var(--ease) var(--d) both, hfade .25s linear var(--d) both; }
+#p-history.play .hx { animation: hfade .5s ease-out calc(var(--d) + var(--dur) - 150ms) both; }
+#p-history.play .chip { animation: hpop .5s cubic-bezier(.34, 1.56, .64, 1) var(--end) both; }
+@keyframes hgrow { from { transform: scaleY(0); } }
+@keyframes hride { from { transform: translateY(calc(var(--h) * 1cqh)); } }
+@keyframes hfade { from { opacity: 0; } }
+@keyframes hrise { from { opacity: 0; transform: translateY(8px); } }
+@keyframes hwipe { from { transform: translateX(-100%); } }
+@keyframes hunwipe { from { transform: translateX(100%); } }
+@keyframes hpop { from { opacity: 0; transform: translateY(6px) scale(.92); } }
