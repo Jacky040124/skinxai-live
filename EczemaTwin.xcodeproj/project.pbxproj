@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		01CA4FA5C3CE99926899ABAE /* TrendsTriggersCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE71ECB19DA1AEE9B8B62FD2 /* TrendsTriggersCard.swift */; };
 		04DC01E1881FF54A9FD43214 /* EczemaTwinApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB1B3BDB0E5C9F0AE7DBB8F0 /* EczemaTwinApp.swift */; };
 		0AE803FEBCE322AD828F98C3 /* ControlPressStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14B537D92374DD10C70E95B5 /* ControlPressStyle.swift */; };
 		0C47E3279B980203D1702F0C /* LivePill.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE35167A82BBFBAF22509A89 /* LivePill.swift */; };
@@ -34,6 +35,7 @@
 		460A0A6955DA3D851D5F5841 /* LiveMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E03FADE1874C4C509264EC8 /* LiveMonitor.swift */; };
 		48428B69503D7D7EB001E6C7 /* OrientationLock.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D89D19DC74A0E0D71E60FF2 /* OrientationLock.swift */; };
 		48F3E315ABEC5638185AB796 /* LiveStreamer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D71746025FCD0137A6FD57A /* LiveStreamer.swift */; };
+		496C58E31F285F3BEC0A464A /* TrendsCalendarCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = E58F5E8950796C330CDE796E /* TrendsCalendarCard.swift */; };
 		49DBBE7537FBF36FA86BF2FB /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F964877FF3ADC4D998AAC93 /* RootView.swift */; };
 		4CFF2785CF7513EE7129DC52 /* WatchRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1896AB6DB5F3888888AF15F3 /* WatchRootView.swift */; };
 		50645F761E8D1F3581E01CDB /* ChatComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C0B21276CACC2600D384D2D /* ChatComposer.swift */; };
@@ -45,6 +47,7 @@
 		5D8AFA25300C7981940B9159 /* LiveReplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 533848905591F2813A5E3EA9 /* LiveReplay.swift */; };
 		6120A254393C824E106A6B6B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2041CCD0264F87E0A11694E2 /* Assets.xcassets */; };
 		63F214BF2D73BD94C75EA70A /* QuarterHourChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = B46BACD158F10E448128766E /* QuarterHourChart.swift */; };
+		65B82C0414D5866987303995 /* TrendsPatternCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D8B5A3DA50BC1F333A81B01 /* TrendsPatternCards.swift */; };
 		6E35D893E7F698AF7831E9C7 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89663F3DDC66BCF5E2268A7E /* Components.swift */; };
 		6E46972D47205DEEBB367D44 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB1BD32C0370C9BA3147BBF8 /* Theme.swift */; };
 		6E863BB33E3B8A9E282A337B /* StageNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68A5DF5B6053F283ACF19DAA /* StageNotifications.swift */; };
@@ -76,6 +79,7 @@
 		C2C5EC54813E8B22D7D1F26F /* LiveGraph.swift in Sources */ = {isa = PBXBuildFile; fileRef = A05C32B1D057DE4A32192BED /* LiveGraph.swift */; };
 		C58F6EFE338BB4CE2C6A6B20 /* ChatCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DDE81F3D6AE5C299424DE60 /* ChatCards.swift */; };
 		D0A78FEA08952544FA30DCCB /* EczemaKit in Frameworks */ = {isa = PBXBuildFile; productRef = D2EA930CC5E12E9FB0AD6085 /* EczemaKit */; };
+		DDCB6C32ACDCA62FD509873A /* TrendsSleepCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B7CE255CAEC009CAE870967 /* TrendsSleepCard.swift */; };
 		E05B340326EC3216606E365B /* EczemaTwinWatch.app in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 28A06BF100E5C5473F4637B6 /* EczemaTwinWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		E55B86B8E25DE8774687E072 /* SummaryScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C71ED35D0EF0880F2A6A1F0 /* SummaryScreen.swift */; };
 		E574D0D481A6EFEDCFB60FB4 /* ChatSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = B48969043B79B3104CD06543 /* ChatSession.swift */; };
@@ -122,8 +126,10 @@
 		188F7FF09D624D55923C26C6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		1896AB6DB5F3888888AF15F3 /* WatchRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchRootView.swift; sourceTree = "<group>"; };
 		1B25CA124BB6108D32C81089 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
+		1B7CE255CAEC009CAE870967 /* TrendsSleepCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrendsSleepCard.swift; sourceTree = "<group>"; };
 		1C51CCC0F091E681A181E4C7 /* LiveSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveSession.swift; sourceTree = "<group>"; };
 		1D71746025FCD0137A6FD57A /* LiveStreamer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveStreamer.swift; sourceTree = "<group>"; };
+		1D8B5A3DA50BC1F333A81B01 /* TrendsPatternCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrendsPatternCards.swift; sourceTree = "<group>"; };
 		2041CCD0264F87E0A11694E2 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		20725F17361B3FA040D79E6C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		208DBA8B4BEC280B2C06EBFB /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
@@ -170,6 +176,7 @@
 		B46BACD158F10E448128766E /* QuarterHourChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuarterHourChart.swift; sourceTree = "<group>"; };
 		B48969043B79B3104CD06543 /* ChatSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSession.swift; sourceTree = "<group>"; };
 		BB1B3BDB0E5C9F0AE7DBB8F0 /* EczemaTwinApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EczemaTwinApp.swift; sourceTree = "<group>"; };
+		BE71ECB19DA1AEE9B8B62FD2 /* TrendsTriggersCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrendsTriggersCard.swift; sourceTree = "<group>"; };
 		C1CF5CD9D03422FC9CECB0A0 /* DailyScratchChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyScratchChart.swift; sourceTree = "<group>"; };
 		C4920F844414A5B8042B0564 /* LiveBars.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveBars.swift; sourceTree = "<group>"; };
 		CB1BD32C0370C9BA3147BBF8 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
@@ -179,6 +186,7 @@
 		DE35167A82BBFBAF22509A89 /* LivePill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LivePill.swift; sourceTree = "<group>"; };
 		DED0BAE1425EE27470E3A238 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		E06B0299ACCBE9F04008DCEE /* SpaceMono-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SpaceMono-Regular.ttf"; sourceTree = "<group>"; };
+		E58F5E8950796C330CDE796E /* TrendsCalendarCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrendsCalendarCard.swift; sourceTree = "<group>"; };
 		E5DACAB9E72DC72192AD47F7 /* LiveMonitorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveMonitorView.swift; sourceTree = "<group>"; };
 		F06FE54F03E23DB9D8E77B2B /* DeviceAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceAccess.swift; sourceTree = "<group>"; };
 		F4C2E3A3EE2BA5714D4874E1 /* SignalLineChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalLineChart.swift; sourceTree = "<group>"; };
@@ -219,9 +227,13 @@
 		06F6974B18449FB8E9923108 /* Trends */ = {
 			isa = PBXGroup;
 			children = (
+				E58F5E8950796C330CDE796E /* TrendsCalendarCard.swift */,
 				7C8235AB06029C117D8E8B36 /* TrendsCards.swift */,
 				98215790D60CBA5BA7B09831 /* TrendsData.swift */,
+				1D8B5A3DA50BC1F333A81B01 /* TrendsPatternCards.swift */,
 				3C04AF9BC2B991DBCAF4D604 /* TrendsScreen.swift */,
+				1B7CE255CAEC009CAE870967 /* TrendsSleepCard.swift */,
+				BE71ECB19DA1AEE9B8B62FD2 /* TrendsTriggersCard.swift */,
 			);
 			path = Trends;
 			sourceTree = "<group>";
@@ -631,9 +643,13 @@
 				111FA460D673B6A23A03B139 /* SummaryStory.swift in Sources */,
 				26C1685BBABC00BA05327816 /* TabBar.swift in Sources */,
 				6E46972D47205DEEBB367D44 /* Theme.swift in Sources */,
+				496C58E31F285F3BEC0A464A /* TrendsCalendarCard.swift in Sources */,
 				20C008F0F3148CC5188759D9 /* TrendsCards.swift in Sources */,
 				419C301295E5357B8D63267E /* TrendsData.swift in Sources */,
+				65B82C0414D5866987303995 /* TrendsPatternCards.swift in Sources */,
 				42ED95C8E40E85E16A17A3B8 /* TrendsScreen.swift in Sources */,
+				DDCB6C32ACDCA62FD509873A /* TrendsSleepCard.swift in Sources */,
+				01CA4FA5C3CE99926899ABAE /* TrendsTriggersCard.swift in Sources */,
 				6F41A92F75EFB90FB03BBDBC /* WatchInbox.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

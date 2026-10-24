@@ -1,13 +1,17 @@
 import SwiftUI
 import EczemaKit
 
-/// Trends — "what changed?" (STAGE-SPEC §3). Every number comes from `StageStory`.
+/// Trends — "what changed?" (STAGE-SPEC §3). Every number comes from `StageStory` and its longer
+/// history `StageHistory` (74 nights).
 ///
 /// Range picker (7 nights · All time), this week's average with the week-over-week sticker, the
 /// per-night chart (flare nights orange, dashed usual line, markers on two rows with dotted stems, a
 /// humidity row with the dry days in orange, tap a night → cyan outline + detail strip; more than 14
-/// nights scroll sideways), and "What changed" (tap a row → that night on the chart).
+/// nights scroll sideways), "What changed" (tap a row → that night on the chart), then five pattern
+/// cards, each with a one-line takeaway: weather vs scratching, the calendar, last night's sleep with
+/// scratching, trigger impact, and the weekday pattern.
 struct TrendsScreen: View {
+    @EnvironmentObject var app: AppState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// All time by default: the calm weeks make the last nights stand out.
     @State private var range: TrendsRange = TodayTrendsLaunch.trendsRange ?? .all
@@ -35,6 +39,18 @@ struct TrendsScreen: View {
                             withAnimation(Twin.Motion.slide) { proxy.scrollTo("trends-chart", anchor: .top) }
                         }
                     }
+                    // Patterns over the longer history: what is linked, and what isn't. Each chart
+                    // grows when it scrolls into sight.
+                    section(3) { TrendsWeatherCard() }
+                        .id("trends-weather")
+                    section(4) { TrendsCalendarCard() }
+                        .id("trends-calendar")
+                    section(5) { TrendsSleepCard() }
+                        .id("trends-sleep")
+                    section(6) { TrendsTriggersCard { app.select(.insight) } }
+                        .id("trends-triggers")
+                    section(7) { TrendsWeekdayCard() }
+                        .id("trends-weekday")
                     // The end marker rides on the last card (a stack child would add 12 pt of spacing
                     // under it): the card ends the prototype's 26 pt above the tab bar.
                     .background(alignment: .bottom) { Color.clear.frame(height: 1).id("trends-bottom") }

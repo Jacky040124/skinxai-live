@@ -41,41 +41,40 @@ struct TrendsNight: Equatable {
     let ratio: String
 }
 
-/// What the Trends tab shows, all from `StageStory`.
+/// What the Trends tab shows, all from `StageStory` and its longer history `StageHistory`.
 ///
-/// Nights are numbered like `StageStory`'s (0 = oldest of the 14 … 13 = last night). Debug builds can
-/// put calm nights before them for screenshots of a longer history (`-trendsNights 30`): those have
-/// negative numbers and never reach `StageStory` or Claude's tools.
+/// Nights are numbered like `StageStory`'s (0 = oldest of the 14 … 13 = last night). The 60 calm nights
+/// of `StageHistory` before them have negative numbers (−60 … −1); "All time" shows all 74. Claude's
+/// tools still read only `StageStory`'s 14.
 enum TrendsStory {
     private static var calendar: Calendar { TodayStory.calendar }
 
     // MARK: Nights
 
-    /// Nights before the story's 14 (debug screenshots only; 0 in normal use).
-    static let earlierNights: Int = max(0, (TrendsLaunch.nights ?? 0) - StageStory.nightCount)
+    /// Nights before the story's 14: `StageHistory`'s 60.
+    static let earlierNights: Int = StageHistory.earlierCount
     /// Every night on the chart, oldest first.
-    static var nightIDs: ClosedRange<Int> { -earlierNights...StageStory.lastNightIndex }
+    static var nightIDs: ClosedRange<Int> { StageHistory.nightIDs }
     static var nightCount: Int { nightIDs.count }
 
     /// Minutes of scratching on night `i`.
-    static func minutes(_ i: Int) -> Int { i >= 0 ? StageStory.nights[i] : Earlier.minutes(i) }
+    static func minutes(_ i: Int) -> Int { StageHistory.night(i).minutes }
     /// Scratching episodes on night `i`.
-    static func episodes(_ i: Int) -> Int { i >= 0 ? StageStory.episodes[i] : Earlier.episodes(i) }
+    static func episodes(_ i: Int) -> Int { StageHistory.night(i).episodes }
     /// Humidity on the day night `i` started, percent.
-    static func humidity(_ i: Int) -> Int { i >= 0 ? StageStory.humidity[i] : Earlier.humidity(i) }
+    static func humidity(_ i: Int) -> Int { StageHistory.night(i).humidity }
     /// Above 1.5 × your usual (the orange bars).
-    static func isFlare(_ i: Int) -> Bool { i >= 0 ? StageStory.isFlare(i) : Double(minutes(i)) > StageStory.flareFactor * Double(StageStory.usual) }
+    static func isFlare(_ i: Int) -> Bool { StageHistory.night(i).flare }
     /// Humidity under 35%.
-    static func isDry(_ i: Int) -> Bool { humidity(i) < StageStory.dryBelowPercent }
+    static func isDry(_ i: Int) -> Bool { StageHistory.night(i).dry }
 
-    /// Calm nights before the story (debug screenshots): around the usual, one dry day among them.
-    private enum Earlier {
-        static let minutesCycle = [11, 9, 13, 10, 12, 8, 14, 11, 10, 13, 9, 12, 15, 10, 11, 9, 12, 13, 10, 14]
-        static let humidityCycle = [51, 54, 48, 50, 56, 53, 49, 47, 33, 52, 55, 50, 48, 53, 57, 51, 49, 54, 52, 50]
-        private static func k(_ i: Int) -> Int { (-i - 1) % minutesCycle.count }
-        static func minutes(_ i: Int) -> Int { minutesCycle[k(i)] }
-        static func humidity(_ i: Int) -> Int { humidityCycle[k(i)] }
-        static func episodes(_ i: Int) -> Int { max(4, Int((Double(minutes(i)) * 0.8).rounded())) }
+    /// The middle night of each exam week, oldest first (the midterms' is `examsMarkerNight`).
+    static var examMarkerNights: [Int] {
+        var runs: [[Int]] = []
+        for n in StageHistory.nights where n.exams {
+            if let last = runs.last?.last, last == n.id - 1 { runs[runs.count - 1].append(n.id) } else { runs.append([n.id]) }
+        }
+        return runs.map { $0[($0.count - 1) / 2] }
     }
 
     // MARK: Chart
@@ -109,13 +108,21 @@ enum TrendsStory {
     }
 
     /// The markers above the chart: exams and the new wash on the top row, dry air on the row under it
-    /// (over last night it ends at its stem, so it stays inside the card). Every dry night gets one,
-    /// like its orange humidity cell.
+    /// (over last night it ends at its stem, so it stays inside the card). Every run of dry days gets
+    /// one, on its first day; earlier exam weeks get their own "exams" flag.
     static var markers: [NightsChart.Marker] {
-        var list = [NightsChart.Marker(id: "exams", bar: examsMarkerNight, emoji: "📚", text: "exams", fill: Twin.Palette.paper, row: 0),
-                    NightsChart.Marker(id: "wash", bar: StageStory.bodyWashNight, emoji: "🧴", text: "new wash", fill: Twin.Palette.pink, row: 0)]
-        for i in nightIDs where isDry(i) {
-            list.append(NightsChart.Marker(id: i == StageStory.dryAirNight ? "dry" : "dry\(i)", bar: i, emoji: "💧", text: "dry air",
+        var list = examMarkerNights.filter { $0 != examsMarkerNight }.map {
+            NightsChart.Marker(id: "exams\($0)", bar: $0, emoji: "📚", text: "exams", fill: Twin.Palette.paper, row: 0)
+        }
+        list += [NightsChart.Marker(id: "exams", bar: examsMarkerNight, emoji: "📚", text: "exams", fill: Twin.Palette.paper, row: 0),
+                 NightsChart.Marker(id: "wash", bar: StageStory.bodyWashNight, emoji: "🧴", text: "new wash", fill: Twin.Palette.pink, row: 0)]
+        // One flag per run of dry days (on its first day): flags on neighboring nights would overlap;
+        // the humidity row still marks each dry day.
+        for i in nightIDs where isDry(i) && !(nightIDs.contains(i - 1) && isDry(i - 1)) {
+            var run = 1
+            while nightIDs.contains(i + run) && isDry(i + run) { run += 1 }
+            list.append(NightsChart.Marker(id: i == StageStory.dryAirNight ? "dry" : "dry\(i)", bar: i, emoji: "💧",
+                                           text: run > 1 ? "\(run) dry days" : "dry air",
                                            fill: Twin.Palette.orange, row: 1, trailing: i == StageStory.lastNightIndex))
         }
         return list
@@ -182,11 +189,10 @@ enum TrendsStory {
 // MARK: - Launch arguments (debug builds: screenshots)
 
 enum TrendsLaunch {
-    /// `-trendsNights 30`: Trends shows 30 nights (calm made-up nights before the 14 real ones), to
-    /// see the scrolling "All time" chart. Nothing else in the app changes.
-    static var nights: Int? {
+    /// `-trendsWeather temperature`: the weather card opens on temperature.
+    static var weather: TrendsWeatherCard.Measure? {
         #if DEBUG
-        return UserDefaults.standard.string(forKey: "trendsNights").flatMap(Int.init)
+        return UserDefaults.standard.string(forKey: "trendsWeather").flatMap(TrendsWeatherCard.Measure.init(rawValue:))
         #else
         return nil
         #endif
