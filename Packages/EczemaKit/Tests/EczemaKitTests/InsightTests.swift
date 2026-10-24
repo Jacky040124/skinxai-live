@@ -360,6 +360,20 @@ final class MockURLProtocol: URLProtocol {
         MockURLProtocol.handler = { _ in (200, MockURLProtocol.chat("Sorry, I can't do that.")) }
         let junk = await InsightService.analyze(dataset: demo, apiKey: "k", model: "m", now: now, calendar: cal, session: MockURLProtocol.session)
         #expect(junk.source == .bundled(.failed))
+
+        MockURLProtocol.handler = { _ in
+            (401, try JSONSerialization.data(withJSONObject: ["error": ["code": 401, "message": "No auth credentials found"]]))
+        }
+        let badKey = await InsightService.analyze(dataset: demo, apiKey: "k", model: "m", now: now, calendar: cal, session: MockURLProtocol.session)
+        #expect(badKey.source == .bundled(.badKey))
+        #expect(badKey.bundledReason == .badKey)
+
+        MockURLProtocol.handler = { _ in
+            (402, try JSONSerialization.data(withJSONObject: ["error": ["code": 402, "message": "Insufficient credits"]]))
+        }
+        let broke = await InsightService.analyze(dataset: demo, apiKey: "k", model: "m", now: now, calendar: cal, session: MockURLProtocol.session)
+        #expect(broke.source == .bundled(.noCredits))
+        #expect(!broke.isLive && broke.caseFile == demo.caseFile)
     }
 
     @Test func slowModelFallsBackAtTheLimit() async {

@@ -122,9 +122,11 @@ final class InsightSession: ObservableObject {
         guard isAsking else { return }
         Haptics.tap()
         task?.cancel()
-        isAsking = false
-        isSlow = false
-        withAnimation(Twin.Motion.spring) { miss = .stopped }
+        withAnimation(Twin.Motion.spring) {
+            isAsking = false
+            isSlow = false
+            miss = .stopped
+        }
         revealAll(app)
     }
 
@@ -195,8 +197,10 @@ final class InsightSession: ObservableObject {
 
         let started = Date()
         if let key {
-            isAsking = true
-            isSlow = false
+            withAnimation(Twin.Motion.spring) {
+                isAsking = true
+                isSlow = false
+            }
             let slowTimer = Task { [weak self] in
                 try? await Task.sleep(nanoseconds: UInt64(Self.slowAfter * 1_000_000_000))
                 guard !Task.isCancelled, let self, self.isAsking else { return }
@@ -206,8 +210,10 @@ final class InsightSession: ObservableObject {
             slowTimer.cancel()
             // Stopped by the person: `stopWaiting` already settled what stays on screen.
             guard !Task.isCancelled else { return }
-            isAsking = false
-            isSlow = false
+            withAnimation(Twin.Motion.spring) {
+                isAsking = false
+                isSlow = false
+            }
             if outcome.isLive {
                 miss = nil
                 app.update { $0.caseFile = outcome.caseFile }
@@ -218,6 +224,13 @@ final class InsightSession: ObservableObject {
                     app.update { $0.caseFile = outcome.caseFile }
                 }
                 Haptics.warning()
+            }
+            // Nothing on file to reveal (your own data, or the story before day 14): the honest state shows
+            // now, with no "thinking" left running behind it.
+            if app.dataset.caseFile == nil {
+                ticker.cancel()
+                withAnimation(Twin.Motion.spring) { phase = .done }
+                return
             }
         }
         let minimum = reduceMotion ? 0.6 : 2.2

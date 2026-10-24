@@ -74,6 +74,8 @@ struct InsightScreen: View {
         case .needsKey: .needsKey
         case .fellBack(.offline): .offline
         case .fellBack(.slow): .slow
+        case .fellBack(.badKey): .badKey
+        case .fellBack(.noCredits): .noCredits
         case .fellBack: .failed
         case .stopped, nil: .ready
         }
@@ -102,7 +104,7 @@ struct InsightScreen: View {
             }
         }
         #if DEBUG
-        if DebugHooks.script == "startTest", app.dataset.experiment == nil {
+        if DebugHooks.script == "startTest", app.dataset.experiment == nil, !DebugHooks.autoRerun || DebugHooks.didAutoRerun {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
                 withAnimation(Twin.Motion.spring) { proxy.scrollTo(StartTestButton.scrollID, anchor: .center) }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
@@ -180,6 +182,8 @@ struct InsightScreen: View {
         switch session.miss {
         case .fellBack(.offline): return live + " · re-run offline"
         case .fellBack(.slow): return live + " · re-run timed out"
+        case .fellBack(.badKey): return live + " · key not accepted"
+        case .fellBack(.noCredits): return live + " · no credits left"
         case .fellBack: return live + " · re-run failed"
         case .stopped: return live + " · re-run stopped"
         case .needsKey: return live + " · add a key to re-run"
@@ -274,9 +278,9 @@ extension AnyTransition {
     }
 
     /// Content swapped in place: the old one leaves quickly, the new one comes a beat later, so two layers
-    /// of text never show at once.
-    static var swapInPlace: AnyTransition {
-        .asymmetric(insertion: .opacity.combined(with: .offset(y: 8)).animation(Twin.Motion.spring.delay(0.14)),
+    /// of text never show at once. With Reduce Motion the new one only fades.
+    static func swapInPlace(_ reduceMotion: Bool = false) -> AnyTransition {
+        .asymmetric(insertion: .opacity.combined(with: .offset(y: reduceMotion ? 0 : 8)).animation(Twin.Motion.spring.delay(0.14)),
                     removal: .opacity.animation(.easeOut(duration: 0.12)))
     }
 }

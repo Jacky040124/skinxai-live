@@ -13,6 +13,10 @@ public struct InsightOutcome: Sendable {
         case noKey, offline, failed
         /// The model took longer than the caller's time limit.
         case slow
+        /// The provider refused the API key (HTTP 401 / 403).
+        case badKey
+        /// The provider account has no credits left (HTTP 402).
+        case noCredits
 
         /// Small print for the UI.
         public var note: String {
@@ -21,6 +25,8 @@ public struct InsightOutcome: Sendable {
             case .offline: "Bundled analysis · offline"
             case .failed: "Bundled analysis · model unavailable"
             case .slow: "Bundled analysis · model slow"
+            case .badKey: "Bundled analysis · key not accepted"
+            case .noCredits: "Bundled analysis · no credits left"
             }
         }
     }
@@ -61,6 +67,10 @@ public enum InsightService {
                 return InsightOutcome(caseFile: live, source: .live(model: model), stats: stats)
             } catch InsightClient.Failure.offline {
                 return InsightOutcome(caseFile: bundled, source: .bundled(.offline), stats: stats)
+            } catch InsightClient.Failure.http(let code, _) where code == 401 || code == 403 {
+                return InsightOutcome(caseFile: bundled, source: .bundled(.badKey), stats: stats)
+            } catch InsightClient.Failure.http(402, _) {
+                return InsightOutcome(caseFile: bundled, source: .bundled(.noCredits), stats: stats)
             } catch {
                 return InsightOutcome(caseFile: bundled, source: .bundled(.failed), stats: stats)
             }

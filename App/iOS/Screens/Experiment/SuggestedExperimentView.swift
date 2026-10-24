@@ -30,7 +30,10 @@ struct SuggestedExperimentView: View {
             }
             Color.clear.frame(height: 1).id(ScrollHook.bottomID)
         }
-        .onAppear { ExperimentSession.shared.celebrated = false }
+        .onAppear {
+            ExperimentSession.shared.celebrated = false
+            ExperimentSession.shared.resultShown = false
+        }
     }
 
     private func hero(_ plan: ExperimentPlan) -> some View {

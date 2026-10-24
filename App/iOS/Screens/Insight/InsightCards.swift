@@ -9,6 +9,7 @@ import EczemaKit
 struct CaseSummaryCard: View {
     var caseFile: CaseFile
     @ObservedObject var session: InsightSession
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var bundledAllowed: Bool
     /// A tap on the card: skip the reveal, or stop waiting for a live call.
     var onTap: () -> Void
@@ -20,7 +21,7 @@ struct CaseSummaryCard: View {
         ZStack(alignment: .topLeading) {
             if thinking {
                 ThinkingPill(session: session, bundledAllowed: bundledAllowed, stop: onTap)
-                    .transition(.swapInPlace)
+                    .transition(.swapInPlace(reduceMotion))
             } else {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(alignment: .firstTextBaseline) {
@@ -31,7 +32,7 @@ struct CaseSummaryCard: View {
                     TypewriterText(text: caseFile.summary, visibleWords: session.typedWords,
                                    caret: session.phase == .typing ? .solid : session.phase == .cards ? .blinking : .hidden)
                 }
-                .transition(.swapInPlace)
+                .transition(.swapInPlace(reduceMotion))
             }
         }
         .padding(thinking ? 14 : Twin.Space.l)
@@ -680,7 +681,7 @@ struct TrackedSoFar: Equatable {
 /// Nothing on file yet (your own data, or Douglas's story before day 14). Says honestly what would help:
 /// keep tracking, add a key, or try again. Never shows someone else's analysis.
 struct NoCaseFileCard: View {
-    enum State: Equatable { case ready, needsKey, offline, slow, failed }
+    enum State: Equatable { case ready, needsKey, badKey, noCredits, offline, slow, failed }
 
     var state: State
     var stats: TrackedSoFar
@@ -695,6 +696,7 @@ struct NoCaseFileCard: View {
                 .foregroundStyle(Twin.Palette.ink)
                 .frame(width: 40, height: 40)
                 .sticker(state == .ready || state == .needsKey ? Twin.Palette.pink : Twin.Palette.orange)
+                .animation(Twin.Motion.bouncy, value: state)
                 .contentTransition(.symbolEffect(.replace))
             Text(title)
                 .font(Twin.Typeface.title)
@@ -713,9 +715,9 @@ struct NoCaseFileCard: View {
                     .padding(.top, 2)
             }
 
-            Button(action: state == .needsKey ? openSettings : run) {
+            Button(action: state == .needsKey || state == .badKey ? openSettings : run) {
                 HStack(spacing: 8) {
-                    if state == .needsKey {
+                    if state == .needsKey || state == .badKey {
                         Image(systemName: "key.fill").font(.system(size: 13, weight: .bold))
                     } else if state != .ready {
                         Image(systemName: "arrow.clockwise").font(.system(size: 13, weight: .bold))
@@ -756,6 +758,8 @@ struct NoCaseFileCard: View {
         switch state {
         case .ready: "sparkle"
         case .needsKey: "key.fill"
+        case .badKey: "key.fill"
+        case .noCredits: "creditcard"
         case .offline: "wifi.slash"
         case .slow: "hourglass"
         case .failed: "exclamationmark.bubble"
@@ -766,6 +770,8 @@ struct NoCaseFileCard: View {
         switch state {
         case .ready: "No case file yet"
         case .needsKey: "Claude needs your key"
+        case .badKey: "Your key didn’t work"
+        case .noCredits: "Out of OpenRouter credits"
         case .offline: "You’re offline"
         case .slow: "Claude is slow right now"
         case .failed: "Claude didn’t answer"
@@ -775,11 +781,21 @@ struct NoCaseFileCard: View {
     private var message: String {
         switch state {
         case .ready:
-            return "Claude looks for triggers once your watch has a few days of scratching to compare. Keep wearing it, and tag anything new with the pink + button."
+            if stats.usual == nil {
+                return "Claude looks for triggers once your watch has a few days of scratching to compare. Keep wearing it, and tag anything new with the pink + button."
+            }
+            if stats.flareSince != nil {
+                return "There’s enough to compare now. Claude can look at what changed in the 1–3 days before your scratching rose."
+            }
+            return "No flare so far, so there’s no trigger to find yet. Keep wearing your watch, and tag anything new with the pink + button."
         case .needsKey:
             return isDemo
                 ? "Add an OpenRouter key in Settings to analyze these days live. The bundled case file only covers day 14 of Douglas’s story."
                 : "Add your OpenRouter key in Settings to analyze your own data. It stays in this phone’s Keychain."
+        case .badKey:
+            return "OpenRouter didn’t accept the key saved in Settings. Check it there, then analyze again."
+        case .noCredits:
+            return "Your OpenRouter account has no credits left. Add some on openrouter.ai, then try again."
         case .offline:
             return "Claude can’t be reached right now. Your data stays on this phone; try again once you’re back online."
         case .slow:
@@ -792,8 +808,8 @@ struct NoCaseFileCard: View {
     private var buttonTitle: String {
         switch state {
         case .ready: "Analyze what I have"
-        case .needsKey: "Open Settings"
-        case .offline, .slow, .failed: "Try again"
+        case .needsKey, .badKey: "Open Settings"
+        case .noCredits, .offline, .slow, .failed: "Try again"
         }
     }
 }

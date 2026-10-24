@@ -39,7 +39,8 @@ struct ExperimentScreen: View {
     @ViewBuilder
     private func trailing(_ p: ExperimentProgress?) -> some View {
         if let p {
-            switch p.status {
+            // The verdict waits for the result moment: until the card turns, the last day still reads "Day 10 / 10".
+            switch p.isFinished && !session.resultShown ? .running : p.status {
             case .running:
                 HStack(spacing: 0) {
                     Text("Day ")
@@ -57,6 +58,7 @@ struct ExperimentScreen: View {
                     .transition(.scale(scale: 0.6).combined(with: .opacity))
             case .notConfirmed, .stopped:
                 Sticker(text: p.status == .stopped ? "Stopped" : "Not confirmed", icon: "xmark", fill: Twin.Palette.orange)
+                    .transition(.scale(scale: 0.6).combined(with: .opacity))
             }
         } else {
             UserAvatar()
@@ -100,6 +102,8 @@ enum AutoAdvance {
 final class ExperimentSession: ObservableObject {
     static let shared = ExperimentSession()
     var celebrated = false
+    /// The result face is showing (the top bar's verdict sticker waits for it).
+    @Published var resultShown = false
     /// Bumps once per burst.
     @Published var burst = 0
     /// Bumps whenever a celebration starts or is called off, so steps still pending can tell they're stale.
@@ -160,11 +164,11 @@ struct RunningExperimentView: View {
 
                 if progress.isFinished {
                     WhatNowCard(progress: progress)
-                        .transition(.swapInPlace)
+                        .transition(.swapInPlace(reduceMotion))
                         .entranceRise(0.04 + 3 * Twin.Motion.stagger, enabled: !settled)
                 } else {
                     TipCard(progress: progress)
-                        .transition(.swapInPlace)
+                        .transition(.swapInPlace(reduceMotion))
                         .entranceRise(0.04 + 3 * Twin.Motion.stagger, enabled: !settled)
                 }
                 Color.clear.frame(height: 1).id(ScrollHook.bottomID)
@@ -178,6 +182,7 @@ struct RunningExperimentView: View {
                     celebrate(ringClosesIn: 1.0, scroll: nil)
                 } else if !progress.isFinished {
                     ExperimentSession.shared.celebrated = false
+                    ExperimentSession.shared.resultShown = false
                     angle = 0
                 }
             }
@@ -189,6 +194,7 @@ struct RunningExperimentView: View {
                     let session = ExperimentSession.shared
                     session.celebrated = false
                     session.generation += 1          // calls off any step still pending
+                    withAnimation(Twin.Motion.spring) { session.resultShown = false }
                     pop = false
                     withAnimation(reduceMotion ? .easeInOut(duration: 0.3) : Twin.Motion.spring) { angle = 0 }
                 }
@@ -216,7 +222,10 @@ struct RunningExperimentView: View {
 
         if reduceMotion {
             later(delay + 0.15) {
-                withAnimation(.easeInOut(duration: 0.3)) { angle = 180 }
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    angle = 180
+                    session.resultShown = true
+                }
                 confirmed ? Haptics.success() : Haptics.warning()
             }
             return
@@ -231,6 +240,7 @@ struct RunningExperimentView: View {
         later(flip + 0.28) {
             if confirmed { session.burst += 1 }
             withAnimation(.spring(response: 0.22, dampingFraction: 0.5)) { pop = true }
+            withAnimation(Twin.Motion.bouncy) { session.resultShown = true }
             confirmed ? Haptics.success() : Haptics.warning()
         }
         later(flip + 0.44) { withAnimation(.spring(response: 0.45, dampingFraction: 0.55)) { pop = false } }
@@ -504,6 +514,7 @@ private struct Bob: ViewModifier {
 // MARK: - Before / after
 
 struct ComparisonCard: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var progress: ExperimentProgress
     /// The screen's entrance is over (numbers that change later start at once).
     var settled = false
@@ -529,15 +540,22 @@ struct ComparisonCard: View {
             HStack(alignment: .center, spacing: 10) {
                 ChangeSticker(percentLess: progress.percentLess, final: progress.isFinished, delay: settled ? 0.15 : 0.5)
                 Spacer(minLength: 4)
-                Text(caption)
-                    .font(Twin.Typeface.sans(13))
-                    .foregroundStyle(Twin.Palette.inkMuted)
-                    .multilineTextAlignment(.trailing)
-                    .contentTransition(.numericText())
+                // "8 → 7 more days" rolls its digit; a different kind of caption swaps in order instead.
+                ZStack(alignment: .trailing) {
+                    Text(caption)
+                        .font(Twin.Typeface.sans(13))
+                        .foregroundStyle(Twin.Palette.inkMuted)
+                        .multilineTextAlignment(.trailing)
+                        .contentTransition(.numericText())
+                        .id(captionKind)
+                        .transition(.swapInPlace(reduceMotion))
+                }
             }
         }
         .twinCard()
     }
+
+    private var captionKind: Int { progress.isFinished ? 2 : progress.during == nil ? 0 : 1 }
 
     private var caption: String {
         if progress.isFinished { return "Test complete" }
