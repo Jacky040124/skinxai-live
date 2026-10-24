@@ -4,6 +4,7 @@ import EczemaKit
 /// No test running: explain the test Claude suggested, with a big start button.
 struct SuggestedExperimentView: View {
     @EnvironmentObject var app: AppState
+    @EnvironmentObject var data: DataModeController
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     var caseFile: CaseFile?
 
@@ -61,7 +62,7 @@ struct SuggestedExperimentView: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 6)
 
-            Button { StoryTravel.startExperiment(app: app) } label: {
+            Button { StoryTravel.startExperiment(app: app, storyDay: data.storyDay) } label: {
                 HStack(spacing: 8) {
                     Text("Start the \(plan.lengthDays)-day test")
                     Image(systemName: "arrow.right").font(.system(size: 14, weight: .bold))

@@ -473,3 +473,53 @@ final class MockURLProtocol: URLProtocol {
         #expect(ExperimentPlan(title: "Run a humidifier", instruction: "", trigger: .dryAir, lengthDays: 10).subject == nil)
     }
 }
+
+// MARK: - Demo time travel: moving a case file's dates
+
+@Suite struct CaseFileDateShiftTests {
+    let ref = cal.date(from: DateComponents(year: 2026, month: 10, day: 23))!
+
+    func shift(_ s: String, _ days: Int, near: Date? = nil) -> String {
+        DateText.shift(s, byDays: days, near: near ?? ref, calendar: cal)
+    }
+
+    @Test func movesDatesInText() {
+        #expect(shift("Your scratching nearly tripled from Oct 16.", -1) == "Your scratching nearly tripled from Oct 15.")
+        #expect(shift("You started it on Oct 9 and the air dried Oct 10.", 3) == "You started it on Oct 12 and the air dried Oct 13.")
+        #expect(shift("Exams on Oct 14–15 came later.", -1) == "Exams on Oct 13–14 came later.")
+        #expect(shift("Exams on Oct 14-15 came later.", 9) == "Exams on Oct 23-24 came later.")
+        #expect(shift("Since October 9, it rose.", 3) == "Since October 12, it rose.")
+        #expect(shift("Oct. 30", 2) == "Nov. 1")
+        #expect(shift("Oct 30–31", 1) == "Oct 31–Nov 1")
+    }
+
+    @Test func picksTheNearestYear() {
+        let newYear = cal.date(from: DateComponents(year: 2027, month: 1, day: 2))!
+        #expect(shift("Dec 31", 1, near: newYear) == "Jan 1")
+        #expect(shift("Jan 1", -1, near: newYear) == "Dec 31")
+    }
+
+    @Test func leavesEverythingElseAlone() {
+        let plain = "It may be the wash. Lag 1–3 days, 48–72 hours, March on. Market 5 is not a date."
+        #expect(shift(plain, -4) == plain)
+        #expect(shift("Oct 16", 0) == "Oct 16")
+        #expect(shift("", 2) == "")
+    }
+
+    @Test func caseFileMovesWithTheStory() throws {
+        // A "live" case file written on story day 14; the test's day 1 re-dates the story one day earlier.
+        let story = DemoData.make(today: now, calendar: cal)
+        var live = try #require(story.caseFile)
+        live.producedBy = "claude-sonnet-5.5 · live"
+        let testDay1 = DemoData.make(today: now, experimentDay: 1, calendar: cal)
+        let moved = live.shiftingDates(byDays: -1, calendar: cal)
+        let bundled = try #require(testDay1.caseFile)
+        #expect(moved.createdAt == bundled.createdAt)
+        #expect(moved.windowStart == bundled.windowStart && moved.windowEnd == bundled.windowEnd)
+        #expect(moved.suspects.map(\.startedOn) == bundled.suspects.map(\.startedOn))
+        #expect(moved.suspects.map(\.flareOn) == bundled.suspects.map(\.flareOn))
+        #expect(moved.summary == bundled.summary)              // "…tripled from <flare day>." moved too
+        #expect(moved.producedBy == live.producedBy && moved.id == live.id)
+        #expect(live.shiftingDates(byDays: 0, calendar: cal) == live)
+    }
+}

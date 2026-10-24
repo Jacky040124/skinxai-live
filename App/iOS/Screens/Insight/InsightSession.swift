@@ -307,6 +307,7 @@ final class InsightSession: ObservableObject {
 ///   -insightFakeLive <s>   with -insightTestKey: no network; the "live" answer arrives after <s> seconds and
 ///                          plans a different test (Stop the scented body wash, 14 days). <s> > 20 = too slow.
 ///   -insightQA <script>    startTest: tap the pink "Start a test" button once the reveal is done
+///                          startTestBack: the same, then come back to Insight
 ///                          stopWaiting: tap "Use the bundled analysis" as soon as it shows
 enum DebugHooks {
     static var testKey: String? { UserDefaults.standard.bool(forKey: "insightTestKey") ? "invalid-test-key" : nil }

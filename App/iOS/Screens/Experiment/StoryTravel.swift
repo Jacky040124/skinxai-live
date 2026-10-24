@@ -6,23 +6,32 @@ import EczemaKit
 /// `AppState.startExperiment()` / `setExperimentDay(_:)` rebuild Douglas's story from `DemoData`, which
 /// always carries the bundled case file. After a live re-run on stage that would quietly swap Claude's live
 /// answer (and its test plan) for the bundled one. The Insight and Test screens go through these wrappers:
-/// they put the live case file back and run its plan through the scripted test. Real data is untouched
+/// they put the live case file back, run its plan through the scripted test, and move its dates with the
+/// story (time travel keeps today as today, so every story day gets a new date). Real data is untouched
 /// (`AppState` handles real mode itself).
 @MainActor
 enum StoryTravel {
     /// Days of the scripted test in the demo story.
     static let storyTestLength = DemoData.experimentMinutes.count
 
-    static func startExperiment(app: AppState) {
+    /// - Parameter storyDay: the flare-story day on screen (Settings time travel), when no test runs.
+    static func startExperiment(app: AppState, storyDay: Int = StoryPoint.flareLength) {
         let live = liveCaseFile(in: app.dataset)
+        let before = position(app, storyDay: storyDay)
         app.startExperiment()
-        restore(live, app: app)
+        restore(live, from: before, app: app)
     }
 
-    static func setExperimentDay(_ day: Int?, app: AppState) {
+    static func setExperimentDay(_ day: Int?, app: AppState, storyDay: Int = StoryPoint.flareLength) {
         let live = liveCaseFile(in: app.dataset)
+        let before = position(app, storyDay: storyDay)
         app.setExperimentDay(day)
-        restore(live, app: app)
+        restore(live, from: before, app: app)
+    }
+
+    /// Where "today" sits in the whole story: flare days 1...14, then the test days 15...24.
+    private static func position(_ app: AppState, storyDay: Int) -> Int {
+        app.experimentDay.map { StoryPoint.flareLength + $0 } ?? storyDay
     }
 
     /// The test that will actually run for this case file. Real data: Claude's plan as written. Demo story:
@@ -47,11 +56,14 @@ enum StoryTravel {
         return caseFile
     }
 
-    private static func restore(_ live: CaseFile?, app: AppState) {
+    private static func restore(_ live: CaseFile?, from before: Int, app: AppState) {
         guard let live, app.dataset.isDemo else { return }
+        // A story day that was `before - after` days from today is now that much further back (or forward).
+        let after = position(app, storyDay: StoryPoint.flareLength)
+        let moved = live.shiftingDates(byDays: before - after)
         app.update { d in
-            d.caseFile = live
-            if var e = d.experiment, let plan = storyPlan(for: live) {
+            d.caseFile = moved
+            if var e = d.experiment, let plan = storyPlan(for: moved) {
                 e.plan = plan
                 d.experiment = e
             }

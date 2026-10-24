@@ -104,11 +104,17 @@ struct InsightScreen: View {
             }
         }
         #if DEBUG
-        if DebugHooks.script == "startTest", app.dataset.experiment == nil, !DebugHooks.autoRerun || DebugHooks.didAutoRerun {
+        if DebugHooks.script?.hasPrefix("startTest") == true, app.dataset.experiment == nil,
+           !DebugHooks.autoRerun || DebugHooks.didAutoRerun {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
                 withAnimation(Twin.Motion.spring) { proxy.scrollTo(StartTestButton.scrollID, anchor: .center) }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.4) {
-                    if app.dataset.experiment == nil, app.tab == .insight { StoryTravel.startExperiment(app: app) }
+                    guard app.dataset.experiment == nil, app.tab == .insight else { return }
+                    StoryTravel.startExperiment(app: app, storyDay: data.storyDay)
+                    // `-insightQA startTestBack`: then come back to Insight (the live case file must survive).
+                    if UserDefaults.standard.string(forKey: "insightQA") == "startTestBack" {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { app.select(.insight) }
+                    }
                 }
             }
         }

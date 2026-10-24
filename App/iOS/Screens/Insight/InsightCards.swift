@@ -55,6 +55,7 @@ struct ThinkingPill: View {
     @ObservedObject var session: InsightSession
     var bundledAllowed: Bool
     var stop: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -67,7 +68,8 @@ struct ThinkingPill: View {
                         .lineLimit(2)
                         .fixedSize(horizontal: false, vertical: true)
                         .id(session.statusLine)
-                        .transition(.asymmetric(insertion: .push(from: .bottom), removal: .push(from: .bottom)))
+                        .transition(reduceMotion ? .opacity
+                                    : .asymmetric(insertion: .push(from: .bottom), removal: .push(from: .bottom)))
                 }
                 .frame(maxWidth: .infinity, minHeight: 40, maxHeight: 40, alignment: .leading)
                 .clipped()
@@ -94,7 +96,7 @@ struct ThinkingPill: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(PressableStyle())
-                .transition(.opacity.combined(with: .offset(y: -4)))
+                .transition(.opacity.combined(with: .offset(y: reduceMotion ? 0 : -4)))
             }
         }
         .animation(Twin.Motion.spring, value: session.isSlow)
@@ -573,6 +575,7 @@ struct StartTestButton: View {
     static let scrollID = "insight-start-test"
 
     @EnvironmentObject var app: AppState
+    @EnvironmentObject var data: DataModeController
     var plan: ExperimentPlan
     var experiment: Experiment?
     var day: Int
@@ -590,7 +593,7 @@ struct StartTestButton: View {
             }
             .buttonStyle(TwinButtonStyle(fill: done ? Twin.Palette.lime : Twin.Palette.cyan))
         } else {
-            Button { StoryTravel.startExperiment(app: app) } label: {
+            Button { StoryTravel.startExperiment(app: app, storyDay: data.storyDay) } label: {
                 HStack(spacing: 8) {
                     Text("Start a \(plan.lengthDays)-day test: \(lowerFirst(plan.title))")
                         .lineLimit(2)
