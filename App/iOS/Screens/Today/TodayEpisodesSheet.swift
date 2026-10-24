@@ -70,6 +70,7 @@ struct TodayEpisodesSheet: View {
                     .foregroundStyle(Twin.Palette.ink)
                     .frame(width: 32, height: 32)
                     .sticker(Twin.Palette.paper, radius: Twin.Radius.control)
+                    .contentShape(TapAreaShape(dx: 6, dy: 6))   // 44 × 44 pt tap area, same 32 pt look
             }
             .buttonStyle(PressableStyle())
             .accessibilityLabel("Close")

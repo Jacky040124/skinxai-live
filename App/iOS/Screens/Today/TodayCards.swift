@@ -156,20 +156,44 @@ struct TodayTestTiles: View {
 // MARK: - Sleep / Stress mini cards
 
 struct TodayMetricCard: View {
+    /// What to show when nothing was measured (real data without Apple Health).
+    struct Missing {
+        /// "No sleep data"
+        var note: String
+        /// Chip that says how to fix it ("Allow Health"); nil = no chip.
+        var action: String?
+        /// Tap anywhere on the card (opens Settings); nil = not tappable.
+        var onTap: (() -> Void)?
+    }
+
     let title: String
-    let value: Double
+    /// nil = not measured: a dash, what is missing and how to connect it (no bars, no dot).
+    let value: Double?
     let decimals: Int
     let unit: String
     let note: String
     /// true = worse than usual (orange), false = fine (lime), nil = no comparison.
     let worse: Bool?
-    /// Last 7 days, today last.
+    /// Last 7 days, today last (0 = not measured).
     let history: [Double]
     /// The usual value (dashed line across the spark bars).
     var usual: Double? = nil
     var delay: Double = 0.3
+    var missing = Missing(note: "No data", action: nil, onTap: nil)
 
     var body: some View {
+        if let value {
+            measured(value)
+        } else if let onTap = missing.onTap {
+            Button(action: onTap) { notMeasured }
+                .buttonStyle(PressableStyle())
+                .accessibilityHint("Opens Settings")
+        } else {
+            notMeasured
+        }
+    }
+
+    private func measured(_ value: Double) -> some View {
         VStack(alignment: .leading, spacing: 6) {
             Eyebrow(text: title)
             HStack(alignment: .lastTextBaseline, spacing: 3) {
@@ -196,8 +220,66 @@ struct TodayMetricCard: View {
                     .minimumScaleFactor(0.8)
             }
         }
+        .frame(maxHeight: .infinity, alignment: .top)
         .twinCard()
         .accessibilityElement(children: .combine)
+    }
+
+    /// "--" where the number goes (Apple's mark for "no value"), the fix as a dashed chip where
+    /// the bars go, and what is missing. (No unit: both cards keep room for the same chip.)
+    private var notMeasured: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Eyebrow(text: title)
+            HStack(alignment: .center, spacing: 0) {
+                Text(TodayTrends.Format.noValue)
+                    .font(Twin.Typeface.sans(30, .regular))
+                    .tracking(0.5)
+                    .foregroundStyle(Twin.Palette.inkHint)
+                    .fixedSize()
+                Spacer(minLength: 8)
+                if let action = missing.action {
+                    TodayConnectChip(symbol: "heart.fill", text: action)
+                        .modifier(TodayPopIn(delay: delay + 0.25))
+                }
+            }
+            Text(missing.note)
+                .font(Twin.Typeface.sans(13))
+                .foregroundStyle(Twin.Palette.inkMuted)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+        }
+        .frame(maxHeight: .infinity, alignment: .top)
+        .twinCard()
+        .contentShape(RoundedRectangle(cornerRadius: Twin.Radius.card, style: .continuous))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(title): \(missing.note)")
+    }
+}
+
+/// Dashed-edge chip for something to connect or add ("+ Add", "♥ Allow Health",
+/// "Weather needs location"): an empty slot waiting to be filled.
+struct TodayConnectChip: View {
+    let symbol: String
+    let text: String
+    var chevron = false
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Image(systemName: symbol).font(.system(size: 10, weight: .bold))
+            Text(text)
+                .font(Twin.Typeface.sans(12, .bold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            if chevron {
+                Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(Twin.Palette.inkMuted)
+            }
+        }
+        .foregroundStyle(Twin.Palette.ink)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 4)
+        .overlay(RoundedRectangle(cornerRadius: Twin.Radius.sticker, style: .continuous)
+            .strokeBorder(Twin.Palette.ink, style: StrokeStyle(lineWidth: Twin.Stroke.ink, dash: [3, 2.5])))
     }
 }
 
@@ -205,7 +287,15 @@ struct TodayMetricCard: View {
 
 struct TodayAroundYouCard: View {
     let day: DayRecord
+    let dataset: TwinDataset
     let auto: [Exposure]
+    /// Location permission is on (real data: weather missing then means "not loaded yet").
+    var locationOn = false
+    /// Opens Settings (location permission, weather refresh).
+    var onFix: () -> Void = {}
+
+    /// Settings → Units. Observed so the temperature sticker follows a change right away.
+    @AppStorage(TwinUnits.temperatureKey) private var tempUnit = "c"
 
     private struct Item: Identifiable { let id: String; let emoji: String; let text: String; let fill: Color }
 
@@ -213,6 +303,17 @@ struct TodayAroundYouCard: View {
         VStack(alignment: .leading, spacing: 12) {
             Eyebrow(text: "Around you · auto")
             StickerWrapLayout(spacing: 8, lineSpacing: 8) {
+                if !TodayTrends.hasWeather(day, in: dataset) {
+                    Button(action: onFix) {
+                        TodayConnectChip(symbol: locationOn ? "cloud.sun.fill" : "location.fill",
+                                         text: locationOn ? "Weather not loaded yet" : "Weather needs location",
+                                         chevron: true)
+                            .contentShape(TapAreaShape(dx: 4, dy: 11))
+                    }
+                    .buttonStyle(PressableStyle())
+                    .modifier(TodayPopIn(delay: 0.5))
+                    .accessibilityHint("Opens Settings")
+                }
                 ForEach(Array(items.enumerated()), id: \.element.id) { i, item in
                     TodayEmojiSticker(emoji: item.emoji, text: item.text, fill: item.fill)
                         .modifier(TodayPopIn(delay: 0.5 + Double(i) * 0.07))
@@ -224,21 +325,28 @@ struct TodayAroundYouCard: View {
 
     private var items: [Item] {
         var out: [Item] = []
-        let h = Int(day.humidityPct.rounded())
-        let dry = day.humidityPct < 35
-        let humid = day.humidityPct > 70
-        out.append(Item(id: "humidity", emoji: "💧",
-                        text: dry ? "Humidity \(h)% · dry" : (humid ? "Humidity \(h)% · humid" : "Humidity \(h)%"),
-                        fill: dry ? Twin.Palette.orange : Twin.Palette.paper))
-        let aqi = day.aqi
-        let word = aqi <= 50 ? "good" : (aqi <= 100 ? "moderate" : (aqi <= 150 ? "poor" : "unhealthy"))
-        out.append(Item(id: "aqi", emoji: "🍃", text: "Air quality \(aqi) · \(word)",
-                        fill: aqi > 100 ? Twin.Palette.orange : Twin.Palette.paper))
-        if day.pollen != .unknown {
-            out.append(Item(id: "pollen", emoji: "🌼", text: "Pollen · \(day.pollen.label.lowercased())",
-                            fill: day.pollen == .high ? Twin.Palette.orange : Twin.Palette.paper))
+        if TodayTrends.hasWeather(day, in: dataset) {
+            // 0% humidity / AQI 0 in real data = that feed did not load: no sticker, never a false "dry".
+            if let humidity = TodayTrends.humidity(day, in: dataset) {
+                let h = Int(humidity.rounded())
+                let dry = humidity < 35
+                let humid = humidity > 70
+                out.append(Item(id: "humidity", emoji: "💧",
+                                text: dry ? "Humidity \(h)% · dry" : (humid ? "Humidity \(h)% · humid" : "Humidity \(h)%"),
+                                fill: dry ? Twin.Palette.orange : Twin.Palette.paper))
+            }
+            if let aqi = TodayTrends.aqi(day, in: dataset) {
+                let word = aqi <= 50 ? "good" : (aqi <= 100 ? "moderate" : (aqi <= 150 ? "poor" : "unhealthy"))
+                out.append(Item(id: "aqi", emoji: "🍃", text: "Air quality \(aqi) · \(word)",
+                                fill: aqi > 100 ? Twin.Palette.orange : Twin.Palette.paper))
+            }
+            if day.pollen != .unknown {
+                out.append(Item(id: "pollen", emoji: "🌼", text: "Pollen · \(day.pollen.label.lowercased())",
+                                fill: day.pollen == .high ? Twin.Palette.orange : Twin.Palette.paper))
+            }
+            // `tempUnit` is read here so the sticker re-renders (and re-pops) when the unit changes.
+            out.append(Item(id: "temp-\(tempUnit)", emoji: "🌡️", text: TwinUnits.temperature(day.tempC), fill: Twin.Palette.paper))
         }
-        out.append(Item(id: "temp", emoji: "🌡️", text: TodayTrends.Format.temperature(day.tempC), fill: Twin.Palette.paper))
         for e in auto {
             out.append(Item(id: e.id.uuidString, emoji: e.kind.emoji, text: e.title, fill: Twin.Palette.paper))
         }
@@ -268,16 +376,9 @@ struct TodayLoggedCard: View {
                         .transition(.scale(scale: 0.5).combined(with: .opacity))
                 }
                 Button(action: onAdd) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "plus").font(.system(size: 10, weight: .bold))
-                        Text("Add").font(Twin.Typeface.sans(12, .bold))
-                    }
-                    .foregroundStyle(Twin.Palette.ink)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 4)
-                    .background(RoundedRectangle(cornerRadius: Twin.Radius.sticker, style: .continuous)
-                        .strokeBorder(Twin.Palette.ink, style: StrokeStyle(lineWidth: Twin.Stroke.ink, dash: [3, 2.5])))
-                    .contentShape(Rectangle())
+                    // Looks like a sticker; the tap area is 44 pt tall (HIG) without moving anything.
+                    TodayConnectChip(symbol: "plus", text: "Add")
+                        .contentShape(TapAreaShape(dx: 8, dy: 11))
                 }
                 .buttonStyle(PressableStyle())
                 .accessibilityLabel("Add something you ran into today")

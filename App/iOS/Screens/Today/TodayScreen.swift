@@ -8,6 +8,8 @@ import EczemaKit
 /// Sections rise in one after another; every number counts up; the ring fills; bars grow.
 struct TodayScreen: View {
     @EnvironmentObject var app: AppState
+    /// Health / location permission state (shell). Real data only uses it to say what is missing.
+    @EnvironmentObject var access: DeviceAccess
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var showEpisodes = false
 
@@ -29,6 +31,9 @@ struct TodayScreen: View {
             if let snap { TodayEpisodesSheet(snap: snap) }
         }
         .task {
+            #if DEBUG
+            TodayTrendsFixture.applyIfRequested(app)
+            #endif
             // `-screen episodes` opens Today with today's episodes sheet (screenshots, demo).
             guard UserDefaults.standard.string(forKey: "screen") == "episodes", snap != nil else { return }
             try? await Task.sleep(for: .seconds(0.9))
@@ -50,8 +55,12 @@ struct TodayScreen: View {
                     sleepCard(snap)
                     stressCard(snap)
                 }
+                .fixedSize(horizontal: false, vertical: true)   // both cards as tall as the taller one
             }
-            section(3) { TodayAroundYouCard(day: snap.day, auto: snap.autoToday) }
+            section(3) {
+                TodayAroundYouCard(day: snap.day, dataset: snap.dataset, auto: snap.autoToday,
+                                   locationOn: access.location == .on, onFix: openSettings)
+            }
             section(4) {
                 TodayLoggedCard(exposures: snap.loggedToday) { app.showTagSheet = true }
             }
@@ -124,21 +133,41 @@ struct TodayScreen: View {
     // MARK: Mini cards
 
     private func sleepCard(_ snap: TodaySnapshot) -> some View {
-        let hours = snap.day.sleepHours
+        let hours = snap.sleep
         return TodayMetricCard(title: "Sleep", value: hours, decimals: 1, unit: "h",
                                note: "woke up \(snap.day.wakeUps)×",
-                               worse: snap.usualSleep.map { hours < $0 - 0.5 },
-                               history: snap.recent(7, \.sleepHours), usual: snap.usualSleep, delay: 0.3)
+                               worse: hours.flatMap { h in snap.usualSleep.map { h < $0 - 0.5 } },
+                               history: snap.recent(7, TodayTrends.sleep), usual: snap.usualSleep, delay: 0.3,
+                               missing: missingHealth("No sleep data"))
     }
 
     private func stressCard(_ snap: TodaySnapshot) -> some View {
-        let hrv = snap.day.hrvMs
+        let hrv = snap.hrv
         let usual = snap.usualHRV
-        let note: String = usual.map { u in
-            hrv < u * 0.9 ? "lower than usual" : (hrv > u * 1.1 ? "higher than usual" : "about usual")
+        let note: String = hrv.flatMap { v in
+            usual.map { u in v < u * 0.9 ? "lower than usual" : (v > u * 1.1 ? "higher than usual" : "about usual") }
         } ?? "heart rate variability"
         return TodayMetricCard(title: "Stress (HRV)", value: hrv, decimals: 0, unit: "ms",
-                               note: note, worse: usual.map { hrv < $0 * 0.9 },
-                               history: snap.recent(7, \.hrvMs), usual: usual, delay: 0.38)
+                               note: note, worse: hrv.flatMap { v in usual.map { v < $0 * 0.9 } },
+                               history: snap.recent(7, TodayTrends.hrv), usual: usual, delay: 0.38,
+                               missing: missingHealth("No HRV data"))
+    }
+
+    /// Real data without a Health value: say what is missing and offer the fix (Settings → Apple Health).
+    private func missingHealth(_ note: String) -> TodayMetricCard.Missing {
+        switch access.health {
+        case .unavailable:
+            return .init(note: note, action: nil, onTap: nil)
+        case .on:
+            // Health was asked; it simply has nothing for this night yet.
+            return .init(note: note + " yet", action: nil, onTap: openSettings)
+        case .notAsked, .off:
+            return .init(note: note, action: "Allow Health", onTap: openSettings)
+        }
+    }
+
+    /// The press itself gives the haptic (PressableStyle).
+    private func openSettings() {
+        app.showSettings = true
     }
 }

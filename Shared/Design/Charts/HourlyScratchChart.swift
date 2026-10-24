@@ -68,14 +68,17 @@ struct HourlyScratchChart: View {
         let future = isFuture(h)
         let isHot = hot.contains(h) && !future
         let full = future ? 0 : max(2, CGFloat(v / top) * plotHeight)
-        let height = (grown || reduceMotion) ? full : min(full, 2)
+        // A bar that has not grown yet is not there at all (no 2 pt stub with an ink edge waiting
+        // on the baseline): it grows out of the baseline and fades in on its own beat.
+        // Reduce Motion: full height, fade only.
+        let height = (grown || reduceMotion) ? full : 0
         let shape = UnevenRoundedRectangle(topLeadingRadius: 2, topTrailingRadius: 2, style: .continuous)
         return shape
             .fill(isHot ? accent : Twin.Palette.ink.opacity(0.14))
-            .overlay { if isHot { shape.strokeBorder(Twin.Palette.ink, lineWidth: 1) } }
+            .overlay { if isHot && full >= 4 { shape.strokeBorder(Twin.Palette.ink, lineWidth: 1) } }
             .frame(maxWidth: .infinity)
             .frame(height: height)
-            .opacity(reduceMotion && !grown ? 0 : 1)
+            .opacity(grown ? 1 : 0)
             .animation(reduceMotion ? nil : Twin.Motion.bouncy.delay(delay + Double(h) * 0.03), value: grown)
     }
 
@@ -173,5 +176,27 @@ struct ChartVLine: Shape {
         p.move(to: CGPoint(x: rect.midX, y: rect.minY))
         p.addLine(to: CGPoint(x: rect.midX, y: rect.maxY))
         return p
+    }
+}
+
+/// The frame grown on each side. Use with `.contentShape(_:)` to give a small sticker or chip a
+/// bigger tap area (HIG: 44 pt) without changing layout or looks.
+struct TapAreaShape: Shape {
+    var top: CGFloat
+    var leading: CGFloat
+    var bottom: CGFloat
+    var trailing: CGFloat
+
+    init(dx: CGFloat, dy: CGFloat) {
+        self.init(top: dy, leading: dx, bottom: dy, trailing: dx)
+    }
+
+    init(top: CGFloat, leading: CGFloat, bottom: CGFloat, trailing: CGFloat) {
+        self.top = top; self.leading = leading; self.bottom = bottom; self.trailing = trailing
+    }
+
+    func path(in rect: CGRect) -> Path {
+        Path(CGRect(x: rect.minX - leading, y: rect.minY - top,
+                    width: rect.width + leading + trailing, height: rect.height + top + bottom))
     }
 }

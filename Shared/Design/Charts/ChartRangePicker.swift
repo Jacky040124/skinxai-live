@@ -47,7 +47,8 @@ struct ChartRangePicker<Option: Hashable>: View {
 
 /// Tiny bars for mini cards (e.g. the last 7 nights). The last bar is the one that matters
 /// (`highlight`); the others are 15% ink. An optional dashed line marks the usual value.
-/// Grows in after `delay`.
+/// A value of 0 or less means "not measured": its slot stays empty.
+/// Each bar grows out of the baseline after `delay` (fade only with Reduce Motion).
 struct SparkBars: View {
     var values: [Double]
     var highlight: Color = Twin.Palette.ink
@@ -64,10 +65,13 @@ struct SparkBars: View {
                 HStack(alignment: .bottom, spacing: 2) {
                     ForEach(Array(values.enumerated()), id: \.offset) { i, v in
                         let last = i == values.count - 1
+                        let full = v > 0 ? max(2, CGFloat(v / top) * geo.size.height) : 0
                         RoundedRectangle(cornerRadius: 1, style: .continuous)
                             .fill(last ? highlight : Twin.Palette.ink.opacity(0.15))
-                            .frame(height: (grown || reduceMotion) ? max(2, CGFloat(v / top) * geo.size.height) : 2)
-                            .animation(reduceMotion ? nil : Twin.Motion.bouncy.delay(delay + Double(i) * 0.04), value: grown)
+                            .frame(height: (grown || reduceMotion) ? full : 0)
+                            .opacity(grown ? 1 : 0)
+                            .animation(reduceMotion ? .easeOut(duration: 0.3).delay(delay)
+                                                    : Twin.Motion.bouncy.delay(delay + Double(i) * 0.04), value: grown)
                     }
                 }
                 .frame(width: geo.size.width, height: geo.size.height, alignment: .bottom)
