@@ -3,14 +3,18 @@ import EczemaKit
 
 /// Trends — "what changed?" (STAGE-SPEC §3). Every number comes from `StageStory`.
 ///
-/// Range picker (7 nights · 14 nights · All), this week's average with the week-over-week sticker,
-/// the per-night chart (flare nights orange, dashed usual line, markers on two rows with dotted stems,
-/// tap a night → cyan outline + detail strip), and "What changed" (tap a row → that night on the chart).
+/// Range picker (7 nights · All time), this week's average with the week-over-week sticker, the
+/// per-night chart (flare nights orange, dashed usual line, markers on two rows with dotted stems, a
+/// humidity row with the dry days in orange, tap a night → cyan outline + detail strip; more than 14
+/// nights scroll sideways), and "What changed" (tap a row → that night on the chart).
 struct TrendsScreen: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var range: TrendsRange = TodayTrendsLaunch.trendsRange ?? .twoWeeks
-    /// The selected night (0 = oldest … 13 = last night).
+    /// All time by default: the calm weeks make the last nights stand out.
+    @State private var range: TrendsRange = TodayTrendsLaunch.trendsRange ?? .all
+    /// The selected night (0 = oldest of the story's 14 … 13 = last night).
     @State private var selected = StageStory.lastNightIndex
+    /// A night the scrolling chart moves to the right edge (debug `-trendsScrollBack`).
+    @State private var focus: Int?
     /// Night dates are relative to now; moves on at midnight while the app stays open.
     @State private var now = Date()
 
@@ -45,18 +49,23 @@ struct TrendsScreen: View {
                 try? await Task.sleep(for: .seconds(1.6))
                 select(night)
             }
+            // `-trendsScrollBack 9` (debug): scroll the long chart back 9 nights.
+            if let back = TrendsLaunch.scrollBack {
+                try? await Task.sleep(for: .seconds(2.2))
+                focus = StageStory.lastNightIndex - back
+            }
             if TodayTrendsLaunch.trendsTour { await tour() }
         }
     }
 
-    /// `-trendsTour 1` (debug): select the new wash's night, the exams, zoom to 7 nights, back to 14,
+    /// `-trendsTour 1` (debug): select the new wash's night, the exams, zoom to 7 nights, back to all,
     /// then last night again.
     private func tour() async {
         let steps: [(Double, () -> Void)] = [
             (2.2, { select(StageStory.bodyWashNight) }),
             (1.4, { select(TrendsStory.examsMarkerNight) }),
             (1.4, { withAnimation(Twin.Motion.spring) { setRange(.week) } }),
-            (1.6, { withAnimation(Twin.Motion.spring) { setRange(.twoWeeks) } }),
+            (1.6, { withAnimation(Twin.Motion.spring) { setRange(.all) } }),
             (1.4, { select(StageStory.lastNightIndex) }),
         ]
         for (wait, step) in steps {
@@ -84,9 +93,9 @@ struct TrendsScreen: View {
 
     /// Selects night `i`, widening the range when it is not on the chart.
     private func select(_ i: Int) {
-        guard StageStory.nights.indices.contains(i) else { return }
+        guard TrendsStory.nightIDs.contains(i) else { return }
         withAnimation(Twin.Motion.spring) {
-            if !range.shows(i) { range = .twoWeeks }
+            if !range.shows(i) { range = .all }
             selected = i
         }
     }
@@ -106,10 +115,11 @@ struct TrendsScreen: View {
             .padding(.top, 6)
             TrendsWeekSticker(percent: StageStory.weekChangePercent)
                 .padding(.top, 8)
-            NightsChart(bars: TrendsStory.bars(now: now), firstVisible: TrendsStory.firstVisible(range),
+            NightsChart(bars: TrendsStory.bars(now: now), shown: range.nights,
                         usual: Double(StageStory.usual),
                         scaleTop: TrendsStory.scaleTop, markers: TrendsStory.markers,
-                        selection: $selected, plotHeight: 170, markerBand: 64, delay: 0.25)
+                        selection: $selected, focus: focus, plotHeight: 170, markerBand: 64,
+                        dryLegend: "DRY · UNDER \(StageStory.dryBelowPercent)%", delay: 0.25)
             legend
                 .padding(.top, 10)
                 .riseIn(1.0, distance: 0)
