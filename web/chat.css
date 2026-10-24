@@ -112,6 +112,10 @@
 #p-claude .suggest:active, #p-claude .suggest.press { transform: scale(.98); }
 #p-claude .sg-ico { flex: none; width: calc(36 * var(--k)); height: calc(36 * var(--k)); border-radius: calc(10 * var(--k)); display: grid; place-items: center; color: #141111; background: var(--yellow); }
 #p-claude .sg-ico svg { width: 55%; height: 55%; }
+/* the suggested reply under a turn that stopped early (offerNudge): the same chip, compact and on Douglas's side */
+#p-claude .msg.nudge { justify-content: flex-end; }
+#p-claude .msg.nudge .suggest { position: static; padding: calc(7 * var(--k)) calc(20 * var(--k)) calc(7 * var(--k)) calc(7 * var(--k)); border-radius: 999px; font-weight: 600; }
+#p-claude .msg.nudge .sg-ico { width: calc(32 * var(--k)); height: calc(32 * var(--k)); border-radius: 50%; }
 #p-claude .chat-toast { position: absolute; z-index: 5; left: 50%; top: calc(14 * var(--k)); transform: translate(-50%, -10px); opacity: 0; pointer-events: none; white-space: nowrap;
   font: 700 max(12px, calc(14 * var(--k))) "Space Mono"; color: #141111; background: var(--yellow); border-radius: 6px; padding: 8px 14px; transition: opacity .25s, transform .25s; }
 #p-claude .chat-toast.on { opacity: 1; transform: translate(-50%, 0); }

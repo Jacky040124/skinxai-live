@@ -9,6 +9,7 @@
   const MODEL = new URLSearchParams(location.search).get("model") || "";
   const DEFAULT_MODEL = "anthropic/claude-sonnet-5.5";
   const STARTER = "My eczema has been really bad the last few nights. Can you look at my scratching history and help me figure out why?";
+  const NUDGE = "Go ahead";        // the suggested reply when Claude stops before its conclusion (see offerNudge)
   const SAVE_KEY = "twinChat";     // localStorage: the last completed conversation
   const CPS = 80;                  // typewriter speed, characters per second
   const CARD_MS = 600;             // every tool card spins at least this long, so it can be read
@@ -107,9 +108,11 @@
   // Douglas's message. When it comes from the suggestion, an answer button or the input box, the bubble flies
   // from there into place (transform only).
   function userSays(text, from) {
+    const f = from && !calm ? from.getBoundingClientRect() : null;
+    dropNudge();
     const r = row("user", `<div class="bubble">${esc(text)}</div>`);
-    if (!from || calm) return r;
-    const f = from.getBoundingClientRect(), b = $(".bubble", r);
+    if (!f) return r;
+    const b = $(".bubble", r);
     r.style.animation = "none";
     const t = b.getBoundingClientRect();
     b.animate([{ transform: `translate(${f.left - t.left}px, ${f.top - t.top}px)`, opacity: 0.5 }, { transform: "none", opacity: 1 }],
@@ -129,6 +132,15 @@
     return r;
   }
   function settle(r) { r.classList.remove("thinking"); $(".body", r).innerHTML = ""; }
+  // A turn can end before the conclusion (Claude says what it will check next but doesn't ask). Offer Douglas a
+  // one-click reply under it, like the suggestion on the empty page; nothing is sent unless he clicks it.
+  const SUGGEST_ICON = icon('<path d="M7 17 17 7M9 7h8v8"/>', 2.2);
+  function offerNudge(text, upTo) {
+    if (concluded(upTo) || /\?\s*$/.test(text)) return;
+    const r = row("nudge", `<button type="button" class="suggest"><span class="sg-ico">${SUGGEST_ICON}</span><span>${NUDGE}</span></button>`);
+    $("button", r).onclick = (e) => { if (!busy && !replaying) send(NUDGE, e.currentTarget); };
+  }
+  function dropNudge() { const n = $(".msg.nudge", feed); if (n) n.remove(); }
   function leaveEmpty() { $("#chatEmpty").classList.add("gone"); }
 
   // Claude's text → HTML: paragraphs, simple lists, **bold**, *italic*. Everything else stays plain text.
@@ -479,6 +491,7 @@
   // `lead`: Douglas's message is still flying into place, so "Claude is thinking…" waits for it (the request doesn't).
   async function converse(my, lead = 0) {
     busy = true; composerState();
+    let said = "";
     for (let round = 0; round < 16; round++) {
       const t0 = performance.now(), asked = fetchReply();
       asked.catch(() => {});   // handled below; this only keeps the browser quiet while we wait
@@ -499,6 +512,7 @@
       await sleep(THINK_MS - (performance.now() - t0));
       settle(think);
       messages.push(reply);
+      said = reply.content.trim();
       const results = await play(reply, my, null);
       if (!results) return;
       if (!reply.tool_calls) break;
@@ -506,6 +520,7 @@
     }
     busy = false; composerState();
     save();
+    offerNudge(said);
   }
 
   function failed(err, my) {
@@ -523,7 +538,7 @@
   }
 
   // ---------- save and replay ----------
-  const concluded = () => messages.some((m) => (m.tool_calls || []).some((c) => c.function.name === "show_conclusion"));
+  const concluded = (list = messages) => list.some((m) => (m.tool_calls || []).some((c) => c.function.name === "show_conclusion"));
   function save() {
     if (replaying || !concluded()) return;
     try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, model: modelId, at: startedAt, messages, ms: latencies })); } catch {}
@@ -548,14 +563,14 @@
     const results = new Map(rec.messages.filter((m) => m.role === "tool").map((m) => { try { return [m.tool_call_id, JSON.parse(m.content)]; } catch { return [m.tool_call_id, {}]; } }));
     let k = 0;
     await sleep(700);
-    for (const m of rec.messages) {
+    for (const [i, m] of rec.messages.entries()) {
       if (my !== gen) return;
       if (m.role === "user") {
-        const first = !feed.childElementCount;
-        const viaChip = first && m.content === STARTER;
-        if (viaChip) { $("#chatSuggest").classList.add("press"); await sleep(260); } else await typeIn(m.content, my);
+        const nudge = $(".msg.nudge button", feed);
+        const chip = !feed.childElementCount && m.content === STARTER ? $("#chatSuggest") : nudge && m.content === NUDGE ? nudge : null;
+        if (chip) { await sleep(900); chip.classList.add("press"); await sleep(180); } else await typeIn(m.content, my);
         if (my !== gen) return;
-        userSays(m.content, viaChip ? $("#chatSuggest") : input);
+        userSays(m.content, chip || input);
         leaveEmpty();
       } else if (m.role === "assistant") {
         const think = thinkingRow();
@@ -563,6 +578,7 @@
         if (my !== gen) return;
         settle(think);
         if (!(await play(m, my, results))) return;
+        if (!m.tool_calls && i < rec.messages.length - 1) offerNudge(m.content.trim(), rec.messages.slice(0, i + 1));
       }
     }
     messages = rec.messages.slice(); latencies = (rec.ms || []).slice();
@@ -632,7 +648,7 @@
 
   $(".hello .spark").innerHTML = SPARK;
   $("#chatServers").innerHTML = Object.entries(SERVERS).map(([name, [color, paths]]) => `<span class="server" style="--c:${color}"><i>${icon(paths)}</i>${name}</span>`).join("");
-  $("#chatSuggest").innerHTML = `<span class="sg-ico">${icon('<path d="M7 17 17 7M9 7h8v8"/>', 2.2)}</span><span>${esc(STARTER)}</span>`;
+  $("#chatSuggest").innerHTML = `<span class="sg-ico">${SUGGEST_ICON}</span><span>${esc(STARTER)}</span>`;
   $("#chatSuggest").addEventListener("click", () => { if (!busy && !replaying && !messages.length) send(STARTER, $("#chatSuggest")); });
   $("#composer").addEventListener("submit", (e) => { e.preventDefault(); submit(); });
   input.addEventListener("input", composerState);
