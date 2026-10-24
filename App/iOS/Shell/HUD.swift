@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// App-wide HUD toast ("Saved · Claude will include it"). Dark Raft HUD, drops in from the top.
+/// App-wide HUD toast ("Good morning, Douglas · last night is ready"). Dark Raft HUD, drops in from
+/// the top. Anything can raise one with `NotificationCenter.default.postTwinToast(_:)`.
 @MainActor
 final class ShellToasts: ObservableObject {
     struct Toast: Identifiable, Equatable {

@@ -34,6 +34,8 @@ struct PermissionsScreen: View {
     @State private var versionTaps: [Date] = []
     /// Swipe back from the left edge: how far the page follows the finger.
     @State private var drag: CGFloat = 0
+    /// The cards have scrolled under the header (it then shows the frame's seam).
+    @State private var scrolled = false
 
     var body: some View {
         GeometryReader { proxy in
@@ -55,6 +57,7 @@ struct PermissionsScreen: View {
                         }
                         .padding(.bottom, 24)
                     }
+                    .modifier(ScrolledUnder(scrolled: $scrolled))
                     .scrollIndicators(.hidden)
                     .scrollBounceBehavior(.basedOnSize)
                     // Still behind the scrolling content: yellow above (pull down), paper below.
@@ -105,6 +108,10 @@ struct PermissionsScreen: View {
         .background(alignment: .bottom) {
             Twin.Palette.frame.ignoresSafeArea(edges: .top)
         }
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Twin.Palette.seam).frame(height: 1).opacity(scrolled ? 1 : 0)
+        }
+        .zIndex(1)
     }
 
     /// The cards on the yellow frame.
@@ -234,6 +241,24 @@ struct PermissionsScreen: View {
         #else
         false
         #endif
+    }
+}
+
+/// Sets `scrolled` while the content is scrolled up under the header (iOS 18 and later; on iOS 17
+/// the header simply never shows its seam).
+private struct ScrolledUnder: ViewModifier {
+    @Binding var scrolled: Bool
+
+    func body(content: Content) -> some View {
+        if #available(iOS 18.0, *) {
+            content.onScrollGeometryChange(for: Bool.self) { geometry in
+                geometry.contentOffset.y + geometry.contentInsets.top > 1
+            } action: { _, under in
+                withAnimation(.easeOut(duration: 0.15)) { scrolled = under }
+            }
+        } else {
+            content
+        }
     }
 }
 
