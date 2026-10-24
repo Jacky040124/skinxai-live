@@ -44,13 +44,13 @@ final class LiveMotionFeed: @unchecked Sendable {
 ///
 ///     R(n) = √( mean of m² over the last 12 values )   (0.48 s)
 ///     I(n) = I(n−1) + 0.15 · (R(n) − I(n−1))
-///     scratching starts when I ≥ 0.20 g and stops when I < 0.15 g (a small gap so it doesn't flicker)
+///     scratching starts when I ≥ 0.75 g and stops when I < 0.60 g (a small gap so it doesn't flicker)
 ///
 /// The graph draws I and colors it orange while above the threshold; `LiveSession` runs the same meter
 /// on every value the relay delivers to time the scratching (the stopwatch) and count the scratches.
 struct IntensityMeter {
-    static let startAt = 0.20
-    static let stopAt = 0.15
+    static let startAt = 0.75
+    static let stopAt = 0.60
     static let window = 12
     static let smoothing = 0.15
 
