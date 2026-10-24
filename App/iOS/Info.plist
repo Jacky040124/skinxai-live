@@ -20,8 +20,6 @@
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
 	<string>10</string>
-	<key>NSCameraUsageDescription</key>
-	<string>Take a photo of a product label so Claude can read the ingredients.</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>Eczema Twin reads your sleep and heart data to understand your flares.</string>
 	<key>NSHealthUpdateUsageDescription</key>

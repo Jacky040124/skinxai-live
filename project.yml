@@ -51,7 +51,6 @@ targets:
         NSHealthShareUsageDescription: Eczema Twin reads your sleep and heart data to understand your flares.
         NSHealthUpdateUsageDescription: Eczema Twin saves nothing to Health.
         NSLocationWhenInUseUsageDescription: Eczema Twin uses your location for local humidity, air quality and pollen.
-        NSCameraUsageDescription: Take a photo of a product label so Claude can read the ingredients.
   EczemaTwinWatch:
     type: application
     platform: watchOS

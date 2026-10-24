@@ -48,8 +48,7 @@ struct TodayScreen: View {
                     .buttonStyle(PressableStyle())
                     .accessibilityHint("Shows today's episodes")
             }
-            // The demo tour (`-autoplay tour`) shows its touch ripple on this card.
-            section(1) { claudeCard(snap).tourTarget("claudeCard") }
+            section(1) { claudeCard(snap) }
             section(2) {
                 HStack(alignment: .top, spacing: Twin.Space.m) {
                     sleepCard(snap)
@@ -62,7 +61,7 @@ struct TodayScreen: View {
                                    locationOn: access.location == .on, onFix: openSettings)
             }
             section(4) {
-                TodayLoggedCard(exposures: snap.loggedToday) { app.showTagSheet = true }
+                TodayLoggedCard(exposures: snap.loggedToday) {}
             }
         } else {
             section(0) { TodayEmptyCard() }
@@ -86,18 +85,18 @@ struct TodayScreen: View {
                 TodayActionCard(symbol: "flask.fill",
                                 title: "Day \(dayN) of your test",
                                 subtitle: "\(test.plan.title) · " + (left == 0 ? "last day" : TodayTrends.Format.count(left, "day") + " to go"),
-                                action: { app.select(.experiment) }) {
+                                action: { app.select(.insight) }) {
                     TodayTestTiles(day: dayN, length: test.plan.lengthDays)
                 }
             case .confirmed:
                 TodayActionCard(symbol: "checkmark.seal.fill", title: "Your test result is in",
                                 subtitle: "It worked: scratching dropped while you kept the change.",
                                 fill: Twin.Palette.limeSoft, tile: Twin.Palette.lime,
-                                action: { app.select(.experiment) }) { EmptyView() }
+                                action: { app.select(.insight) }) { EmptyView() }
             default:
                 TodayActionCard(symbol: "flask.fill", title: "Your test result is in",
                                 subtitle: "No clear change yet. See what Claude suggests next.",
-                                action: { app.select(.experiment) }) { EmptyView() }
+                                action: { app.select(.insight) }) { EmptyView() }
             }
         } else if let cf = ds.caseFile {
             if let flag = cf.redFlags.first {
@@ -168,6 +167,6 @@ struct TodayScreen: View {
 
     /// The press itself gives the haptic (PressableStyle).
     private func openSettings() {
-        app.showSettings = true
+        app.showPermissions = true
     }
 }

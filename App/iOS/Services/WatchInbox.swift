@@ -69,9 +69,6 @@ final class WatchInbox: NSObject, ObservableObject {
         DispatchQueue.main.async { [weak self] in self?.onEpisodes?(batch) }
     }
 
-    /// QA (`-shellDemo inbox`): a payload takes the same path as a WatchConnectivity delivery.
-    func simulateDelivery(_ payload: [String: Any]) { receive(payload) }
-
     /// Decodes the contract payload. `nil` when the payload is something else.
     nonisolated static func decode(_ payload: [String: Any]) -> [ScratchEpisode]? {
         guard payload["kind"] as? String == "episodes", let data = payload["data"] as? Data else { return nil }

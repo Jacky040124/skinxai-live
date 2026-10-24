@@ -18,7 +18,7 @@ struct TwinTabBar: View {
                 item(tab)
             }
         }
-        .padding(.horizontal, 10)
+        .padding(.horizontal, 24)
         .padding(.top, 8)
         .padding(.bottom, 2)
         // One sticker for the whole bar; it follows the selected icon slot.
@@ -93,7 +93,6 @@ struct TwinTabBar: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(TabPressStyle())
-        .tourTarget("tab.\(tab.rawValue)")
         .accessibilityLabel(tab.title)
         .accessibilityAddTraits(on ? [.isSelected] : [])
     }
