@@ -79,7 +79,7 @@ struct RootView: View {
         case .today: TodayScreen()
         case .trends: TrendsScreen()
         case .insight: InsightScreen()
-        case .experiment: ExperimentScreen()
+        case .experiment: Color.clear   // the Test tab's screens are gone (stage build)
         }
     }
 

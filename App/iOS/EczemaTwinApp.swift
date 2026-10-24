@@ -13,6 +13,8 @@ struct EczemaTwinApp: App {
         WatchInbox.shared.activate()
         // The live session follows the watch from launch, whatever screen is up.
         _ = LiveSession.shared
+        // The chat hears the hidden "Replay last Claude chat" control even before Insight is opened.
+        _ = ChatSession.shared
     }
 
     var body: some Scene {
