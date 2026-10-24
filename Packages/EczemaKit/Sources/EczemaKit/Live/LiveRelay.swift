@@ -241,10 +241,13 @@ public struct LiveRelayState: Sendable {
                     if ignoring { ignoring = false } else { changes += endEpisode(at: now, intense: event.intense) }
                 }
             }
-            // Lost `end`: batches flow, but no scratch window for 6 s.
-            if episodeOpen, let last = lastScratchWindowAt ?? episodes.last?.start,
-               now.timeIntervalSince(last) >= Self.lostEndAfter {
-                changes += endEpisode(at: last.addingTimeInterval(Self.scratchHold), intense: false)
+            // Lost `end`: batches flow, but no scratch window for 6 s (counted from the episode's
+            // start at the earliest).
+            if episodeOpen, let start = episodes.last?.start {
+                let last = max(lastScratchWindowAt ?? start, start)
+                if now.timeIntervalSince(last) >= Self.lostEndAfter {
+                    changes += endEpisode(at: last.addingTimeInterval(Self.scratchHold), intense: false)
+                }
             }
             if ignoring, let since = ignoringSince, now.timeIntervalSince(since) >= Self.lostEndAfter {
                 ignoring = false

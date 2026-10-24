@@ -135,6 +135,16 @@ import Testing
         #expect(s.take(batch([], [.init(.end)]), at: at(8)).isEmpty)
         #expect(s.take(batch([Self.scratchWindow], [.init(.start)]), at: at(9)) == [.episodeStarted(2)])
 
+        // An episode that started on an older scratch window gets its full 6 s from its own start.
+        var late = LiveRelayState()
+        late.take(batch([Self.scratchWindow]), at: at(0))
+        late.take(batch(), at: at(2))
+        late.take(batch(), at: at(4))
+        #expect(late.take(batch([], [.init(.start)]), at: at(5)) == [.episodeStarted(1)])
+        #expect(late.take(batch([Self.calmWindow]), at: at(10.9)).isEmpty)
+        #expect(late.take(batch([Self.calmWindow]), at: at(11)) == [.episodeEnded(1)])
+        #expect(late.episodes[0].end == at(6.2))
+
         // A long silence is the stop rule's business, not this one's: no batches, nothing ends here.
         var quiet = LiveRelayState()
         quiet.take(batch([Self.scratchWindow], [.init(.start)]), at: at(0))
