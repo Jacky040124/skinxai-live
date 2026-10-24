@@ -110,8 +110,10 @@ final class DemoTour: ObservableObject {
                 }
                 app.setExperimentDay(day)
             }
-            // Result moment (card flip, burst, success haptic) belongs to the Test screen.
-            try await wait(3.2)
+            // Result moment (card flip, burst, success haptic) belongs to the Test screen. Its verdict
+            // lands ~1.5 s after day 10 (the ring closes first, then the card turns over); this keeps
+            // "Confirmed" on screen for about 3 s before Trends.
+            try await wait(4.0)
 
             // 4. Trends: the whole story, flare and recovery.
             try await tap("tab.trends", fallback: nil)

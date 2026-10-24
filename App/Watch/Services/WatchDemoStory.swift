@@ -10,23 +10,29 @@ enum WatchDemoStory {
         // Built at the moment the iPhone built its story (same day only), so "today so far" ends at
         // the same hour on both.
         let at = context.storyAt.flatMap { calendar.isDate($0, inSameDayAs: now) && $0 <= now ? $0 : nil } ?? now
-        if let day = context.expDay { return DemoData.make(today: at, experimentDay: day, calendar: calendar) }
+        // Today is revealed through the same hour as on the iPhone (`DemoData.storyRevealHour`:
+        // never before 7 am, so a night rehearsal shows last night's flare on both).
+        let reveal = DemoData.storyRevealHour(at: at, calendar: calendar)
+        if let day = context.expDay {
+            return DemoData.make(today: at, experimentDay: day, revealThroughHour: reveal, calendar: calendar)
+        }
         if let day = context.storyDay { return flareStory(day: day, now: at, calendar: calendar) }
-        return DemoData.make(today: at, calendar: calendar)
+        return DemoData.make(today: at, revealThroughHour: reveal, calendar: calendar)
     }
 
     /// Day `day` (1...14) of the flare story as today. Mirrors `StoryClock.flareStory(day:)`.
     static func flareStory(day: Int, now: Date, calendar: Calendar) -> TwinDataset {
         let n = DemoData.flareMinutes.count
         let day = min(max(day, 1), n)
-        if day == n { return DemoData.make(today: now, calendar: calendar) }
+        let reveal = DemoData.storyRevealHour(at: now, calendar: calendar)
+        if day == n { return DemoData.make(today: now, revealThroughHour: reveal, calendar: calendar) }
 
         // Generate the story so that story day `day` lands on today's date.
         let shift = n - day
         let shifted = calendar.date(byAdding: .day, value: shift, to: now) ?? now
         let full = DemoData.make(today: shifted, calendar: calendar)
         var story = Array(full.days.prefix(day))
-        guard let first = story.first else { return DemoData.make(today: now, calendar: calendar) }
+        guard let first = story.first else { return DemoData.make(today: now, revealThroughHour: reveal, calendar: calendar) }
 
         // Calm days in front, so the window stays 14 days long.
         let calm = Array(full.days.prefix(DemoData.flareStartDay))
@@ -41,10 +47,9 @@ enum WatchDemoStory {
             pad.append(record)
         }
 
-        // Today: hours after "now" haven't happened yet.
-        let nowHour = calendar.component(.hour, from: now)
+        // Today: hours after "now" haven't happened yet (but last night always has).
         var today = story[story.count - 1]
-        for h in 0..<24 where h > nowHour { today.scratchMinutesByHour[h] = 0 }
+        for h in 0..<24 where h > reveal { today.scratchMinutesByHour[h] = 0 }
         story[story.count - 1] = today
 
         var days = pad + story

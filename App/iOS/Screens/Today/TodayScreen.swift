@@ -158,7 +158,7 @@ struct TodayScreen: View {
         switch access.health {
         case .unavailable:
             return .init(note: note, action: nil, onTap: nil)
-        case .on:
+        case .on, .asked:
             // Health was asked; it simply has nothing for this night yet.
             return .init(note: note + " yet", action: nil, onTap: openSettings)
         case .notAsked, .off:
