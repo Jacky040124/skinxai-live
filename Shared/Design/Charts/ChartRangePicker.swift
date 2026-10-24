@@ -66,9 +66,12 @@ struct SparkBars: View {
                     ForEach(Array(values.enumerated()), id: \.offset) { i, v in
                         let last = i == values.count - 1
                         let full = v > 0 ? max(2, CGFloat(v / top) * geo.size.height) : 0
+                        // Grows as a render transform (the layout never changes), so the spring
+                        // only overshoots the bar's own height a little.
                         RoundedRectangle(cornerRadius: 1, style: .continuous)
                             .fill(last ? highlight : Twin.Palette.ink.opacity(0.15))
-                            .frame(height: (grown || reduceMotion) ? full : 0)
+                            .frame(height: full)
+                            .scaleEffect(x: 1, y: (grown || reduceMotion) ? 1 : 0.001, anchor: .bottom)
                             .opacity(grown ? 1 : 0)
                             .animation(reduceMotion ? .easeOut(duration: 0.3).delay(delay)
                                                     : Twin.Motion.bouncy.delay(delay + Double(i) * 0.04), value: grown)

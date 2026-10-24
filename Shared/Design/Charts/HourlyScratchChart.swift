@@ -69,15 +69,16 @@ struct HourlyScratchChart: View {
         let isHot = hot.contains(h) && !future
         let full = future ? 0 : max(2, CGFloat(v / top) * plotHeight)
         // A bar that has not grown yet is not there at all (no 2 pt stub with an ink edge waiting
-        // on the baseline): it grows out of the baseline and fades in on its own beat.
+        // on the baseline): it grows out of the baseline (a render transform, so the spring only
+        // overshoots its own height a little) and fades in on its own beat.
         // Reduce Motion: full height, fade only.
-        let height = (grown || reduceMotion) ? full : 0
         let shape = UnevenRoundedRectangle(topLeadingRadius: 2, topTrailingRadius: 2, style: .continuous)
         return shape
             .fill(isHot ? accent : Twin.Palette.ink.opacity(0.14))
             .overlay { if isHot && full >= 4 { shape.strokeBorder(Twin.Palette.ink, lineWidth: 1) } }
             .frame(maxWidth: .infinity)
-            .frame(height: height)
+            .frame(height: full)
+            .scaleEffect(x: 1, y: (grown || reduceMotion) ? 1 : 0.001, anchor: .bottom)
             .opacity(grown ? 1 : 0)
             .animation(reduceMotion ? nil : Twin.Motion.bouncy.delay(delay + Double(h) * 0.03), value: grown)
     }

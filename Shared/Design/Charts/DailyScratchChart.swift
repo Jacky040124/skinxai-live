@@ -137,19 +137,21 @@ struct DailyScratchChart: View {
         let selected = selection == bar.id
         let full = barHeight(bar.value)
         // Not grown yet = not there (no 3 pt stub with an ink edge on the baseline): each bar grows
-        // out of the baseline and fades in on its beat. Reduce Motion: full height, fade only.
-        let h = (grown || reduceMotion) ? full : 0
+        // out of the baseline as a render transform (its layout never changes, so the spring only
+        // overshoots its own height a little) and fades in on its beat; the selection outline grows
+        // with it. Reduce Motion: full height, fade only.
         return ZStack(alignment: .bottom) {
             barShape(bar.tone)
-                .frame(width: bw, height: h)
+                .frame(width: bw, height: full)
             if selected {
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
                     .strokeBorder(Twin.Palette.cyan, lineWidth: 2.5)
-                    .frame(width: bw + 9, height: h + 9)
+                    .frame(width: bw + 9, height: full + 9)
                     .matchedGeometryEffect(id: "selected-day", in: ns)
                     .offset(y: 4.5)
             }
         }
+        .scaleEffect(x: 1, y: (grown || reduceMotion) ? 1 : 0.001, anchor: .bottom)
         .opacity(grown ? 1 : 0)
         .animation(reduceMotion ? nil : Twin.Motion.bouncy.delay(delay + Double(i) * 0.035), value: grown)
         .frame(width: step, height: plotHeight, alignment: .bottom)
