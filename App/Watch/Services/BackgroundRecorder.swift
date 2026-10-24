@@ -4,12 +4,42 @@ import EczemaKit
 
 /// All-day detection without keeping the app awake: `CMSensorRecorder` records the accelerometer
 /// at 50 Hz for 12 hours at a time (re-armed whenever the app opens), and the recording is read
-/// back and analysed in 1-hour slices with the personal model.
+/// back in 5-minute slices and analysed with the personal model.
+///
+/// Every read has a budget: how much recording it may read and how long it may take. A background
+/// refresh gets a few seconds of CPU from watchOS, so it reads at most 15 minutes of recording;
+/// opening the app reads up to 2 hours (off the main thread). Whatever is left is read next time.
 final class BackgroundRecorder: @unchecked Sendable {
     static let recordingLength: TimeInterval = 12 * 3600
-    static let sliceLength: TimeInterval = 3600
+    static let sliceLength: TimeInterval = 5 * 60
     /// Recorded samples become readable a few minutes after the fact.
     static let dataLatency: TimeInterval = 180
+    /// CMSensorRecorder keeps recorded data for 3 days.
+    static let retention: TimeInterval = 3 * 86_400
+
+    struct Budget: Sendable {
+        /// Most recording one run reads.
+        var recording: TimeInterval
+        /// Most wall-clock time one run takes.
+        var seconds: TimeInterval
+
+        static let backgroundRefresh = Budget(recording: 15 * 60, seconds: 2.5)
+        static let appOpen = Budget(recording: 2 * 3600, seconds: 20)
+    }
+
+    /// Stops a run early (background task expiring, app leaving the screen).
+    final class Cancel: @unchecked Sendable {
+        private let lock = NSLock()
+        private var flag = false
+        func cancel() { lock.lock(); flag = true; lock.unlock() }
+        var isCancelled: Bool { lock.lock(); defer { lock.unlock() }; return flag }
+    }
+
+    struct Result: Sendable {
+        var episodes: [DetectedEpisode]
+        /// Read up to here; the next run starts here.
+        var through: Date
+    }
 
     /// false in the simulator and on watches without the recorder.
     static var isAvailable: Bool { CMSensorRecorder.isAccelerometerRecordingAvailable() }
@@ -30,36 +60,31 @@ final class BackgroundRecorder: @unchecked Sendable {
         return now.addingTimeInterval(Self.recordingLength)
     }
 
-    /// Reads the recording from `from` up to a few minutes ago, one hour at a time (at most
-    /// `maxSlices` hours per call), and returns the episodes found and how far it got.
-    func analyze(from: Date, model: ScratchModel, maxSlices: Int) async -> (episodes: [DetectedEpisode], through: Date)? {
+    /// Reads the recording from `from` on, within `budget`, and returns the episodes found and how
+    /// far it got. nil when there is nothing new to read yet.
+    func analyze(from start: Date, model: ScratchModel, budget: Budget, cancel: Cancel) async -> Result? {
         guard Self.isAvailable, !Self.isDenied else { return nil }
-        let end = Date().addingTimeInterval(-Self.dataLatency)
+        let now = Date()
+        let from = max(start, now.addingTimeInterval(-Self.retention))
+        let end = min(now.addingTimeInterval(-Self.dataLatency), from.addingTimeInterval(budget.recording))
         guard end.timeIntervalSince(from) > 60 else { return nil }
         let recorder = self.recorder
         return await withCheckedContinuation { continuation in
             queue.async {
-                let detector = ScratchDetector(model: model, source: .recorded)
-                var found: [DetectedEpisode] = []
-                var sliceStart = from
-                var slices = 0
-                while sliceStart < end && slices < maxSlices {
-                    let sliceEnd = min(sliceStart.addingTimeInterval(Self.sliceLength), end)
+                let deadline = Date().addingTimeInterval(budget.seconds)
+                let run = RecordingAnalysis.run(from: from, to: end, sliceLength: Self.sliceLength, model: model,
+                                                outOfTime: { cancel.isCancelled || Date() >= deadline }) { sliceStart, sliceEnd, body in
                     autoreleasepool {
-                        if let list = recorder.accelerometerData(from: sliceStart, to: sliceEnd) {
-                            var iterator = NSFastEnumerationIterator(list)
-                            while let item = iterator.next() {
-                                guard let d = item as? CMRecordedAccelerometerData else { continue }
-                                let sample = MotionSample(date: d.startDate, x: d.acceleration.x, y: d.acceleration.y, z: d.acceleration.z)
-                                found += detector.process(sample).episodes
-                            }
+                        guard let list = recorder.accelerometerData(from: sliceStart, to: sliceEnd) else { return }
+                        var iterator = NSFastEnumerationIterator(list)
+                        while let item = iterator.next() {
+                            guard let d = item as? CMRecordedAccelerometerData else { continue }
+                            let sample = MotionSample(date: d.startDate, x: d.acceleration.x, y: d.acceleration.y, z: d.acceleration.z)
+                            if !body(sample) { return }
                         }
                     }
-                    sliceStart = sliceEnd
-                    slices += 1
                 }
-                found += detector.finish().episodes
-                continuation.resume(returning: (found, sliceStart))
+                continuation.resume(returning: Result(episodes: run.episodes, through: run.through))
             }
         }
     }

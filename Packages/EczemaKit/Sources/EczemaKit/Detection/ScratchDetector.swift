@@ -43,6 +43,12 @@ public final class ScratchDetector {
     /// true while an episode is open.
     public var isInEpisode: Bool { tracker.isInEpisode }
 
+    /// Where to read the data again from when the stream is cut here and picked up later (batch
+    /// analysis in pieces): the first window of an open episode, or of a lone scratch window that
+    /// may still start one. Re-reading from there keeps one bout of scratching one episode.
+    /// nil when nothing is pending.
+    public var pendingSince: Date? { tracker.pendingSince.map { Date(timeIntervalSinceReferenceDate: $0) } }
+
     @discardableResult
     public func process(_ sample: MotionSample) -> [DetectorEvent] {
         var events: [DetectorEvent] = []

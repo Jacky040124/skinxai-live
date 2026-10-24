@@ -4,7 +4,6 @@ import EczemaKit
 /// Default screen: today's scratching against your usual, episode counts, and live detection.
 struct RingScreen: View {
     @EnvironmentObject var model: WatchModel
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Tap the ring: the middle flips to "3.2× your usual" for a moment and the usual tick pops.
     @State private var showRatio = false
     @State private var flipBack: Task<Void, Never>?
@@ -12,34 +11,34 @@ struct RingScreen: View {
     var body: some View {
         let today = model.today
         // Coming back from the alert, the ring resumes from where it was and ticks up from there.
-        let from = model.ringResume
+        let resumed = model.ringResume != nil
         GeometryReader { geo in
             let m = RingMetrics(size: geo.size)
             VStack(spacing: 0) {
-                WatchRing(progress: today.progress, startProgress: from?.progress, usualMark: today.usualMark,
-                          color: today.aboveUsual ? Twin.Palette.orange : Twin.Palette.lime, lineWidth: m.lineWidth,
-                          highlightMark: showRatio) {
-                    RingCenter(minutes: today.minutes, from: from?.minutes, ratio: today.ratio, showRatio: showRatio,
-                               metrics: m)
-                }
-                .frame(width: m.ring, height: m.ring)
-                .contentShape(Circle())
-                .onTapGesture { flip() }
-                .onLongPressGesture(minimumDuration: 0.8) { model.presentDemoAlert() }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Scratching today")
-                .accessibilityValue(accessibilityValue(today))
-                .accessibilityAction(named: "Ask if I was scratching") { model.presentDemoAlert() }
+                TodayDial(today: today, resumeFrom: model.ringResume?.minutes, showRatio: showRatio, metrics: m)
+                    .frame(width: m.ring, height: m.ring)
+                    .contentShape(Circle())
+                    .onTapGesture { flip() }
+                    .onLongPressGesture(minimumDuration: 0.8) { model.presentDemoAlert() }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("Scratching today")
+                    .accessibilityValue(accessibilityValue(today))
+                    .accessibilityActions {
+                        if model.canAskDemoQuestion {
+                            Button("Ask if I was scratching") { model.presentDemoAlert() }
+                        }
+                    }
 
+                // Back from the alert, these rise as the ring comes in (WatchRootView delays it).
                 StatsRow(episodes: today.episodes, intense: today.intense, size: m.compact ? 14 : 16)
                     .padding(.top, m.compact ? 3 : 6)
-                    .watchRise(from == nil ? 0.45 : 0.05, distance: 8)
+                    .watchRise(resumed ? 0.22 : 0.45, distance: 8)
 
                 Spacer(minLength: 4)
 
                 LiveControl(height: m.controlHeight, fontSize: m.compact ? 13 : 14, slots: m.compact ? 6 : 10)
                     .frame(maxWidth: m.controlWidth)
-                    .watchRise(from == nil ? 0.6 : 0.12, distance: 10)
+                    .watchRise(resumed ? 0.28 : 0.6, distance: 10)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -70,6 +69,56 @@ struct RingScreen: View {
     }
 }
 
+/// The ring and its number. One animated value (`shown`, in minutes) drives both, so the arc
+/// and the count always agree: when the ring is at the 30-minute mark the middle reads 30.
+/// It fills from zero on launch; back from the alert it resumes from the value it showed then and
+/// ticks up from there, the new stretch glowing white.
+private struct TodayDial: View {
+    var today: TodaySummary
+    var showRatio: Bool
+    var metrics: RingMetrics
+    private let resumed: Bool
+    @State private var shown: Double
+    @State private var gainFrom: Double = 0
+    @State private var gainID = 0
+    @State private var markShown: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Delay before the ring starts filling when it appears.
+    private static let delay = 0.15
+
+    init(today: TodaySummary, resumeFrom: Double?, showRatio: Bool, metrics: RingMetrics) {
+        self.today = today
+        self.showRatio = showRatio
+        self.metrics = metrics
+        resumed = resumeFrom != nil
+        _shown = State(initialValue: resumeFrom ?? 0)
+        _markShown = State(initialValue: resumeFrom != nil)
+    }
+
+    var body: some View {
+        WatchRing(minutes: shown, scale: today.scale, usualMark: today.usualMark,
+                  color: today.aboveUsual ? Twin.Palette.orange : Twin.Palette.lime, lineWidth: metrics.lineWidth,
+                  gainFrom: gainFrom, gainID: gainID, markShown: markShown, highlightMark: showRatio) { minutes in
+            RingCenter(minutes: minutes, ratio: today.ratio, showRatio: showRatio, metrics: metrics)
+        }
+        .onAppear {
+            if !markShown { withAnimation(Twin.Motion.bouncy.delay(Self.delay + 0.9)) { markShown = true } }
+            move(to: today.minutes, delay: Self.delay, glows: resumed)
+        }
+        .onChange(of: today.minutes) { _, new in move(to: new, delay: 0, glows: true) }
+    }
+
+    private func move(to target: Double, delay: Double, glows: Bool) {
+        guard abs(target - shown) > 0.0005 else { return }
+        if glows, target > shown + 0.05, !reduceMotion {
+            gainFrom = shown
+            gainID += 1
+        }
+        withAnimation(Twin.Motion.fill.delay(delay)) { shown = target }
+    }
+}
+
 /// Sizes of the ring screen for the watch it runs on (40 mm up to Ultra).
 struct RingMetrics {
     let compact: Bool
@@ -93,10 +142,10 @@ struct RingMetrics {
     }
 }
 
-/// The counted number and its unit inside the ring; flips to the ratio against your usual.
+/// The number and its unit inside the ring (given the ring's own animated minutes); flips to the
+/// ratio against your usual.
 private struct RingCenter: View {
     var minutes: Double
-    var from: Double?
     var ratio: Double
     var showRatio: Bool
     var metrics: RingMetrics
@@ -105,8 +154,10 @@ private struct RingCenter: View {
     var body: some View {
         ZStack {
             VStack(spacing: 0) {
-                WatchCountUp(value: minutes.rounded(), from: from?.rounded(), font: WatchFont.sans(metrics.number, .bold),
-                             delay: 0.2, duration: 1.2)
+                Text("\(Int(minutes.rounded()))")
+                    .font(WatchFont.sans(metrics.number, .bold))
+                    .monospacedDigit()
+                    .foregroundStyle(.white)
                     .tracking(-metrics.number * 0.038)
                     .lineLimit(1)
                     .minimumScaleFactor(0.6)

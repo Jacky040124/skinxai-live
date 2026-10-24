@@ -64,6 +64,16 @@ struct EpisodeTracker {
         return false
     }
 
+    /// Start of the first window that can still end up in an episode: the open episode's first
+    /// window, or a lone scratch window waiting for a second one. nil when nothing is pending.
+    var pendingSince: TimeInterval? {
+        switch state {
+        case .idle: return nil
+        case let .candidate(first, _): return first.features.start
+        case let .active(_, windows, _): return windows.first?.features.start
+        }
+    }
+
     mutating func feed(_ w: WindowResult) -> [DetectorEvent] {
         switch state {
         case .idle:

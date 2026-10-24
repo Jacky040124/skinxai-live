@@ -260,6 +260,127 @@ import Testing
         #expect(FeatureExtractor.crossingScore(2) > 0 && FeatureExtractor.crossingScore(2) < 1)
     }
 
+    // MARK: - Reading a recording in pieces (watch background refresh)
+
+    @Test func pendingSinceIsNilWhenNothingIsGoingOn() {
+        let detector = ScratchDetector()
+        detector.process(signal { $0.still(10) })
+        #expect(detector.pendingSince == nil)
+        detector.process(signal { $0.still(10); $0.scratch(8, hz: 4); $0.still(8) }.filter { $0.t > Self.t0 + 10 })
+        #expect(detector.pendingSince == nil, "the episode is over")
+    }
+
+    @Test func pendingSinceMarksAnOpenEpisode() throws {
+        let detector = ScratchDetector()
+        let events = detector.process(signal { $0.still(6); $0.scratch(9, hz: 4) })
+        #expect(events.episodes.isEmpty)
+        #expect(detector.isInEpisode)
+        let since = seconds(try #require(detector.pendingSince))
+        #expect(since >= 3 && since <= 7.5, "the first scratch window: \(since)")
+    }
+
+    /// A cut in the middle of a bout (time budget used up) must not split it: the next piece starts
+    /// again at `pendingSince` and finds one whole episode.
+    @Test func resumingAtPendingSinceKeepsOneEpisode() throws {
+        let samples = signal { $0.still(6); $0.scratch(12, hz: 4); $0.still(6) }
+        let whole = ScratchDetector.episodes(in: samples, model: ScratchModel()).map(\.episode)
+        #expect(whole.count == 1)
+
+        let first = ScratchDetector(source: .recorded)
+        let before = first.process(samples.filter { $0.t < Self.t0 + 12 })
+        #expect(before.episodes.isEmpty)
+        let resume = try #require(first.pendingSince).timeIntervalSinceReferenceDate
+        let second = ScratchDetector(source: .recorded)
+        let after = (second.process(samples.filter { $0.t >= resume }) + second.finish()).episodes.map(\.episode)
+        #expect(after.count == 1)
+        let e = try #require(after.first), w = try #require(whole.first)
+        #expect(abs(e.start.timeIntervalSince(w.start)) < 0.05)
+        #expect(abs(e.end.timeIntervalSince(w.end)) < 0.05)
+    }
+
+    // MARK: - RecordingAnalysis: the all-day recording, read within a budget
+
+    private func reader(_ samples: [MotionSample], delivered: @escaping () -> Void = {})
+        -> (Date, Date, (MotionSample) -> Bool) -> Void {
+        { from, to, body in
+            let a = from.timeIntervalSinceReferenceDate, b = to.timeIntervalSinceReferenceDate
+            for s in samples where s.t >= a && s.t < b {
+                delivered()
+                if !body(s) { return }
+            }
+        }
+    }
+
+    private var date0: Date { Date(timeIntervalSinceReferenceDate: Self.t0) }
+
+    /// Runs `RecordingAnalysis` again and again from where the last run stopped, each run allowed
+    /// `budget` samples, like background refreshes picking up the recording.
+    private func runInPieces(_ samples: [MotionSample], until end: Date, budget: Int)
+        -> (episodes: [ScratchEpisode], runs: Int) {
+        var from = date0
+        var episodes: [ScratchEpisode] = []
+        var runs = 0
+        while from < end && runs < 200 {
+            runs += 1
+            var used = 0
+            let r = RecordingAnalysis.run(from: from, to: end, sliceLength: 10, model: ScratchModel(), checkEvery: 50,
+                                          outOfTime: { used >= budget }, read: reader(samples) { used += 1 })
+            #expect(r.through > from, "every run moves on")
+            episodes += r.episodes.map(\.episode)
+            from = r.through
+        }
+        return (episodes, runs)
+    }
+
+    @Test func recordingInOneRunMatchesBatch() {
+        let samples = signal { $0.still(20); $0.scratch(12, hz: 4); $0.still(30); $0.scratch(9, hz: 5, amplitude: 0.5); $0.still(20) }
+        let end = date0.addingTimeInterval(91)
+        let r = RecordingAnalysis.run(from: date0, to: end, sliceLength: 10, model: ScratchModel(),
+                                      outOfTime: { false }, read: reader(samples))
+        let batch = ScratchDetector.episodes(in: samples, model: ScratchModel())
+        #expect(r.finished && r.through == end)
+        #expect(r.episodes.count == 2 && batch.count == 2)
+        #expect(r.episodes.map(\.episode.start) == batch.map(\.episode.start))
+        #expect(r.episodes.map(\.episode.end) == batch.map(\.episode.end))
+    }
+
+    @Test func cutRunsAddUpToTheWholeRecording() throws {
+        let samples = signal { $0.still(20); $0.scratch(12, hz: 4); $0.still(30); $0.scratch(9, hz: 5, amplitude: 0.5); $0.still(20) }
+        let end = date0.addingTimeInterval(91)
+        let whole = ScratchDetector.episodes(in: samples, model: ScratchModel()).map(\.episode)
+        // 1000 samples (20 s) per run: longer than a bout and its closing windows, so the runs can
+        // keep every bout whole, but both bouts get cut by a deadline at least once.
+        let pieces = runInPieces(samples, until: end, budget: 1000)
+        #expect(pieces.runs > 4)
+        #expect(pieces.episodes.count == whole.count,
+                "no bout split in two, none lost: \(pieces.episodes.map { (seconds($0.start), seconds($0.end)) })")
+        // A run that starts at a cut lays its 1.5 s hops elsewhere, so an edge can move by up to
+        // two hops; the bouts themselves stay whole.
+        for (a, b) in zip(pieces.episodes.sorted { $0.start < $1.start }, whole) {
+            #expect(abs(a.start.timeIntervalSince(b.start)) <= 3.1)
+            #expect(abs(a.end.timeIntervalSince(b.end)) <= 3.1)
+        }
+    }
+
+    @Test func boutLongerThanARunStillMovesOn() {
+        let samples = signal { $0.still(5); $0.scratch(40, hz: 4); $0.still(10) }
+        let end = date0.addingTimeInterval(55)
+        let pieces = runInPieces(samples, until: end, budget: 1000)   // 20 s per run
+        #expect(pieces.runs < 20, "terminates")
+        let sorted = pieces.episodes.sorted { $0.start < $1.start }
+        #expect(!sorted.isEmpty)
+        for (a, b) in zip(sorted, sorted.dropFirst()) { #expect(a.end <= b.start, "no overlap") }
+        let seconds = sorted.map(\.duration).reduce(0, +)
+        #expect(abs(seconds - 40) < 6, "the whole bout is counted: \(seconds) s")
+    }
+
+    @Test func outOfTimeBeforeTheFirstSliceReadsNothing() {
+        let samples = signal { $0.scratch(20, hz: 4) }
+        let r = RecordingAnalysis.run(from: date0, to: date0.addingTimeInterval(20), sliceLength: 10, model: ScratchModel(),
+                                      outOfTime: { true }, read: reader(samples))
+        #expect(!r.finished && r.through == date0 && r.episodes.isEmpty)
+    }
+
     // MARK: - Episodes travel to the phone as JSON (contract: default JSONEncoder)
 
     @Test func episodesRoundTripWithDefaultCoders() throws {

@@ -27,8 +27,9 @@ struct RecentScreen: View {
                 StatusCard()
                     .padding(.top, 10)
                     .watchRise(0.5, distance: 10)
-                if !model.usesRealData {
-                    Text("DEMO STORY · YOUR OWN DATA REPLACES IT")
+                if model.showsDemoStory {
+                    // The iPhone decides (Settings → Demo story); the watch shows the same.
+                    Text(["DEMO STORY", model.demoStoryDay, "SET ON YOUR IPHONE"].compactMap { $0 }.joined(separator: " · "))
                         .font(WatchFont.mono(8.5))
                         .tracking(0.3)
                         .foregroundStyle(Twin.Palette.nightMuted)

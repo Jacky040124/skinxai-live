@@ -120,6 +120,8 @@ struct WatchFlash: Equatable, Identifiable {
 
     static let logged = WatchFlash(text: "+1 logged", symbol: "checkmark", color: Twin.Palette.lime)
     static let ignored = WatchFlash(text: "Not counted", symbol: "xmark", color: .white)
+    /// A Yes that teaches the model but isn't real data (the simulator's wrist in real data mode).
+    static let learned = WatchFlash(text: "Learned", symbol: "sparkles", color: Twin.Palette.cyan)
 }
 
 /// A cyan dot that breathes while live detection runs (the only loop on the ring screen).
@@ -140,37 +142,6 @@ struct LiveDot: View {
             .frame(width: size, height: size)
         }
         .accessibilityHidden(true)
-    }
-}
-
-/// A number that counts up when it appears (from `from`, default 0) and whenever it changes.
-/// Like the shared `CountUp`, plus a starting value so the ring can resume where it was.
-struct WatchCountUp: View {
-    var value: Double
-    var font: Font
-    var color: Color = .white
-    var delay: Double = 0.1
-    var duration: Double = 1.1
-    @State private var shown: Double
-
-    init(value: Double, from: Double? = nil, font: Font, color: Color = .white, delay: Double = 0.1, duration: Double = 1.1) {
-        self.value = value
-        self.font = font
-        self.color = color
-        self.delay = delay
-        self.duration = duration
-        _shown = State(initialValue: from ?? 0)
-    }
-
-    var body: some View {
-        CountingText(value: shown, decimals: 0, font: font, color: color)
-            .onAppear {
-                guard shown != value else { return }
-                withAnimation(.easeOut(duration: duration).delay(delay)) { shown = value }
-            }
-            .onChange(of: value) { _, new in
-                withAnimation(.easeOut(duration: duration)) { shown = new }
-            }
     }
 }
 

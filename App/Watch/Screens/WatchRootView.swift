@@ -18,8 +18,7 @@ struct WatchRootView: View {
                         PageFrame(bottomMargin: 10) {
                             ScratchAlertView(alert: alert)
                         }
-                        .transition(reduceMotion ? .opacity : .asymmetric(insertion: .opacity,
-                                                                          removal: .scale(scale: 0.84).combined(with: .opacity)))
+                        .transition(alertTransition)
                         .zIndex(1)
                     } else {
                         TabView(selection: $model.page) {
@@ -29,8 +28,7 @@ struct WatchRootView: View {
                                 .tag(WatchModel.Page.recent)
                         }
                         .tabViewStyle(.verticalPage)
-                        .transition(reduceMotion ? .opacity : .asymmetric(insertion: .scale(scale: 1.08).combined(with: .opacity),
-                                                                          removal: .opacity))
+                        .transition(pagesTransition)
                     }
                 }
                 .frame(width: geo.size.width, height: geo.size.height)
@@ -47,6 +45,24 @@ struct WatchRootView: View {
     private var title: String {
         model.alert == nil && model.page == .recent ? "Recent" : "Twin"
     }
+
+    /// One screen at a time: when the alert comes up the pages are gone in a blink while it fades
+    /// in (its tile springs up on its own), and after an answer the alert folds away first (quick
+    /// scale-down and fade) before the ring rises in, so neither ever shows through the other.
+    private var alertTransition: AnyTransition {
+        .asymmetric(insertion: .opacity,
+                    removal: (reduceMotion ? AnyTransition.opacity : .scale(scale: 0.84).combined(with: .opacity))
+                        .animation(.easeIn(duration: 0.18)))
+    }
+
+    private var pagesTransition: AnyTransition {
+        .asymmetric(insertion: (reduceMotion ? AnyTransition.opacity : .scale(scale: 1.08).combined(with: .opacity))
+                        .animation(.spring(response: 0.45, dampingFraction: 0.85).delay(Self.ringReturnDelay)),
+                    removal: AnyTransition.opacity.animation(.easeOut(duration: 0.12)))
+    }
+
+    /// How long the ring waits for the alert to leave.
+    static let ringReturnDelay = 0.15
 }
 
 /// A page's content area: from just under the clock row to `bottomMargin` above the bottom edge

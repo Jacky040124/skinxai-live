@@ -43,8 +43,16 @@ struct EpisodeDay: Identifiable, Equatable {
 
 /// Watch app state.
 ///
-/// Launch arguments (scripts/watchshot): `-screen ring|prompt|recent`, `-expDay N` (demo story day of
-/// the 10-day test, like the phone), `-live 1` (start live detection right away).
+/// The watch shows what the iPhone shows (`PhoneContext`, sent by the iPhone whenever Settings →
+/// Demo story or the demo day changes):
+/// - Demo story (the iPhone's default): Douglas's story for the same day, plus today's live
+///   episodes from this wrist and confirmed demo-alert episodes on top — the same rule as the
+///   iPhone's demo overlay, so a Yes on the watch ticks both numbers up together.
+/// - Real data: this wrist's own episodes (live and all-day recording) and its own usual.
+///
+/// Launch arguments (scripts/watchshot): `-screen ring|prompt|recent`; `-dataMode demo|real`,
+/// `-expDay N` (day of the 10-day test), `-storyDay N` (day of the flare story) pin the data like
+/// on the iPhone; `-live 1` starts live detection right away.
 @MainActor
 final class WatchModel: ObservableObject {
     static let shared = WatchModel()
@@ -68,11 +76,17 @@ final class WatchModel: ObservableObject {
     @Published private(set) var alert: ScratchAlert?
     @Published private(set) var live: LiveState = .off
     @Published private(set) var ticks: [LiveTick] = []
-    @Published private(set) var dataset: TwinDataset
+    /// Which data to show: what the iPhone shows, or what the launch arguments pin.
+    @Published private(set) var source: PhoneContext
+    /// The demo story for `source` (rebuilt when the hour or the iPhone's story changes).
+    @Published private(set) var story: TwinDataset { didSet { rebuildDisplay() } }
     /// Real episodes on this watch (live + recorded), persisted.
-    @Published private(set) var realEpisodes: [ScratchEpisode]
-    /// In-memory episodes: demo/simulated ones, and confirmed live episodes that are still going.
-    @Published private(set) var extraEpisodes: [ScratchEpisode] = []
+    @Published private(set) var realEpisodes: [ScratchEpisode] { didSet { rebuildDisplay() } }
+    /// In-memory episodes: demo-story ones (the demo alert, the simulator's scripted wrist) and
+    /// confirmed live episodes that are still going.
+    @Published private(set) var extraEpisodes: [ScratchEpisode] = [] { didSet { rebuildDisplay() } }
+    /// Demo story mode: the story with today's live and demo episodes folded in, as on the iPhone.
+    @Published private(set) var display: TwinDataset
     @Published private(set) var personal: ScratchModel
     @Published private(set) var flash: WatchFlash?
     /// What the ring showed when the alert came up; it resumes from here when the alert closes.
@@ -83,26 +97,47 @@ final class WatchModel: ObservableObject {
     private let monitor = LiveMonitor()
     private let recorder = BackgroundRecorder()
     private var pendingLabels: [UUID: EpisodeLabel] = [:]
-    private var experimentDay: Int?
+    /// Demo-story episodes already handed to the iPhone.
+    private var demoSent: Set<UUID> = []
+    /// The iPhone's data mode as it last told us; nil if it never did (an iPhone app that doesn't
+    /// speak the data-mode contract can't tell demo episodes from real ones, so it gets none).
+    private var phoneMode: PhoneContext.Mode?
+    /// Launch arguments fixed the data (screenshots): the iPhone doesn't change it.
+    private let pinned: Bool
     private var tickCounter = 0
     private var analyzing = false
+    private var analysisCancel: BackgroundRecorder.Cancel?
     private var flashTask: Task<Void, Never>?
     private var alertTimeout: Task<Void, Never>?
     private var builtFor = Date()
 
+    private static let phoneContextKey = "phone.context"
+    /// After an answer the ring is back on screen before the number ticks up (see WatchRootView).
+    private static let tickDelay: Duration = .milliseconds(560)
+
     init() {
         let defaults = UserDefaults.standard
-        experimentDay = defaults.string(forKey: "expDay").flatMap(Int.init).map { min(max($0, 1), 10) }
-        dataset = DemoData.make(today: Date(), experimentDay: experimentDay)
+        let launch = Self.launchContext(defaults.volatileDomain(forName: UserDefaults.argumentDomain))
+        let stored = defaults.dictionary(forKey: Self.phoneContextKey).flatMap(PhoneContext.init)
+        let source = launch ?? stored ?? .demo
+        let story = WatchDemoStory.dataset(for: source)
+        pinned = launch != nil
+        phoneMode = stored?.mode
+        self.source = source
+        self.story = story
+        display = story
         realEpisodes = []
         personal = ScratchModel()
         realEpisodes = store.episodes
         personal = store.model
+        rebuildDisplay()
 
         monitor.onEvent = { [weak self] event in self?.handle(event) }
         link.onActivated = { [weak self] in self?.syncToPhone() }
         link.onFailed = { [weak self] ids in self?.store.markUnsent(ids) }
+        link.onContext = { [weak self] context in self?.receive(context) }
         link.activate()
+        if let heard = link.lastContext { receive(heard) }
 
         if let raw = defaults.string(forKey: "screen"), let screen = Screen(rawValue: raw) {
             switch screen {
@@ -112,7 +147,7 @@ final class WatchModel: ObservableObject {
                 page = .ring
                 Task { @MainActor [weak self] in
                     try? await Task.sleep(for: .milliseconds(450))
-                    self?.presentDemoAlert()
+                    self?.presentDemoAlert(evenWithRealData: true)
                 }
             }
         }
@@ -124,51 +159,90 @@ final class WatchModel: ObservableObject {
         }
     }
 
+    /// `-dataMode`, `-expDay`, `-storyDay`; demo time travel always means the demo story (like on
+    /// the iPhone). nil without any of them.
+    private static func launchContext(_ args: [String: Any]) -> PhoneContext? {
+        let mode = (args["dataMode"] as? String).flatMap { PhoneContext.Mode(rawValue: $0.lowercased()) }
+        let exp = (args["expDay"] as? String).flatMap(Int.init)
+        let day = (args["storyDay"] as? String).flatMap(Int.init)
+        guard mode != nil || exp != nil || day != nil else { return nil }
+        let travels = (exp ?? 0) > 0 || (day ?? 0) > 0
+        return PhoneContext(mode: travels ? .demo : (mode ?? .demo), expDay: exp, storyDay: day, storyAt: nil)
+    }
+
     // MARK: - What the screens read
 
     private var calendar: Calendar { .current }
+
+    var showsDemoStory: Bool { source.mode == .demo }
 
     /// Real, counted episodes (persisted + confirmed ones still going).
     private var realCounted: [ScratchEpisode] {
         (realEpisodes + extraEpisodes.filter { $0.source != .demo }).filter { $0.label != .rejected }
     }
 
-    /// Real data wins for today when there is any (same rule as the phone); otherwise the demo story.
-    var usesRealData: Bool { realCounted.contains { calendar.isDateInToday($0.start) } }
+    /// Today's episodes the demo story gets on top, the same ones the iPhone adds: live ones from
+    /// this wrist and confirmed demo-story ones (never the all-day recording's).
+    private var overlay: [ScratchEpisode] {
+        (realEpisodes + extraEpisodes)
+            .filter { ($0.source == .live || $0.source == .demo) && $0.label != .rejected && calendar.isDateInToday($0.start) }
+    }
+
+    private func rebuildDisplay() {
+        guard source.mode == .demo else { return }
+        var d = story
+        EpisodeMerge.apply(overlay, to: &d, calendar: calendar)
+        if d != display { display = d }
+    }
 
     var today: TodaySummary {
-        if usesRealData {
+        switch source.mode {
+        case .demo:
+            return Self.summary(of: display, calendar: calendar)
+        case .real:
             let list = realCounted.filter { calendar.isDateInToday($0.start) }
             return TodaySummary(minutes: list.minutes, episodes: list.count, intense: list.filter(\.intense).count,
                                 usual: realUsual, isDemo: false)
         }
-        let extra = extraEpisodes.filter { $0.source == .demo && $0.label != .rejected && calendar.isDateInToday($0.start) }
-        let day = dataset.today
-        return TodaySummary(minutes: (day?.scratchMinutes ?? 0) + extra.minutes,
-                            episodes: (day?.episodeCount ?? 0) + extra.count,
-                            intense: (day?.intenseCount ?? 0) + extra.filter(\.intense).count,
-                            usual: dataset.baselineMinutesPerDay, isDemo: true)
     }
 
-    /// Median of the previous days with real data (needs 3), else the story's calm baseline.
+    /// Today the way the iPhone's Today screen counts it (minutes from the hours; episodes that
+    /// have happened by now).
+    private static func summary(of d: TwinDataset, now: Date = Date(), calendar: Calendar) -> TodaySummary {
+        guard let day = d.today else {
+            return TodaySummary(minutes: 0, episodes: 0, intense: 0, usual: d.baselineMinutesPerDay, isDemo: true)
+        }
+        let mine = d.episodes.filter { calendar.isDate($0.start, inSameDayAs: day.day) && $0.start <= now && $0.label != .rejected }
+        return TodaySummary(minutes: day.scratchMinutes,
+                            episodes: mine.isEmpty ? day.episodeCount : mine.count,
+                            intense: mine.isEmpty ? day.intenseCount : mine.filter(\.intense).count,
+                            usual: d.baselineMinutesPerDay, isDemo: true)
+    }
+
+    /// The iPhone's rule: median of the earlier days of the last two weeks that have episodes
+    /// (needs 3), else the calm days of the demo story as a starting guess.
     private var realUsual: Double {
         let todayStart = calendar.startOfDay(for: Date())
-        let past = Dictionary(grouping: realCounted.filter { $0.start < todayStart }) { calendar.startOfDay(for: $0.start) }
+        guard let from = calendar.date(byAdding: .day, value: -13, to: todayStart) else { return Self.startingUsual }
+        let past = Dictionary(grouping: realCounted.filter { $0.start >= from && $0.start < todayStart }) { calendar.startOfDay(for: $0.start) }
             .values.map(\.minutes).sorted()
-        guard past.count >= 3 else { return dataset.baselineMinutesPerDay }
+        guard past.count >= 3 else { return Self.startingUsual }
         let mid = past.count / 2
-        return past.count % 2 == 0 ? (past[mid - 1] + past[mid]) / 2 : past[mid]
+        return max(1, past.count % 2 == 0 ? (past[mid - 1] + past[mid]) / 2 : past[mid])
     }
+
+    private static let startingUsual: Double = {
+        let calm = DemoData.flareMinutes.prefix(DemoData.flareStartDay).sorted()
+        let mid = calm.count / 2
+        return calm.count % 2 == 0 ? (calm[mid - 1] + calm[mid]) / 2 : calm[mid]
+    }()
 
     /// The latest episodes (newest first, at most `limit`), grouped by day.
     func recentDays(limit: Int = 24) -> [EpisodeDay] {
         let now = Date()
-        let list: [ScratchEpisode]
-        if usesRealData {
-            list = realCounted
-        } else {
-            list = dataset.episodes.filter { $0.start <= now }
-                + extraEpisodes.filter { $0.source == .demo && $0.label != .rejected }
+        let list: [ScratchEpisode] = switch source.mode {
+        case .demo: display.episodes.filter { $0.start <= now && $0.label != .rejected }
+        case .real: realCounted
         }
         let skip = max(0, UserDefaults.standard.integer(forKey: "recentSkip"))   // `-recentSkip N` (screenshots)
         let latest = list.sorted { $0.start > $1.start }.dropFirst(skip).prefix(limit)
@@ -186,10 +260,21 @@ final class WatchModel: ObservableObject {
 
     /// Minutes of scratching on a day, the same way the ring counts today.
     func minutes(on day: Date) -> Double {
-        if calendar.isDateInToday(day) { return today.minutes }
-        if usesRealData { return realCounted.filter { calendar.isDate($0.start, inSameDayAs: day) }.minutes }
-        let extra = extraEpisodes.filter { $0.source == .demo && $0.label != .rejected && calendar.isDate($0.start, inSameDayAs: day) }
-        return (dataset.day(day, calendar: calendar)?.scratchMinutes ?? 0) + extra.minutes
+        switch source.mode {
+        case .demo: display.day(day, calendar: calendar)?.scratchMinutes ?? 0
+        case .real: realCounted.filter { calendar.isDate($0.start, inSameDayAs: day) }.minutes
+        }
+    }
+
+    /// Which part of the demo story is on screen, e.g. "TEST DAY 3 OF 10" (nil for real data).
+    var demoStoryDay: String? {
+        guard source.mode == .demo else { return nil }
+        if let d = source.expDay {
+            let length = story.experiment?.plan.lengthDays ?? DemoData.experimentMinutes.count
+            return "TEST DAY \(d) OF \(length)"
+        }
+        if let d = source.storyDay { return "DAY \(d) OF \(DemoData.flareMinutes.count)" }
+        return nil
     }
 
     var answersLearned: Int { personal.answerCount }
@@ -217,42 +302,79 @@ final class WatchModel: ObservableObject {
         WatchHaptic.play(.directionDown)
     }
 
+    // MARK: - The iPhone's data mode
+
+    private func receive(_ context: PhoneContext) {
+        phoneMode = context.mode
+        UserDefaults.standard.set(context.dictionary, forKey: Self.phoneContextKey)
+        if !pinned, context != source {
+            withAnimation(Twin.Motion.spring) {
+                source = context
+                story = WatchDemoStory.dataset(for: context)
+            }
+            builtFor = Date()
+        }
+        syncDemoToPhone()
+    }
+
     // MARK: - Lifecycle
 
     func appBecameActive() {
-        if !calendar.isDate(builtFor, equalTo: Date(), toGranularity: .hour) {
+        // A fresh hour of the story, like opening the iPhone app again (unless the iPhone said
+        // when it built its story today: then both stay on that hour).
+        let heldByPhone = source.storyAt.map { calendar.isDateInToday($0) } ?? false
+        if !heldByPhone, !calendar.isDate(builtFor, equalTo: Date(), toGranularity: .hour) {
             builtFor = Date()
-            withAnimation(Twin.Motion.spring) {
-                dataset = DemoData.make(today: Date(), experimentDay: experimentDay)
-            }
+            withAnimation(Twin.Motion.spring) { story = WatchDemoStory.dataset(for: source) }
         }
+        monitor.appBecameActive()
         if let until = recorder.armIfNeeded(armedUntil: store.book.recorderArmedUntil) {
             store.setRecorderArmedUntil(until)
         }
-        Task { await analyzeRecordings(maxSlices: 12) }
+        Task { await analyzeRecordings(.appOpen) }
         syncToPhone()
         scheduleBackgroundRefresh()
     }
 
-    /// Reads the all-day recording up to now and adds what it finds.
-    func analyzeRecordings(maxSlices: Int) async {
+    /// Twin left the screen: stop reading the recording (the rest waits) and save.
+    func appMovedToBackground() {
+        analysisCancel?.cancel()
+        Task { await store.flush() }
+    }
+
+    /// Background refresh: read a little of the recording, hand new episodes to the iPhone, book
+    /// the next refresh, and save before watchOS suspends the app.
+    func backgroundRefresh() async {
+        await analyzeRecordings(.backgroundRefresh)
+        syncToPhone()
+        scheduleBackgroundRefresh()
+        await store.flush()
+    }
+
+    /// The background task is out of time: stop reading (what was read is kept).
+    func cancelAnalysis() { analysisCancel?.cancel() }
+
+    /// Reads the all-day recording from where the last run stopped, within `budget`.
+    func analyzeRecordings(_ budget: BackgroundRecorder.Budget) async {
         guard !analyzing, BackgroundRecorder.isAvailable else { return }
         analyzing = true
-        defer { analyzing = false }
+        let cancel = BackgroundRecorder.Cancel()
+        analysisCancel = cancel
+        defer {
+            analyzing = false
+            analysisCancel = nil
+        }
         let from = store.book.analyzedThrough ?? Date().addingTimeInterval(-BackgroundRecorder.recordingLength)
-        guard let result = await recorder.analyze(from: from, model: personal, maxSlices: maxSlices) else { return }
-        store.setAnalyzedThrough(result.through)
-        let added = store.add(result.episodes.map(\.episode))
+        guard let result = await recorder.analyze(from: from, model: personal, budget: budget, cancel: cancel) else { return }
+        let added = store.addRecorded(result.episodes, analyzedThrough: result.through)
         guard !added.isEmpty else { return }
-        let ids = Set(added.map(\.id))
-        for d in result.episodes where ids.contains(d.id) { store.setEvidence(d.windows, for: d.id) }
         withAnimation(Twin.Motion.spring) { realEpisodes = store.episodes }
         syncToPhone()
     }
 
     func scheduleBackgroundRefresh() {
         guard BackgroundRecorder.isAvailable else { return }
-        WKApplication.shared().scheduleBackgroundRefresh(withPreferredDate: Date().addingTimeInterval(45 * 60), userInfo: nil) { _ in }
+        WKApplication.shared().scheduleBackgroundRefresh(withPreferredDate: Date().addingTimeInterval(15 * 60), userInfo: nil) { _ in }
     }
 
     // MARK: - Live detection
@@ -274,7 +396,7 @@ final class WatchModel: ObservableObject {
         case let .started(backing, since):
             withAnimation(Twin.Motion.spring) { live = .on(since: since, backing: backing) }
         case let .backingChanged(backing):
-            if case let .on(since, _) = live { live = .on(since: since, backing: backing) }
+            if case let .on(since, _) = live { withAnimation(Twin.Motion.spring) { live = .on(since: since, backing: backing) } }
         case .stopped:
             withAnimation(Twin.Motion.spring) {
                 live = .off
@@ -300,11 +422,14 @@ final class WatchModel: ObservableObject {
     private func episodeEnded(_ detected: DetectedEpisode) {
         var e = detected.episode
         if let label = pendingLabels.removeValue(forKey: e.id) { e.label = label }
-        extraEpisodes.removeAll { $0.id == e.id }                 // drop the provisional copy
         if e.source == .demo {
-            if e.label != .rejected { withAnimation(Twin.Motion.spring) { extraEpisodes.append(e) } }
+            var extra = extraEpisodes.filter { $0.id != e.id }      // drop the provisional copy
+            if e.label != .rejected { extra.append(e) }
+            withAnimation(Twin.Motion.spring) { extraEpisodes = extra }
+            syncToPhone()
             return
         }
+        extraEpisodes.removeAll { $0.id == e.id }                 // drop the provisional copy
         store.add([e])
         store.setEvidence(detected.windows, for: e.id)
         withAnimation(Twin.Motion.spring) { realEpisodes = store.episodes }
@@ -313,10 +438,15 @@ final class WatchModel: ObservableObject {
 
     // MARK: - The scratch alert
 
+    /// The long press on the ring asks the demo question (demo story only: in real data mode
+    /// the ring is the wearer's own and only real detections ask).
+    var canAskDemoQuestion: Bool { source.mode == .demo }
+
     /// The demo moment: the real detector scores a synthetic scratch, so the answer teaches the
-    /// personal model with honest features; a "Yes" adds the episode to today.
-    func presentDemoAlert() {
-        guard alert == nil else { return }
+    /// personal model with honest features; a "Yes" adds the episode to today (on the iPhone too).
+    /// `evenWithRealData`: `-screen prompt` always opens it (a Yes then teaches but doesn't count).
+    func presentDemoAlert(evenWithRealData: Bool = false) {
+        guard alert == nil, canAskDemoQuestion || evenWithRealData else { return }
         let now = Date()
         var signal = SyntheticMotion(start: now.timeIntervalSinceReferenceDate - 9, seed: UInt64(now.timeIntervalSince1970))
         signal.scratch(7, hz: 4.3, amplitude: 0.24)
@@ -358,18 +488,21 @@ final class WatchModel: ObservableObject {
 
         let label: EpisodeLabel = scratching ? .confirmed : .rejected
         Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .milliseconds(420))
+            try? await Task.sleep(for: Self.tickDelay)
             guard let self else { return }
+            var counted = false
             switch a.kind {
             case var .demo(e):
                 if scratching {
                     e.label = .confirmed
                     self.extraEpisodes.append(e)
+                    counted = self.showsDemoStory
                 }
             case let .live(source):
                 self.apply(label, to: a, source: source)
+                counted = scratching && (source != .demo || self.showsDemoStory)
             }
-            self.showFlash(scratching ? .logged : .ignored)
+            self.showFlash(scratching ? (counted ? .logged : .learned) : .ignored)
             if scratching { WatchHaptic.play(.success) }
             self.syncToPhone()
         }
@@ -405,11 +538,26 @@ final class WatchModel: ObservableObject {
 
     // MARK: - iPhone
 
-    /// Sends real, not-rejected episodes the phone hasn't had yet (waits for an open question).
+    /// Sends real, not-rejected episodes the iPhone hasn't had yet (waits for an open question),
+    /// then the demo-story ones.
     func syncToPhone() {
         let pending = store.unsent(excluding: alert?.id)
-        guard !pending.isEmpty else { return }
-        if link.send(pending) { store.markSent(pending.map(\.id)) }
+        if !pending.isEmpty, link.send(pending) { store.markSent(pending.map(\.id)) }
+        syncDemoToPhone()
+    }
+
+    /// Confirmed demo-story episodes go to the iPhone's demo overlay, so both numbers tick up
+    /// together. Only to an iPhone that told us it shows the demo story (it keeps them out of its
+    /// real data), only once they are final (answered, ended), and only today's.
+    private func syncDemoToPhone() {
+        guard phoneMode == .demo else { return }
+        let ready = extraEpisodes.filter {
+            $0.source == .demo && $0.label != .rejected && $0.id != alert?.id && pendingLabels[$0.id] == nil
+                && !demoSent.contains($0.id) && calendar.isDateInToday($0.start)
+        }
+        guard !ready.isEmpty, link.send(ready) else { return }
+        demoSent.formUnion(ready.map(\.id))
+        store.noteSent()
     }
 }
 
