@@ -4,8 +4,8 @@
   const S = window.twinStory, { countUp } = window.twinUI;
   const HOT = 3;                                                   // the last three nights carry the story
   const still = matchMedia("(prefers-reduced-motion: reduce)");
-  // Motion, in ms after the page shows: calm nights rise in sequence, a beat, then the three hot ones.
-  const T = { calm: 250, calmStep: 50, calmMs: 650, hot: 950, hotStep: 170, hotMs: 900 };
+  // Motion, in ms after the page shows (it fades in first): calm nights rise in sequence, a beat, then the three hot ones.
+  const T = { calm: 400, calmStep: 50, calmMs: 650, hot: 1100, hotStep: 170, hotMs: 900 };
 
   function show() {
     const n = S.NIGHTS.length, usual = S.USUAL, first = n - HOT;

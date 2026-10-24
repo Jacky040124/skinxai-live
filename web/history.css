@@ -1,6 +1,6 @@
 /* History page (#p-history): 14 nights against his usual, the last three emphasized. No causes on this page. */
 #p-history { --hm: 132px; }                             /* right margin for the usual label */
-body:has(#sound:not(.off)) #p-history { padding-bottom: 64px; }   /* keep the axis clear of the sound button while it shows */
+#app:has(> #sound:not(.off)) #p-history { padding-bottom: 64px; }   /* keep the axis clear of the floating sound button while it shows */
 #p-history h1 { max-width: none; font-size: clamp(44px, 2.7vw, 52px); }
 #p-history h1 .hs { white-space: nowrap; }              /* wrap only between the two sentences */
 #p-history h1 .hu { color: var(--lime); }
@@ -41,10 +41,10 @@ body:has(#sound:not(.off)) #p-history { padding-bottom: 64px; }   /* keep the ax
 .haxis .hot, .haxis .hot b { color: var(--text); }
 
 /* choreography: history.js adds .play on every show (not under reduced motion) */
-#p-history.play .hband { animation: hfade .6s ease-out .1s both; }
-#p-history.play .hline { animation: hwipe .8s cubic-bezier(.65, 0, .35, 1) .15s both; }       /* the clip slides right, */
-#p-history.play .hline i { animation: hunwipe .8s cubic-bezier(.65, 0, .35, 1) .15s both; }   /* the dashes stay put */
-#p-history.play .hlabel { animation: hfade .5s ease-out .75s both; }
+#p-history.play .hband { animation: hfade .6s ease-out .25s both; }
+#p-history.play .hline { animation: hwipe .8s cubic-bezier(.65, 0, .35, 1) .3s both; }       /* the clip slides right, */
+#p-history.play .hline i { animation: hunwipe .8s cubic-bezier(.65, 0, .35, 1) .3s both; }   /* the dashes stay put */
+#p-history.play .hlabel { animation: hfade .5s ease-out .9s both; }
 #p-history.play .hbar { animation: hgrow var(--dur) var(--ease) var(--d) both; }
 #p-history.play .hval { animation: hrise .35s ease-out calc(var(--d) + var(--dur) * .6) both; }
 #p-history.play .hot .hval { animation: hride var(--dur) var(--ease) var(--d) both, hfade .25s linear var(--d) both; }
