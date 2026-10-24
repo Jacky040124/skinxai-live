@@ -1,4 +1,5 @@
 import Foundation
+import WatchKit
 import EczemaKit
 
 /// Streams live wrist motion and scratch events to the big-screen relay
@@ -19,6 +20,12 @@ final class LiveStreamer: @unchecked Sendable {
 
     /// Called on the main queue after every send (and when a send is taking long).
     var onStatus: ((LinkStatus) -> Void)?
+    /// What keeps detection running (workout / extendedRuntime / foreground / simulated); sent along for debugging.
+    var backing: String? { get { queue.sync { _backing } } set { queue.async { self._backing = newValue } } }
+    private var _backing: String?
+    /// active / inactive / background, from WKApplication notifications.
+    private var appState = "active"
+    private var observers: [NSObjectProtocol] = []
 
     private let queue = DispatchQueue(label: "com.jackyzhong.eczematwin.streamer")
     private let endpoint: URL?
@@ -58,6 +65,16 @@ final class LiveStreamer: @unchecked Sendable {
         let k = (info["TwinLiveKey"] as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
         endpoint = host.isEmpty || host.hasPrefix("$(") ? nil : URL(string: "https://\(host)/api/ingest")
         key = k.isEmpty || k.hasPrefix("$(") ? nil : k
+        let nc = NotificationCenter.default
+        for (name, state) in [(WKApplication.didBecomeActiveNotification, "active"),
+                              (WKApplication.willResignActiveNotification, "inactive"),
+                              (WKApplication.didEnterBackgroundNotification, "background"),
+                              (WKApplication.willEnterForegroundNotification, "inactive")] {
+            observers.append(nc.addObserver(forName: name, object: nil, queue: nil) { [weak self] _ in
+                guard let self else { return }
+                self.queue.async { self.appState = state }
+            })
+        }
     }
 
     var isConfigured: Bool { endpoint != nil && key != nil }
@@ -161,7 +178,8 @@ final class LiveStreamer: @unchecked Sendable {
         let sendSamples = samples, sendRaw = raw, sendWindows = windows, sendEvents = events
         samples.removeAll(keepingCapacity: true); raw.removeAll(keepingCapacity: true); windows.removeAll(); events.removeAll()
         let body: [String: Any] = ["device": "watch", "live": running && !force, "sentAt": Date().timeIntervalSince1970,
-                                   "samples": sendSamples, "raw": sendRaw, "windows": sendWindows, "events": sendEvents]
+                                   "samples": sendSamples, "raw": sendRaw, "windows": sendWindows, "events": sendEvents,
+                                   "backing": _backing ?? "-", "appState": appState]
         guard JSONSerialization.isValidJSONObject(body), let data = try? JSONSerialization.data(withJSONObject: body) else {
             print("[live] could not encode a batch (\(sendSamples.count) samples)")
             report(LinkStatus(ok: false, detail: "JSON", sent: sent))

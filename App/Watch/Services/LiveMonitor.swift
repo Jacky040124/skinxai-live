@@ -110,12 +110,14 @@ final class LiveMonitor: NSObject {
 
     private func began(_ b: Backing) {
         backing = b
+        LiveStreamer.shared.backing = b.rawValue
         onEvent?(.started(b, Date()))
     }
 
     private func setBacking(_ b: Backing) {
         guard isRunning, backing != b else { return }
         backing = b
+        LiveStreamer.shared.backing = b.rawValue
         onEvent?(.backingChanged(b))
     }
 

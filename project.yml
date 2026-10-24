@@ -41,7 +41,7 @@ targets:
       path: App/iOS/Info.plist
       properties:
         CFBundleDisplayName: Eczema Twin
-        CFBundleVersion: "5"
+        CFBundleVersion: "6"
         UILaunchScreen: {}
         # Wins over UILaunchScreen: the app's first frame (App/iOS/Shell/LaunchScreen.storyboard).
         UILaunchStoryboardName: LaunchScreen
@@ -74,7 +74,7 @@ targets:
       path: App/Watch/Info.plist
       properties:
         CFBundleDisplayName: Eczema Twin
-        CFBundleVersion: "5"
+        CFBundleVersion: "6"
         WKApplication: true
         WKCompanionAppBundleIdentifier: com.jackyzhong.eczematwin2
         WKBackgroundModes: [workout-processing, physical-therapy]
