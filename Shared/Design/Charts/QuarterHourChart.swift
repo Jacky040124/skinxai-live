@@ -22,9 +22,15 @@ struct QuarterHourChart: View {
     var stagger: Double = 0.022
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.displayScale) private var displayScale
     @State private var grown = false
 
     private var top: Double { max(values.max() ?? 0, 0.001) }
+
+    /// On whole pixels, so every bar ends exactly on the baseline (see `NightsChart.height`).
+    private func snapped(_ h: CGFloat) -> CGFloat {
+        displayScale > 0 ? (h * displayScale).rounded() / displayScale : h
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -50,7 +56,7 @@ struct QuarterHourChart: View {
     private func bar(_ i: Int) -> some View {
         let v = values[i]
         let hot = v > hotAbove
-        let full = max(2, CGFloat(v / top) * plotHeight)
+        let full = snapped(max(2, CGFloat(v / top) * plotHeight))
         let shape = UnevenRoundedRectangle(topLeadingRadius: 1.5, topTrailingRadius: 1.5, style: .continuous)
         // The layout never changes: each bar grows out of the baseline as a render transform, so the
         // spring only overshoots its own height a little (animating the frame inside a bottom-aligned

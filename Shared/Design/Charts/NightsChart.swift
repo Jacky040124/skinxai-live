@@ -62,6 +62,7 @@ struct NightsChart: View {
 
     @Namespace private var ns
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.displayScale) private var displayScale
     @State private var grown = false
     @State private var decorated = false
 
@@ -137,8 +138,11 @@ struct NightsChart: View {
         func center(_ k: Int) -> CGFloat { slotX(k) + slot / 2 }
     }
 
+    /// Bar height for `value`, on whole pixels: a bar whose top sits on a half pixel would end a pixel
+    /// lower than the others once SwiftUI rounds its frame, darkening the baseline under it.
     private func height(_ value: Double) -> CGFloat {
-        max(3, CGFloat(value / max(scaleTop, 0.001)) * plotHeight)
+        let h = max(3, CGFloat(value / max(scaleTop, 0.001)) * plotHeight)
+        return displayScale > 0 ? (h * displayScale).rounded() / displayScale : h
     }
 
     private func index(of id: Int) -> Int? { bars.firstIndex { $0.id == id } }
