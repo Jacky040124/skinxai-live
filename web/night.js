@@ -20,7 +20,7 @@
     for (let k = 1; k < hours.length - 1; k++) if (hours[k][1] + hours[k + 1][1] > hours[best][1] + hours[best + 1][1]) best = k;
     return [best, best + 1];
   }
-  const hourLabel = (h) => h.replace(/([AP])$/, " $1M");   // "2A" → "2 AM"
+  const hourLabel = (h) => h.replace(/([AP])$/, "<small>$1M</small>");   // "2A" → 2 AM
 
   let shown = 0;   // a newer show() wins over a slower earlier one
   async function show() {
@@ -46,7 +46,7 @@
 
     // hour by hour with the worst two hours hot, then a pink NOW bar for what the watch caught
     const top = 12, hours = S.LAST_NIGHT_HOURS, [w0, w1] = worstPair(hours);
-    const cols = hours.map(([h, m], k) => ({ h: m / top, cls: k === w0 || k === w1 ? "hot" : "", value: `${m} min`, label: hourLabel(h) }));
+    const cols = hours.map(([h, m], k) => ({ h: m / top, cls: k === w0 || k === w1 ? "hot" : "", value: `${m}<small>min</small>`, label: hourLabel(h) }));
     if (liveSec > 0) {
       const s = Math.max(1, Math.round(liveSec));
       cols.push({ h: Math.max(0.12, liveSec / 60 / top), cls: "live", value: `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`, label: "NOW" });
