@@ -23,6 +23,7 @@
 		2DC76E2AEB2E382F94D43294 /* TodayScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09B94D5D86D51B138BE7A8E6 /* TodayScreen.swift */; };
 		359AE6B20330D10C7AEBF9CF /* WatchStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DDD38B993F1AA1D0BC536CA /* WatchStore.swift */; };
 		37712494B0D3905517DCDA96 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = DED0BAE1425EE27470E3A238 /* AppState.swift */; };
+		3A51F8AE6065B3E76AAAB512 /* ChatThreadViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FDA7FBEEDDC38AC625DB4D1 /* ChatThreadViews.swift */; };
 		3B7C6E1ADB8ADA307ECD856C /* HourlyScratchChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59666E413FAD8FCAACA96F91 /* HourlyScratchChart.swift */; };
 		3CDADBC963B59E1BD2BB8FB0 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89663F3DDC66BCF5E2268A7E /* Components.swift */; };
 		419C301295E5357B8D63267E /* TrendsData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98215790D60CBA5BA7B09831 /* TrendsData.swift */; };
@@ -34,6 +35,7 @@
 		48F3E315ABEC5638185AB796 /* LiveStreamer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D71746025FCD0137A6FD57A /* LiveStreamer.swift */; };
 		49DBBE7537FBF36FA86BF2FB /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F964877FF3ADC4D998AAC93 /* RootView.swift */; };
 		4CFF2785CF7513EE7129DC52 /* WatchRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1896AB6DB5F3888888AF15F3 /* WatchRootView.swift */; };
+		50645F761E8D1F3581E01CDB /* ChatComposer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C0B21276CACC2600D384D2D /* ChatComposer.swift */; };
 		51602C72B717C6AE9C70EDC7 /* SpaceMono-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 760C741AF41DD66B5FC369AF /* SpaceMono-Bold.ttf */; };
 		526F58441D8C5CE0BB847C99 /* TodayCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3AF309625DABE1A365F5A0D /* TodayCards.swift */; };
 		5342282DDF4A954661FA364C /* PermissionCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B4B2A61F1C1F47AA1510E8B /* PermissionCards.swift */; };
@@ -44,7 +46,6 @@
 		5D8AFA25300C7981940B9159 /* LiveReplay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 533848905591F2813A5E3EA9 /* LiveReplay.swift */; };
 		6120A254393C824E106A6B6B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2041CCD0264F87E0A11694E2 /* Assets.xcassets */; };
 		63F214BF2D73BD94C75EA70A /* QuarterHourChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = B46BACD158F10E448128766E /* QuarterHourChart.swift */; };
-		6A5BCBECDB6B748A679BAB02 /* InsightCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5EBA8BBF881EF8EA2585D098 /* InsightCards.swift */; };
 		6E35D893E7F698AF7831E9C7 /* Components.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89663F3DDC66BCF5E2268A7E /* Components.swift */; };
 		6E46972D47205DEEBB367D44 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB1BD32C0370C9BA3147BBF8 /* Theme.swift */; };
 		6E863BB33E3B8A9E282A337B /* StageNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68A5DF5B6053F283ACF19DAA /* StageNotifications.swift */; };
@@ -73,14 +74,15 @@
 		BBBB1A58B05588354A87B2D1 /* DeviceAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = F06FE54F03E23DB9D8E77B2B /* DeviceAccess.swift */; };
 		BE0F69BD38BD8F2F926E4A96 /* LiveBars.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4920F844414A5B8042B0564 /* LiveBars.swift */; };
 		C2A59A49ED98B9FB21169240 /* SpaceMono-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E06B0299ACCBE9F04008DCEE /* SpaceMono-Regular.ttf */; };
+		C58F6EFE338BB4CE2C6A6B20 /* ChatCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DDE81F3D6AE5C299424DE60 /* ChatCards.swift */; };
 		D0A78FEA08952544FA30DCCB /* EczemaKit in Frameworks */ = {isa = PBXBuildFile; productRef = D2EA930CC5E12E9FB0AD6085 /* EczemaKit */; };
 		E05B340326EC3216606E365B /* EczemaTwinWatch.app in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 28A06BF100E5C5473F4637B6 /* EczemaTwinWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		E574D0D481A6EFEDCFB60FB4 /* ChatSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = B48969043B79B3104CD06543 /* ChatSession.swift */; };
 		E7784C3DF5F23040BB783975 /* SpaceMono-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E06B0299ACCBE9F04008DCEE /* SpaceMono-Regular.ttf */; };
 		E7AA5414802DC92F44E6B4CD /* NightsChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E9F301E8B62DFBA010AB0D1 /* NightsChart.swift */; };
 		F30C8F2E8CFA7CE2833457E0 /* WatchModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D76256B4672DD738B542C92E /* WatchModel.swift */; };
 		FA881C809B2B0BECE02DB009 /* LiveMonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5DACAB9E72DC72192AD47F7 /* LiveMonitorView.swift */; };
 		FB96FE91564D485C7A2AF6FA /* EczemaTwinWatchApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 347396144EA7921BA5D444F0 /* EczemaTwinWatchApp.swift */; };
-		FC1C33CFCD67FD3C3E85D811 /* InsightSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = C762F6004FCB6774AE2BDF92 /* InsightSession.swift */; };
 		FD5C701082C639F24C217B9A /* PhoneLink.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3A0CBE45AF6B83E4BCF4F4A4 /* PhoneLink.swift */; };
 /* End PBXBuildFile section */
 
@@ -135,6 +137,7 @@
 		34F1487CBB263DD93F8907CC /* SpaceGrotesk.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = SpaceGrotesk.ttf; sourceTree = "<group>"; };
 		3A0CBE45AF6B83E4BCF4F4A4 /* PhoneLink.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PhoneLink.swift; sourceTree = "<group>"; };
 		3C04AF9BC2B991DBCAF4D604 /* TrendsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrendsScreen.swift; sourceTree = "<group>"; };
+		3C0B21276CACC2600D384D2D /* ChatComposer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatComposer.swift; sourceTree = "<group>"; };
 		3D89D19DC74A0E0D71E60FF2 /* OrientationLock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrientationLock.swift; sourceTree = "<group>"; };
 		481F1833102702AFC8CDF5A2 /* RealData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RealData.swift; sourceTree = "<group>"; };
 		4E03FADE1874C4C509264EC8 /* LiveMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveMonitor.swift; sourceTree = "<group>"; };
@@ -145,7 +148,7 @@
 		5808DD3E3B07C0808DABFD4C /* OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = OFL.txt; sourceTree = "<group>"; };
 		59666E413FAD8FCAACA96F91 /* HourlyScratchChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HourlyScratchChart.swift; sourceTree = "<group>"; };
 		5CFE75E6C8B3CF0CA5E9973C /* LiveMonitorPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveMonitorPresenter.swift; sourceTree = "<group>"; };
-		5EBA8BBF881EF8EA2585D098 /* InsightCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightCards.swift; sourceTree = "<group>"; };
+		5DDE81F3D6AE5C299424DE60 /* ChatCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatCards.swift; sourceTree = "<group>"; };
 		68A5DF5B6053F283ACF19DAA /* StageNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StageNotifications.swift; sourceTree = "<group>"; };
 		6B4CF87A7465A89E733C681C /* ChartRangePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartRangePicker.swift; sourceTree = "<group>"; };
 		6F62057DD333871EA66459D3 /* LivePillHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LivePillHarness.swift; sourceTree = "<group>"; };
@@ -155,16 +158,17 @@
 		83588CEFBC0B69A2FB905A13 /* Watch.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Watch.entitlements; sourceTree = "<group>"; };
 		88CF0F5B4A8F4AB5381388F1 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		89663F3DDC66BCF5E2268A7E /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
+		8FDA7FBEEDDC38AC625DB4D1 /* ChatThreadViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatThreadViews.swift; sourceTree = "<group>"; };
 		98215790D60CBA5BA7B09831 /* TrendsData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrendsData.swift; sourceTree = "<group>"; };
 		A751231395BD9B08F0494C6A /* BackgroundRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundRecorder.swift; sourceTree = "<group>"; };
 		A85310267F1C2C624378E505 /* EczemaTwin.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = EczemaTwin.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA6FEF26FC09D4CA7D5E7D3E /* TabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBar.swift; sourceTree = "<group>"; };
 		B46BACD158F10E448128766E /* QuarterHourChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuarterHourChart.swift; sourceTree = "<group>"; };
+		B48969043B79B3104CD06543 /* ChatSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatSession.swift; sourceTree = "<group>"; };
 		BB1B3BDB0E5C9F0AE7DBB8F0 /* EczemaTwinApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EczemaTwinApp.swift; sourceTree = "<group>"; };
 		C1CF5CD9D03422FC9CECB0A0 /* DailyScratchChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyScratchChart.swift; sourceTree = "<group>"; };
 		C3AF309625DABE1A365F5A0D /* TodayCards.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayCards.swift; sourceTree = "<group>"; };
 		C4920F844414A5B8042B0564 /* LiveBars.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveBars.swift; sourceTree = "<group>"; };
-		C762F6004FCB6774AE2BDF92 /* InsightSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightSession.swift; sourceTree = "<group>"; };
 		C940EAFB152A5FE8B793688C /* TodayStory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TodayStory.swift; sourceTree = "<group>"; };
 		CB1BD32C0370C9BA3147BBF8 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		CDFA3B16DEEAFCB72E81305C /* HealthReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthReader.swift; sourceTree = "<group>"; };
@@ -395,9 +399,11 @@
 		B7B14C593DEB238324CE878C /* Insight */ = {
 			isa = PBXGroup;
 			children = (
-				5EBA8BBF881EF8EA2585D098 /* InsightCards.swift */,
+				5DDE81F3D6AE5C299424DE60 /* ChatCards.swift */,
+				3C0B21276CACC2600D384D2D /* ChatComposer.swift */,
+				B48969043B79B3104CD06543 /* ChatSession.swift */,
+				8FDA7FBEEDDC38AC625DB4D1 /* ChatThreadViews.swift */,
 				2C6F0189F64A4798731B6B1D /* InsightScreen.swift */,
-				C762F6004FCB6774AE2BDF92 /* InsightSession.swift */,
 			);
 			path = Insight;
 			sourceTree = "<group>";
@@ -582,6 +588,10 @@
 			files = (
 				37712494B0D3905517DCDA96 /* AppState.swift in Sources */,
 				86CB04D942289675C860D6B3 /* ChartRangePicker.swift in Sources */,
+				C58F6EFE338BB4CE2C6A6B20 /* ChatCards.swift in Sources */,
+				50645F761E8D1F3581E01CDB /* ChatComposer.swift in Sources */,
+				E574D0D481A6EFEDCFB60FB4 /* ChatSession.swift in Sources */,
+				3A51F8AE6065B3E76AAAB512 /* ChatThreadViews.swift in Sources */,
 				6E35D893E7F698AF7831E9C7 /* Components.swift in Sources */,
 				0AE803FEBCE322AD828F98C3 /* ControlPressStyle.swift in Sources */,
 				73C3C31B9F91D0396052115D /* DailyScratchChart.swift in Sources */,
@@ -590,9 +600,7 @@
 				0FEF86B880FBE9ADB8724590 /* HUD.swift in Sources */,
 				7FC61495F36D235D7E17894E /* HealthReader.swift in Sources */,
 				A1348D1CAFD23E2A8D2BBE70 /* HourlyScratchChart.swift in Sources */,
-				6A5BCBECDB6B748A679BAB02 /* InsightCards.swift in Sources */,
 				10056456D441FC06F7913DF4 /* InsightScreen.swift in Sources */,
-				FC1C33CFCD67FD3C3E85D811 /* InsightSession.swift in Sources */,
 				BE0F69BD38BD8F2F926E4A96 /* LiveBars.swift in Sources */,
 				8AF9D793035A366205AE4763 /* LiveMonitorPresenter.swift in Sources */,
 				FA881C809B2B0BECE02DB009 /* LiveMonitorView.swift in Sources */,

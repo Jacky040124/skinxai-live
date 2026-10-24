@@ -1,0 +1,533 @@
+import SwiftUI
+import EczemaKit
+
+// The cards Claude puts in the thread (prototype v5 "Insight"): the tool card, the timeline, the product, a
+// question and the conclusion. Each plays its entrance only while it is new (`fresh`); coming back to the
+// screen later shows it as it ended.
+
+private let cardShape = RoundedRectangle(cornerRadius: Twin.Radius.card, style: .continuous)
+
+private extension View {
+    /// A card with a 1.5 pt ink edge (Claude's artifacts).
+    func inkCard(_ fill: Color, padding: CGFloat = 14) -> some View {
+        self
+            .padding(padding)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(fill, in: cardShape)
+            .overlay(cardShape.strokeBorder(Twin.Palette.ink, lineWidth: Twin.Stroke.ink))
+    }
+}
+
+/// A small sticker for card corners ("✶ FROM CLAUDE", "FIRST TIME").
+private struct CornerSticker: View {
+    let text: String
+    var symbol: String? = nil
+    let fill: Color
+    var body: some View {
+        HStack(spacing: 4) {
+            if let symbol { Image(systemName: symbol).font(.system(size: 8, weight: .bold)) }
+            Text(text).font(Twin.Typeface.sans(10, .bold)).lineLimit(1)
+        }
+        .foregroundStyle(Twin.Palette.ink)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 3)
+        .sticker(fill)
+    }
+}
+
+// MARK: - Tool card
+
+/// The data Claude reads: one row per tool call on a cream card.
+struct ToolListCard: View {
+    let rows: [ChatToolRow]
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.element.id) { index, row in
+                VStack(spacing: 0) {
+                    if index > 0 { Rectangle().fill(Twin.Palette.hairline).frame(height: 1) }
+                    ToolRowView(row: row)
+                }
+                .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 8)), removal: .opacity))
+            }
+        }
+        .background(Twin.Palette.cream)
+        .clipShape(cardShape)
+        .overlay(cardShape.strokeBorder(Twin.Palette.hairline, lineWidth: Twin.Stroke.hairline))
+    }
+}
+
+private struct ToolRowView: View {
+    let row: ChatToolRow
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text(row.icon)
+                .font(.system(size: 13))
+                .frame(width: 26, height: 26)
+                .sticker(Twin.Palette.paper)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(row.title)
+                    .font(Twin.Typeface.sans(13, .bold))
+                    .foregroundStyle(Twin.Palette.ink)
+                Text(row.summary ?? ChatTools.reading)
+                    .font(Twin.Typeface.sans(12))
+                    .foregroundStyle(Twin.Palette.inkMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .contentTransition(.opacity)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            ZStack {
+                if row.summary == nil {
+                    RingSpinner().transition(.opacity)
+                } else {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 9, weight: .heavy))
+                        .foregroundStyle(Twin.Palette.ink)
+                        .frame(width: 18, height: 18)
+                        .sticker(Twin.Palette.lime)
+                        .transition(.scale(scale: 0.3).combined(with: .opacity))
+                }
+            }
+            .frame(width: 18, height: 18)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .animation(Twin.Motion.bouncy, value: row.summary)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(row.title). \(row.summary ?? "Reading")")
+    }
+}
+
+/// A 14 pt ring with an ink quarter that turns (the tool is running).
+private struct RingSpinner: View {
+    var body: some View {
+        TimelineView(.animation) { context in
+            let turn = context.date.timeIntervalSinceReferenceDate.truncatingRemainder(dividingBy: 0.7) / 0.7
+            ZStack {
+                Circle().stroke(Twin.Palette.hairline, lineWidth: 2)
+                Circle()
+                    .trim(from: 0, to: 0.25)
+                    .stroke(Twin.Palette.ink, style: StrokeStyle(lineWidth: 2, lineCap: .butt))
+                    .rotationEffect(.degrees(turn * 360 - 90))
+            }
+        }
+        .frame(width: 14, height: 14)
+    }
+}
+
+// MARK: - Timeline
+
+/// `show_timeline`: the 14 nights (hot ones orange) with Claude's pin on the change.
+struct TimelineCardView: View {
+    let card: ChatTimeline
+    let fresh: Bool
+    @State private var grown: Bool
+    @State private var pinned: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private let chartHeight: CGFloat = 92
+    private let pinSpace: CGFloat = 40
+    private let gap: CGFloat = 3
+
+    init(card: ChatTimeline, fresh: Bool) {
+        self.card = card
+        self.fresh = fresh
+        _grown = State(initialValue: !fresh)
+        _pinned = State(initialValue: !fresh)
+    }
+
+    private var top: CGFloat { CGFloat(max(44, (card.minutes.max() ?? 0) + 3)) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center) {
+                Eyebrow(text: "Your nights · last \(card.minutes.count)")
+                Spacer(minLength: 8)
+                CornerSticker(text: "FROM CLAUDE", symbol: "sparkle", fill: Twin.Palette.pink)
+            }
+            GeometryReader { geo in chart(width: geo.size.width) }
+                .frame(height: pinSpace + chartHeight)
+                .padding(.top, 6)
+            GeometryReader { geo in axis(width: geo.size.width) }
+                .frame(height: 14)
+                .padding(.top, 6)
+            if let note = card.note {
+                Text(note)
+                    .font(Twin.Typeface.sans(13))
+                    .foregroundStyle(Twin.Palette.inkMuted)
+                    .lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 8)
+            }
+        }
+        .inkCard(Twin.Palette.paper)
+        .onAppear {
+            guard !grown else { return }
+            DispatchQueue.main.async {
+                grown = true
+                withAnimation(reduceMotion ? .easeOut(duration: 0.3) : Twin.Motion.bouncy.delay(0.75)) { pinned = true }
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(accessibilityText)
+    }
+
+    private func barWidth(_ width: CGFloat) -> CGFloat {
+        let n = CGFloat(max(card.minutes.count, 1))
+        return max(1, (width - gap * (n - 1)) / n)
+    }
+
+    private func center(of night: Int, width: CGFloat) -> CGFloat {
+        let w = barWidth(width)
+        return CGFloat(night) * (w + gap) + w / 2
+    }
+
+    private func barHeight(_ minutes: Int) -> CGFloat {
+        max(2, CGFloat(minutes) / top * chartHeight)
+    }
+
+    @ViewBuilder
+    private func chart(width: CGFloat) -> some View {
+        let w = barWidth(width)
+        ZStack(alignment: .topLeading) {
+            // Bars on a hairline baseline.
+            HStack(alignment: .bottom, spacing: gap) {
+                ForEach(Array(card.minutes.enumerated()), id: \.offset) { i, minutes in
+                    let hot = card.hot.indices.contains(i) && card.hot[i]
+                    let shape = UnevenRoundedRectangle(topLeadingRadius: 1.5, bottomLeadingRadius: 0,
+                                                       bottomTrailingRadius: 0, topTrailingRadius: 1.5, style: .continuous)
+                    shape
+                        .fill(hot ? Twin.Palette.orange : Twin.Palette.ink.opacity(0.15))
+                        .overlay { if hot { shape.strokeBorder(Twin.Palette.ink, lineWidth: 1) } }
+                        .frame(width: w, height: grown ? barHeight(minutes) : 0)
+                        .animation(reduceMotion ? .easeOut(duration: 0.3)
+                                   : .spring(response: 0.6, dampingFraction: 0.7).delay(0.12 + Double(i) * 0.035), value: grown)
+                }
+            }
+            .frame(width: width, height: chartHeight, alignment: .bottomLeading)
+            .offset(y: pinSpace)
+            Rectangle()
+                .fill(Twin.Palette.hairline)
+                .frame(width: width, height: 1)
+                .offset(y: pinSpace + chartHeight - 1)
+
+            if let marker = card.marker {
+                let x = center(of: marker, width: width)
+                let barTop = pinSpace + chartHeight - barHeight(card.minutes[marker])
+                // A dotted stem from the pin down to the top of the night's bar.
+                Path { p in
+                    p.move(to: CGPoint(x: x, y: 20))
+                    p.addLine(to: CGPoint(x: x, y: max(20, barTop - 3)))
+                }
+                .trim(from: 0, to: pinned ? 1 : 0)
+                .stroke(Twin.Palette.seam, style: StrokeStyle(lineWidth: 1.5, dash: [1.5, 3]))
+                CornerSticker(text: pinText, fill: Twin.Palette.pink)
+                    .fixedSize()
+                    .alignmentGuide(.leading) { d in -min(max(x - d.width / 2, 0), max(0, width - d.width)) }
+                    .scaleEffect(pinned || reduceMotion ? 1 : 0.6, anchor: .bottom)
+                    .opacity(pinned ? 1 : 0)
+            }
+        }
+        .frame(width: width, height: pinSpace + chartHeight, alignment: .topLeading)
+    }
+
+    private var pinText: String {
+        [card.emoji, card.label].compactMap { $0 }.joined(separator: " ")
+    }
+
+    @ViewBuilder
+    private func axis(width: CGFloat) -> some View {
+        let font = Twin.Typeface.mono(10)
+        ZStack(alignment: .topLeading) {
+            Text(card.startLabel).font(font).foregroundStyle(Twin.Palette.inkHint)
+            Text("last night").font(font).foregroundStyle(Twin.Palette.inkHint)
+                .frame(width: width, alignment: .trailing)
+            if let marker = card.marker, let label = card.markerLabel {
+                // Under its bar, when it doesn't run into the labels at the ends (Space Mono: 0.6 em a letter).
+                let x = center(of: marker, width: width)
+                let half = CGFloat(label.count) * 6 / 2
+                if x - half > CGFloat(card.startLabel.count) * 6 + 8, x + half < width - 60 - 8 {
+                    Text(label).font(Twin.Typeface.mono(10, bold: true)).foregroundStyle(Twin.Palette.ink)
+                        .fixedSize()
+                        .alignmentGuide(.leading) { d in -(x - d.width / 2) }
+                }
+            }
+        }
+        .frame(width: width, alignment: .topLeading)
+    }
+
+    private var accessibilityText: String {
+        var parts = ["Your nights, last \(card.minutes.count). Last night \(card.minutes.last ?? 0) minutes."]
+        if let label = card.markerLabel { parts.append("Marked \(label): \(card.label).") }
+        if let note = card.note { parts.append(note) }
+        return parts.joined(separator: " ")
+    }
+}
+
+// MARK: - Product
+
+/// `show_product`: a plain pump bottle, the order and its ingredients with the common contact allergens lit.
+struct ProductCardView: View {
+    let card: ChatProduct
+    let fresh: Bool
+    @State private var lit: Bool
+    @State private var shown: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    init(card: ChatProduct, fresh: Bool) {
+        self.card = card
+        self.fresh = fresh
+        _lit = State(initialValue: !fresh)
+        _shown = State(initialValue: !fresh)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top, spacing: 12) {
+                PumpBottle()
+                    .scaleEffect(shown || reduceMotion ? 1 : 0.7, anchor: .bottom)
+                    .rotationEffect(.degrees(shown || reduceMotion ? 0 : -8), anchor: .bottom)
+                VStack(alignment: .leading, spacing: 0) {
+                    HStack(alignment: .center, spacing: 8) {
+                        Eyebrow(text: "From your orders")
+                        Spacer(minLength: 4)
+                        if card.firstTime { CornerSticker(text: "FIRST TIME", fill: Twin.Palette.yellow) }
+                    }
+                    Text(card.title)
+                        .font(Twin.Typeface.sans(19, .bold))
+                        .foregroundStyle(Twin.Palette.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 5)
+                    if let ordered = card.ordered {
+                        Text(card.firstTime ? "\(ordered) · you had never bought one before" : ordered)
+                            .font(Twin.Typeface.sans(13))
+                            .foregroundStyle(Twin.Palette.inkMuted)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .padding(.top, 2)
+                    }
+                }
+            }
+            if !card.ingredients.isEmpty {
+                ChatFlow(spacing: 5, lineSpacing: 5) {
+                    ForEach(Array(card.ingredients.enumerated()), id: \.offset) { index, ingredient in
+                        IngredientChip(name: ingredient.name, flagged: ingredient.flagged && lit)
+                            .animation(reduceMotion ? .easeOut(duration: 0.2)
+                                       : Twin.Motion.bouncy.delay(0.55 + Double(flagIndex(index)) * 0.22), value: lit)
+                    }
+                }
+                .padding(.top, 10)
+            }
+            if card.hasFlags {
+                HStack(spacing: 6) {
+                    RoundedRectangle(cornerRadius: 2, style: .continuous)
+                        .fill(Twin.Palette.orange)
+                        .overlay(RoundedRectangle(cornerRadius: 2, style: .continuous).strokeBorder(Twin.Palette.ink, lineWidth: Twin.Stroke.ink))
+                        .frame(width: 10, height: 10)
+                    Text("common contact allergens")
+                        .font(Twin.Typeface.sans(12))
+                        .foregroundStyle(Twin.Palette.inkMuted)
+                }
+                .padding(.top, 9)
+            }
+            if let note = card.note {
+                Text(note)
+                    .font(Twin.Typeface.sans(13))
+                    .foregroundStyle(Twin.Palette.inkMuted)
+                    .lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 8)
+            }
+        }
+        .inkCard(Twin.Palette.yellowSoft)
+        .onAppear {
+            guard !lit else { return }
+            withAnimation(reduceMotion ? .easeOut(duration: 0.3) : Twin.Motion.bouncy.delay(0.12)) { shown = true }
+            DispatchQueue.main.async { lit = true }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    /// The order among the flagged ingredients (they light up one after another).
+    private func flagIndex(_ index: Int) -> Int {
+        card.ingredients.prefix(index).filter(\.flagged).count
+    }
+}
+
+private struct IngredientChip: View {
+    let name: String
+    let flagged: Bool
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: Twin.Radius.chip, style: .continuous)
+        Text(name)
+            .font(Twin.Typeface.sans(11, flagged ? .bold : .regular))
+            .foregroundStyle(flagged ? Twin.Palette.ink : Twin.Palette.inkMuted)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(flagged ? Twin.Palette.orange : Color.clear, in: shape)
+            .overlay(shape.strokeBorder(flagged ? Twin.Palette.ink : Twin.Palette.hairline,
+                                        lineWidth: flagged ? Twin.Stroke.ink : Twin.Stroke.hairline))
+            .scaleEffect(flagged ? 1 : 0.98)
+    }
+}
+
+/// A plain pump bottle drawn with shapes: pink body, white label, no brand (prototype `.bottle`).
+struct PumpBottle: View {
+    var body: some View {
+        let ink = Twin.Palette.ink, edge = Twin.Stroke.ink
+        let shell = UnevenRoundedRectangle(topLeadingRadius: 8, bottomLeadingRadius: 6, bottomTrailingRadius: 6,
+                                           topTrailingRadius: 8, style: .continuous)
+        ZStack(alignment: .topLeading) {
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .fill(ink)
+                .frame(width: 26, height: 7)
+                .offset(x: 14, y: 5)
+            Rectangle()
+                .fill(Twin.Palette.paper)
+                .overlay(Rectangle().strokeBorder(ink, lineWidth: edge))
+                .frame(width: 12, height: 12)
+                .offset(x: 22, y: 10)
+            shell
+                .fill(Twin.Palette.pink)
+                .overlay(shell.strokeBorder(ink, lineWidth: edge))
+                .frame(width: 40, height: 56)
+                .offset(x: 8, y: 20)
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .fill(Twin.Palette.paper)
+                .overlay(RoundedRectangle(cornerRadius: 2, style: .continuous).strokeBorder(ink, lineWidth: edge))
+                .frame(width: 30, height: 26)
+                .offset(x: 13, y: 38)
+        }
+        .frame(width: 56, height: 76, alignment: .topLeading)
+        .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Question
+
+/// `ask_user`: Claude's question with its answers. The chosen one turns yellow, the others dim.
+struct QuestionCardView: View {
+    let card: ChatQuestion
+    let answer: String?
+    /// Waiting for Douglas.
+    let open: Bool
+    let pressed: String?
+    let choose: (String) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(card.question)
+                .font(Twin.Typeface.sans(15, .bold))
+                .foregroundStyle(Twin.Palette.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            if !card.options.isEmpty {
+                ChatFlow(spacing: 6, lineSpacing: 6) {
+                    ForEach(Array(card.options.enumerated()), id: \.offset) { _, option in
+                        let picked = answer == option
+                        ChatChip(text: option, fill: picked ? Twin.Palette.yellow : Twin.Palette.paper,
+                                 dimmed: answer != nil && !picked, pressedByScript: pressed == option) { choose(option) }
+                            .disabled(!open)
+                            .accessibilityAddTraits(picked ? .isSelected : [])
+                    }
+                }
+            }
+        }
+        .inkCard(Twin.Palette.cream, padding: 12)
+    }
+}
+
+// MARK: - Conclusion
+
+/// `show_conclusion`: the most likely cause, how sure, what was ruled out and the 5-night test.
+struct ConclusionCardView: View {
+    let card: ChatConclusion
+    let fresh: Bool
+    @State private var revealed: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    init(card: ChatConclusion, fresh: Bool) {
+        self.card = card
+        self.fresh = fresh
+        _revealed = State(initialValue: !fresh)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .center, spacing: 8) {
+                Eyebrow(text: "Most likely cause")
+                Spacer(minLength: 8)
+                Sticker(text: card.confidence, fill: Twin.Palette.yellow)
+            }
+            Text(card.cause)
+                .font(Twin.Typeface.sans(card.cause.count > 40 ? 21 : 26, .bold))
+                .tracking(-0.5)
+                .foregroundStyle(Twin.Palette.ink)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 6)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2, style: .continuous).fill(Twin.Palette.fill)
+                    RoundedRectangle(cornerRadius: 2, style: .continuous).fill(Twin.Palette.cyan)
+                        .frame(width: geo.size.width * (revealed ? card.confidenceFill : 0))
+                }
+            }
+            .frame(height: 6)
+            .padding(.top, 10)
+            .animation(reduceMotion ? .easeOut(duration: 0.3) : Twin.Motion.fill.delay(0.3), value: revealed)
+            .accessibilityHidden(true)
+
+            if !card.ruledOut.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(Array(card.ruledOut.enumerated()), id: \.offset) { index, ruled in
+                        ruledLine(ruled)
+                            .opacity(revealed ? 1 : 0)
+                            .offset(y: revealed || reduceMotion ? 0 : 6)
+                            .animation(Twin.Motion.spring.delay(0.45 + Double(index) * 0.18), value: revealed)
+                    }
+                }
+                .padding(.top, 12)
+            }
+            if let next = card.nextStep {
+                (Text("Try this: ").font(Twin.Typeface.sans(14, .bold)) + Text(next).font(Twin.Typeface.sans(14)))
+                    .foregroundStyle(Twin.Palette.ink)
+                    .lineSpacing(2.5)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Twin.Palette.limeSoft, in: RoundedRectangle(cornerRadius: Twin.Radius.control, style: .continuous))
+                    .overlay(RoundedRectangle(cornerRadius: Twin.Radius.control, style: .continuous)
+                        .strokeBorder(Twin.Palette.ink, lineWidth: Twin.Stroke.ink))
+                    .padding(.top, 12)
+                    .opacity(revealed ? 1 : 0)
+                    .scaleEffect(revealed || reduceMotion ? 1 : 0.96, anchor: .top)
+                    .animation(Twin.Motion.bouncy.delay(0.5 + Double(card.ruledOut.count) * 0.18), value: revealed)
+            }
+            Text("Not a diagnosis. A dermatologist can confirm it with a patch test.")
+                .font(Twin.Typeface.sans(11))
+                .foregroundStyle(Twin.Palette.inkHint)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.top, 10)
+        }
+        .inkCard(Twin.Palette.paper)
+        .onAppear {
+            guard !revealed else { return }
+            DispatchQueue.main.async { revealed = true }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func ruledLine(_ ruled: ChatConclusion.RuledOut) -> some View {
+        var line = Text(ruled.item)
+            .font(Twin.Typeface.sans(13, .bold))
+            .foregroundStyle(Twin.Palette.ink)
+            .strikethrough(true, color: Twin.Palette.ink)
+        if let reason = ruled.reason {
+            line = line + Text(" — \(reason)").font(Twin.Typeface.sans(13)).foregroundStyle(Twin.Palette.inkMuted)
+        }
+        return line
+            .lineSpacing(2)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
