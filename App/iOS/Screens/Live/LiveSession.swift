@@ -99,6 +99,10 @@ final class LiveSession: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.relay?.stop() }
             .store(in: &bag)
+        // Created after launch (first used by a screen): the app is already active, start now.
+        if UIApplication.shared.applicationState == .active {
+            DispatchQueue.main.async { [weak self] in self?.appBecameActive() }
+        }
 
         // `-screen live` opens the monitor at launch (after this object exists: the presenter reads it).
         if defaults.string(forKey: "screen") == "live" {
