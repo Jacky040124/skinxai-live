@@ -25,12 +25,20 @@
       <div><span class="k">PATIENT</span> DOUGLAS · BED 1</div>
       <div><span class="k">SENSOR</span> APPLE WATCH · RIGHT WRIST · 50 HZ</div>
       <div><span class="k">MODE</span> <span id="modeText">LIVE</span></div>
+      <button class="recbtn" id="recBtn" title="Record a labelled test (T)">● Record test</button>
     </div>
     <div class="monitor">
       <div class="trace-wrap">
         <canvas id="trace"></canvas>
         <div class="trace-label">WRIST MOTION · SCRATCH DETECTOR</div>
         <div class="alarm" id="alarm"><span>SCRATCH DETECTED</span></div>
+        <div class="recov" id="recOv">
+          <div class="rk" id="recStep">TEST RECORDING</div>
+          <div class="rt" id="recText">Hold your arm still</div>
+          <div class="rn" id="recNum">10</div>
+          <div class="rp"><i id="recBar"></i></div>
+          <div class="rh" id="recHint">Esc to cancel</div>
+        </div>
       </div>
       <aside class="vitals">
         <div class="vital big">
@@ -55,12 +63,45 @@
     <div class="strip"><div class="strip-k">SESSION</div><div class="strip-track" id="strip"></div></div>
   </section>
 
-  <section class="page" id="p-night"><div class="soon">Last night · coming next</div></section>
-  <section class="page" id="p-history"><div class="soon">History · coming next</div></section>
-  <section class="page" id="p-claude"><div class="soon">Claude · coming next</div></section>
+  <!-- LAST NIGHT -->
+  <section class="page" id="p-night">
+    <div class="ptitle"><div><div class="eyebrow" id="nightRange">LAST NIGHT</div><h1>Douglas scratched <span class="hl" id="nMin">0</span> minutes in his sleep.</h1></div>
+      <div class="chip warn" id="nRatio">▲ 3.4× his usual</div></div>
+    <div class="cards4">
+      <div class="card"><div class="ck">SCRATCH EPISODES</div><div class="cv" id="nEp">0</div></div>
+      <div class="card"><div class="ck">INTENSE</div><div class="cv orange" id="nInt">0</div></div>
+      <div class="card"><div class="ck">WOKE UP</div><div class="cv" id="nWake">0×</div></div>
+      <div class="card"><div class="ck">WORST HOURS</div><div class="cv small" id="nWorst">2–4 AM</div></div>
+    </div>
+    <div class="card grow"><div class="ck">MINUTES OF SCRATCHING · EACH HOUR</div><div class="bars" id="nightBars"></div><div class="axis" id="nightAxis"></div>
+      <div class="note" id="nLive"></div></div>
+  </section>
+
+  <!-- HISTORY -->
+  <section class="page" id="p-history">
+    <div class="ptitle"><div><div class="eyebrow">LAST 14 NIGHTS · SAME WATCH, EVERY NIGHT</div><h1><span id="hTitleLead">Since Wednesday:</span> <span class="hl" id="hAvg">0</span> min a night. His usual is <span id="hUsual">12</span>.</h1></div>
+      <div class="chip warn" id="hChange">▲ 2.6× his usual</div></div>
+    <div class="card grow"><div class="ck">MINUTES OF SCRATCHING PER NIGHT</div><div class="hbars" id="histBars"></div><div class="haxis" id="histAxis"></div></div>
+    <div class="card"><div class="ck">WHAT CHANGED</div><div class="changes" id="changes"></div></div>
+  </section>
+
+  <!-- CLAUDE -->
+  <section class="page" id="p-claude">
+    <div class="ptitle"><div><div class="eyebrow">DOUGLAS ASKED CLAUDE</div><h1>“Why is my eczema so bad today?”</h1></div>
+      <button class="ask" id="askBtn">✶ Ask Claude</button></div>
+    <div class="claude">
+      <div class="thinking card" id="thinking"><div class="pix" id="pix"></div><span id="thinkText">Reading 14 nights of scratching, sleep and weather…</span></div>
+      <div class="card summary" id="summaryCard"><div class="ck">WHAT CLAUDE THINKS <span id="srcTag"></span></div><p id="summary"></p></div>
+      <div class="suspects" id="suspects"></div>
+      <div class="next card" id="nextCard"><div class="ck">TRY THIS</div><p id="nextText"></p></div>
+      <div class="disc" id="disc">Not a diagnosis. Patterns in the log, not proof.</div>
+    </div>
+  </section>
 
   <div class="sound" id="sound">Click anywhere to turn on sound</div>
 </div>
 <script src="/monitor.js"></script>
+<script src="/pages.js"></script>
+<script src="/rec.js"></script>
 </body>
 </html>

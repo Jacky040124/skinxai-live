@@ -15,13 +15,13 @@ export default {
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: { "access-control-allow-origin": "*", "access-control-allow-headers": "authorization,content-type", "access-control-allow-methods": "GET,POST,OPTIONS" } });
     }
-    const room = env.ROOM.get(env.ROOM.idFromName("live"));
+    const room = env.ROOM.get(env.ROOM.idFromName("live-v2"));
     if (url.pathname === "/api/ingest" || url.pathname === "/api/reset") {
       const auth = request.headers.get("authorization") || "";
       if (!env.INGEST_KEY || auth !== `Bearer ${env.INGEST_KEY}`) return json({ error: "unauthorized" }, 401);
       return room.fetch(request);
     }
-    if (url.pathname === "/api/live" || url.pathname === "/api/events" || url.pathname === "/api/status") return room.fetch(request);
+    if (["/api/live", "/api/events", "/api/status", "/api/label", "/api/recording", "/api/recordings"].includes(url.pathname)) return room.fetch(request);
     if (url.pathname === "/api/analyze" && request.method === "POST") return analyze(request, env);
     return env.ASSETS.fetch(request);
   },
@@ -32,7 +32,10 @@ export class LiveRoom extends DurableObject {
     super(ctx, env);
     this.ctx.blockConcurrencyWhile(async () => {
       this.ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS episodes (id TEXT PRIMARY KEY, start REAL, end REAL, seconds REAL, intense INTEGER, hz REAL, received REAL)`);
+      this.ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS rec_labels (rec_id TEXT, t REAL, action TEXT, label TEXT, phase TEXT)`);
+      this.ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS rec_batches (rec_id TEXT, received REAL, body TEXT)`);
       this.lastSeen = (await this.ctx.storage.get("lastSeen")) || null;
+      this.rec = (await this.ctx.storage.get("rec")) || null;
     });
   }
 
@@ -58,12 +61,19 @@ export class LiveRoom extends DurableObject {
             String(e.id), +e.t || now, +e.end || now, +e.seconds || 0, e.intense ? 1 : 0, +e.hz || 0, now);
         }
       }
-      const msg = JSON.stringify({
+      const batch = {
         type: "batch", receivedAt: now, sentAt: body.sentAt || null, live: !!body.live,
         samples: Array.isArray(body.samples) ? body.samples.slice(0, 2000) : [],
+        raw: Array.isArray(body.raw) ? body.raw.slice(0, 4000) : [],
         windows: Array.isArray(body.windows) ? body.windows.slice(0, 100) : [],
         events,
-      });
+      };
+      // A labelled test recording is running: keep everything the watch sends (it ends itself after 15 min).
+      if (this.rec && now - this.rec.start < 900) {
+        this.ctx.storage.sql.exec(`INSERT INTO rec_batches (rec_id, received, body) VALUES (?,?,?)`, this.rec.id, now,
+          JSON.stringify({ raw: batch.raw, windows: batch.windows, events: batch.events, sentAt: batch.sentAt }));
+      }
+      const msg = JSON.stringify(batch);
       for (const ws of this.ctx.getWebSockets()) { try { ws.send(msg); } catch {} }
       return json({ ok: true, clients: this.ctx.getWebSockets().length });
     }
@@ -72,7 +82,35 @@ export class LiveRoom extends DurableObject {
       const rows = this.ctx.storage.sql.exec(`SELECT id,start,end,seconds,intense,hz FROM episodes WHERE start >= ? ORDER BY start`, since).toArray();
       return json({ episodes: rows.map(r => ({ ...r, intense: !!r.intense })), lastSeen: this.lastSeen });
     }
-    if (url.pathname === "/api/status") return json({ lastSeen: this.lastSeen, clients: this.ctx.getWebSockets().length, now: Date.now() / 1000 });
+    if (url.pathname === "/api/status") return json({ lastSeen: this.lastSeen, clients: this.ctx.getWebSockets().length, now: Date.now() / 1000, recording: this.rec });
+    if (url.pathname === "/api/label" && request.method === "POST") {
+      let b = {};
+      try { b = await request.json(); } catch {}
+      const now = Date.now() / 1000;
+      const action = String(b.action || "step").slice(0, 16), label = String(b.label || "").slice(0, 80), phase = String(b.phase || "").slice(0, 16);
+      if (action === "start") {
+        this.rec = { id: new Date().toISOString().replace(/[:.]/g, "-"), start: now, name: String(b.name || "test").slice(0, 60) };
+        await this.ctx.storage.put("rec", this.rec);
+      }
+      if (!this.rec) return json({ error: "no recording" }, 409);
+      const id = this.rec.id;
+      this.ctx.storage.sql.exec(`INSERT INTO rec_labels (rec_id, t, action, label, phase) VALUES (?,?,?,?,?)`, id, now, action, label, phase);
+      if (action === "end") { this.rec = null; await this.ctx.storage.delete("rec"); }
+      const msg = JSON.stringify({ type: "label", id, t: now, action, label, phase });
+      for (const ws of this.ctx.getWebSockets()) { try { ws.send(msg); } catch {} }
+      return json({ ok: true, id });
+    }
+    if (url.pathname === "/api/recordings") {
+      const rows = this.ctx.storage.sql.exec(`SELECT rec_id, MIN(t) AS start, MAX(t) AS end, COUNT(*) AS labels FROM rec_labels GROUP BY rec_id ORDER BY start DESC LIMIT 20`).toArray();
+      return json({ recordings: rows });
+    }
+    if (url.pathname === "/api/recording") {
+      const id = url.searchParams.get("id") || "";
+      const labels = this.ctx.storage.sql.exec(`SELECT t, action, label, phase FROM rec_labels WHERE rec_id = ? ORDER BY t`, id).toArray();
+      const batches = this.ctx.storage.sql.exec(`SELECT received, body FROM rec_batches WHERE rec_id = ? ORDER BY received`, id).toArray()
+        .map((r) => ({ received: r.received, ...JSON.parse(r.body) }));
+      return json({ id, labels, batches });
+    }
     if (url.pathname === "/api/reset" && request.method === "POST") {
       this.ctx.storage.sql.exec(`DELETE FROM episodes`);
       const msg = JSON.stringify({ type: "reset" });

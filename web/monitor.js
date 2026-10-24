@@ -16,6 +16,7 @@
   }
   document.querySelectorAll(".tabs button").forEach((b) => b.addEventListener("click", () => show(b.dataset.page)));
   window.twinShow = show;
+  if (names[location.hash.slice(1)]) setTimeout(() => show(location.hash.slice(1)), 0);
 
   // ---------- clock ----------
   setInterval(() => { $("#clock").textContent = new Date().toLocaleTimeString([], { hour12: false }); }, 500);
@@ -33,6 +34,14 @@
     g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     o.connect(g).connect(audio.destination); o.start(t); o.stop(t + dur + 0.02);
   }
+
+  // ---------- what counts as scratching on this screen ----------
+  // The watch flags windows; the screen can be stricter without reinstalling the watch app:
+  // ?minp=0.6 (min scratch probability) · ?maxs=0.5 (max motion strength, g) · ?mins=0.02 (min strength, g)
+  const P = new URLSearchParams(location.search);
+  const MINP = +(P.get("minp") || 0), MAXS = +(P.get("maxs") || Infinity), MINS = +(P.get("mins") || 0);
+  const passes = (w) => !!w && !!w.scratch && (w.p ?? 1) >= MINP && (w.strength ?? MINS) <= MAXS && (w.strength ?? MINS) >= MINS;
+  let lastWin = null, ignoring = false;
 
   // ---------- state ----------
   const queue = [];                // incoming samples {m, s}
@@ -59,6 +68,7 @@
     const v = $("#vCount"); v.textContent = count; v.classList.add("bump"); setTimeout(() => v.classList.remove("bump"), 260);
     $("#alarm").classList.add("on"); document.querySelector(".trace-wrap").classList.add("hot");
     strip.push({ start: Date.now(), end: null, intense });
+    markRecent(RATE * 2.4);   // the detector needs a moment: recolour the last seconds of the trace too
     beep(1318, 0.09, 0.2); beep(1318, 0.09, 0.2, 0.14);
   }
   function scratchEnd(seconds) {
@@ -75,7 +85,13 @@
   function reset() {
     count = 0; totalSeconds = 0; lastScratchAt = null; strip.length = 0; currentHz = null;
     $("#vCount").textContent = "0"; scratchEnd(0);
+    localStorage.setItem("twinSince", String(Date.now()));   // "last night" ignores stored scratches before this
   }
+
+  // what this session caught, for the "last night" page
+  window.twinSession = () => ({
+    episodes: strip.map((s) => ({ seconds: ((s.end || Date.now()) - s.start) / 1000, intense: !!s.intense })),
+  });
 
   // vitals text
   setInterval(() => {
@@ -97,16 +113,22 @@
     lastBatchAt = Date.now();
     for (const s of msg.samples || []) queue.push({ m: +s[1] || 0 });
     for (const w of msg.windows || []) {
-      if (w.scratch) { scratchUntil = performance.now() + 3200; if (w.hz) currentHz = w.hz; }
-      const mtr = $("#vMeter"); mtr.style.width = Math.min(100, (w.p || 0) * 100) + "%";
+      lastWin = w;
+      const ok = passes(w);
+      if (ok) {
+        scratchUntil = performance.now() + 3200; if (w.hz) currentHz = w.hz;
+        if (ignoring && !scratching) { ignoring = false; scratchStart(w.hz, false); }
+      }
+      const mtr = $("#vMeter"); mtr.style.width = Math.min(100, (ok ? (w.p || 0) : (w.p || 0) * 0.25) * 100) + "%";
     }
     for (const e of msg.events || []) {
-      if (e.type === "start") scratchStart(e.hz, e.intense);
-      if (e.type === "end") scratchEnd(e.seconds);
+      if (e.type === "start") { if (passes(lastWin)) scratchStart(e.hz, e.intense); else ignoring = true; }
+      if (e.type === "end") { if (ignoring) ignoring = false; else scratchEnd(e.seconds); }
     }
     if (queue.length > RATE * 6) queue.splice(0, queue.length - RATE * 2);   // far behind: jump ahead
   }
   window.twinOnBatch = onBatch;
+  window.twinLive = () => !simulate && Date.now() - lastBatchAt < 3500;
 
   let ws, retry = 0;
   function connect() {
@@ -181,10 +203,9 @@
       const s = queue.length ? queue.shift() : { m: 0.004 + Math.random() * 0.004 };
       const isScratch = performance.now() < scratchUntil || scratching;
       smooth += (s.m - smooth) * 0.5;
-      const g = Math.min(1, Math.pow(Math.max(0, smooth - 0.014) / 0.2, 0.55)); // calm at rest, exaggerate real motion
-      const amp = (isScratch ? 1.35 : 0.9) * g * H * 0.36 + H * 0.006;
-      phase += isScratch ? 2.1 : 1.2;
-      cols[cursor] = { y: Math.sin(phase) * amp * (0.75 + Math.random() * 0.25), s: isScratch };
+      const g = Math.min(1, Math.pow(Math.max(0, smooth - 0.014) / 0.25, 0.6));   // 0 at rest … 1 for big motion
+      phase += 1.1;
+      cols[cursor] = { g, ph: phase, r: 0.75 + Math.random() * 0.25, s: isScratch };
       cursor = (cursor + 1) % cols.length;
       cols[cursor] = null;                                                   // erase ahead of the pen
       for (let k = 1; k < 8; k++) cols[(cursor + k) % cols.length] = null;
@@ -193,21 +214,46 @@
     requestAnimationFrame(frame);
   }
 
+  // Calm baseline for any motion; while scratching the line lifts up in one smooth hump
+  // (height = how hard), with only a small ripple on top.
+  function markRecent(n) {
+    for (let k = 1; k <= n; k++) {
+      const c = cols[(cursor - k + cols.length * 4) % cols.length];
+      if (!c) break;
+      c.s = true;
+    }
+  }
+  // Walk the columns oldest → newest so the hump rises and falls smoothly.
+  function levels() {
+    const n = cols.length;
+    let L = 0;
+    for (let k = 0; k < n; k++) {
+      const c = cols[(cursor + 8 + k) % n];
+      if (!c) continue;
+      const target = c.s ? 0.55 + 0.45 * c.g : 0;
+      L += (target - L) * (target > L ? 0.16 : 0.07);
+      c.L = L;
+    }
+  }
+  const yOf = (c, base) => base - (c.L || 0) * H * 0.58 - Math.sin(c.ph) * (c.s ? 0.004 + 0.012 * c.g : 0.006 + 0.03 * c.g) * H * c.r;
+
   function draw() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, W, H);
-    const mid = H * 0.55;
+    const base = H * 0.76;
+    levels();
     ctx.lineJoin = "round"; ctx.lineCap = "round";
     // two passes: glow, then core
     for (const pass of [0, 1]) {
-      ctx.lineWidth = pass ? 2.4 : 8;
+      ctx.lineWidth = pass ? 2.6 : 9;
       let prev = null;
       for (let i = 0; i < cols.length; i++) {
         const c = cols[i];
         if (!c) { prev = null; continue; }
-        const x = i * PX_PER_SAMPLE, y = mid - c.y;
+        const x = i * PX_PER_SAMPLE, y = yOf(c, base);
         if (prev) {
-          ctx.strokeStyle = c.s ? (pass ? "#f8a16f" : "rgba(248,161,111,.28)") : (pass ? "#a9d877" : "rgba(169,216,119,.18)");
+          const hot = (c.L || 0) > 0.08;
+          ctx.strokeStyle = hot ? (pass ? "#f8a16f" : "rgba(248,161,111,.3)") : (pass ? "#a9d877" : "rgba(169,216,119,.18)");
           ctx.beginPath(); ctx.moveTo(prev.x, prev.y); ctx.lineTo(x, y); ctx.stroke();
         }
         prev = { x, y };
@@ -216,9 +262,10 @@
     // pen dot
     const pi = (cursor - 1 + cols.length) % cols.length, pc = cols[pi];
     if (pc) {
-      ctx.fillStyle = pc.s ? "#f8a16f" : "#d8ffb0";
-      ctx.shadowColor = pc.s ? "#f8a16f" : "#a9d877"; ctx.shadowBlur = 18;
-      ctx.beginPath(); ctx.arc(pi * PX_PER_SAMPLE, mid - pc.y, 4.5, 0, Math.PI * 2); ctx.fill();
+      const hot = (pc.L || 0) > 0.08;
+      ctx.fillStyle = hot ? "#f8a16f" : "#d8ffb0";
+      ctx.shadowColor = hot ? "#f8a16f" : "#a9d877"; ctx.shadowBlur = 18;
+      ctx.beginPath(); ctx.arc(pi * PX_PER_SAMPLE, yOf(pc, base), 4.5, 0, Math.PI * 2); ctx.fill();
       ctx.shadowBlur = 0;
     }
   }
