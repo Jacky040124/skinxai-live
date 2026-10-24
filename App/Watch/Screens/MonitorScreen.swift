@@ -16,7 +16,7 @@ struct MonitorScreen: View {
                 ScratchCount(count: model.scratches, scratching: model.scratching, size: m.number)
                     .watchRise(0.14, distance: 8)
                 Spacer(minLength: m.gap)
-                ScreenStatus()
+                ScreenStatus(size: m.status)
                     .watchRise(0.2, distance: 6)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -32,16 +32,18 @@ private struct MonitorMetrics {
     /// pass the title row and the gap under the button).
     let pulseReach: CGFloat
     let number: CGFloat
+    let status: CGFloat
     let gap: CGFloat
 
     init(size: CGSize) {
         let compact = size.height < 175 || size.width < 180
         number = compact ? 34 : 42
+        status = compact ? 12 : 13
         gap = compact ? 8 : 10
         aboveButton = compact ? 6 : 8
         pulseReach = compact ? 10 : 14
-        // Under the button: the count's digits, the status line and the two gaps.
-        let below = number * ScratchCount.digitHeight + 17 + 2 * gap
+        // Under the button: the count's digits, the status line (its line box is 1.28 em) and the two gaps.
+        let below = number * ScratchCount.digitHeight + status * 1.28 + 2 * gap
         button = max(72, min(size.width * 0.58, size.height - aboveButton - below))
     }
 }
@@ -206,6 +208,7 @@ private struct ScratchCount: View {
 /// monitoring.
 private struct ScreenStatus: View {
     @EnvironmentObject var model: WatchModel
+    var size: CGFloat
 
     var body: some View {
         let (text, color) = status
@@ -218,13 +221,13 @@ private struct ScreenStatus: View {
             }
             .frame(width: 6, height: 6)
             text
-                .font(WatchFont.sans(13, .semibold))
+                .font(WatchFont.sans(size, .semibold))
                 .foregroundStyle(color)
                 .lineLimit(1)
-                .minimumScaleFactor(0.75)
+                .minimumScaleFactor(0.7)
                 .contentTransition(.identity)                // swaps at once (a crossfade ghosts as the line re-centres)
         }
-        .padding(.horizontal, 16)
+        .padding(.horizontal, 12)
         .animation(Twin.Motion.spring, value: model.screenLink)
         .animation(Twin.Motion.spring, value: model.live)
         .accessibilityElement(children: .combine)
@@ -237,7 +240,7 @@ private struct ScreenStatus: View {
             return (Text("Connected to screen"), Twin.Palette.cyan)
         case .some(false):
             // Why, as the streamer reports it: a URL error code, "HTTP 401", "NO KEY", "WAIT 2s"…
-            let why = model.screenDetail.isEmpty ? Text("") : Text(" (\(model.screenDetail))").font(WatchFont.mono(10))
+            let why = model.screenDetail.isEmpty ? Text("") : Text(" (\(model.screenDetail))").font(WatchFont.mono(size - 3))
             return (Text("Can’t reach screen\(why)"), Twin.Palette.orange)
         case .none:
             return (Text("Connecting to screen…"), Twin.Palette.nightMuted)
