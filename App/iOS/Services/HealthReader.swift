@@ -31,6 +31,21 @@ final class HealthReader {
         return status == .unnecessary
     }
 
+    /// true when Health returns at least one sample of a type we read (last 30 days). Health
+    /// hides denied data as "no data", so this is the only honest sign that reading works.
+    func returnsSamples(now: Date = Date()) async -> Bool {
+        guard Self.isAvailable else { return false }
+        let predicate = HKQuery.predicateForSamples(withStart: now.addingTimeInterval(-30 * 86_400), end: now)
+        let types: [HKSampleType] = [HKCategoryType(.sleepAnalysis), HKQuantityType(.heartRateVariabilitySDNN),
+                                     HKQuantityType(.restingHeartRate), HKObjectType.workoutType()]
+        for type in types {
+            let query = HKSampleQueryDescriptor(predicates: [.sample(type: type, predicate: predicate)],
+                                                sortDescriptors: [], limit: 1)
+            if let found = try? await query.result(for: store), !found.isEmpty { return true }
+        }
+        return false
+    }
+
     func requestAccess() async {
         guard Self.isAvailable else { return }
         try? await store.requestAuthorization(toShare: [], read: Self.readTypes)

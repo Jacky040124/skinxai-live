@@ -23,7 +23,16 @@ public enum DemoData {
     public static let gymDays: Set<Int> = [1, 3, 8, 12, 15, 18, 21]
     public static let dairyDays: Set<Int> = [2, 7, 13, 16, 20]
 
-    public static func make(today: Date = Date(), experimentDay: Int? = nil, calendar: Calendar = .current) -> TwinDataset {
+    /// Hour the demo story reveals "today" through: the current hour, but never earlier than 7 am,
+    /// so today always holds last night's flare (1–5 am) even during a night rehearsal.
+    /// Pass it as `revealThroughHour`; real data never uses it.
+    public static func storyRevealHour(at now: Date = Date(), calendar: Calendar = .current) -> Int {
+        max(calendar.component(.hour, from: now), 7)
+    }
+
+    /// - Parameter revealThroughHour: last hour of today that has data (`nil` = the hour of `today`).
+    public static func make(today: Date = Date(), experimentDay: Int? = nil, revealThroughHour: Int? = nil,
+                            calendar: Calendar = .current) -> TwinDataset {
         let extra = max(0, min(experimentDay ?? 0, experimentMinutes.count))
         let minutes = flareMinutes + experimentMinutes.prefix(extra)
         let n = minutes.count
@@ -54,7 +63,7 @@ public enum DemoData {
             var hourly = w.map { ($0 / sum * total * 10).rounded() / 10 }
             // Hours after "now" on today are empty (scratching hasn't happened yet).
             if i == n - 1 {
-                let nowHour = calendar.component(.hour, from: today)
+                let nowHour = revealThroughHour ?? calendar.component(.hour, from: today)
                 for h in 0..<24 where h > nowHour { hourly[h] = 0 }
             }
 

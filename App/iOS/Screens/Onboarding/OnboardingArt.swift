@@ -176,8 +176,9 @@ private struct ScratchMarks: View {
             mark.rotationEffect(.degrees(-18)).offset(x: -106, y: -46)
             mark.rotationEffect(.degrees(4)).offset(x: -114, y: 6)
             mark.rotationEffect(.degrees(22)).offset(x: -102, y: 56)
-            mark.rotationEffect(.degrees(162)).offset(x: 108, y: -60)
-            mark.rotationEffect(.degrees(184)).offset(x: 116, y: 60)
+            // Right side: beside the bands, clear of the diary column.
+            mark.rotationEffect(.degrees(160)).offset(x: 102, y: -122)
+            mark.rotationEffect(.degrees(200)).offset(x: 102, y: 122)
         }
         .keyframeAnimator(initialValue: MarkPhase(), trigger: trigger) { view, p in
             view.opacity(p.opacity).scaleEffect(p.scale)
@@ -283,7 +284,7 @@ struct AutoTrackedArt: View {
                  source: "HEALTH", fill: Twin.Palette.paper, tilt: 1.5),
             Tile(id: 3, emoji: "💧", title: "Humidity", value: num(d?.humidityPct).map { "\($0)%" } ?? "—",
                  source: "WEATHER", fill: humidity > 0 && humidity < 35 ? Twin.Palette.orange : Twin.Palette.paper, tilt: -2),
-            Tile(id: 4, emoji: "🌬️", title: "Air quality", value: (d?.aqi).flatMap { $0 > 0 ? "AQI \($0)" : nil } ?? "—",
+            Tile(id: 4, emoji: "🍃", title: "Air quality", value: (d?.aqi).flatMap { $0 > 0 ? "AQI \($0)" : nil } ?? "—",
                  source: "WEATHER", fill: Twin.Palette.paper, tilt: -1.5),
             Tile(id: 5, emoji: "🌼", title: "Pollen", value: d?.pollen.label ?? "—",
                  source: "WEATHER", fill: Twin.Palette.paper, tilt: 3),
@@ -375,7 +376,8 @@ struct PermissionCards: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            row(0, icon: "heart.fill", title: "Apple Health", detail: "Sleep, HRV, resting pulse", state: access.health) {
+            row(0, icon: "heart.fill", title: "Apple Health", detail: "Sleep, HRV, resting pulse", state: access.health,
+                manage: access.openHealth) {
                 Task { await access.requestHealth() }
             }
             row(1, icon: "location.fill", title: "Location", detail: "Air, humidity, pollen near you", state: access.location) {
@@ -398,9 +400,9 @@ struct PermissionCards: View {
     }
 
     private func row(_ i: Int, icon: String, title: String, detail: String, state: DeviceAccess.State,
-                     request: @escaping () -> Void) -> some View {
+                     manage: (() -> Void)? = nil, request: @escaping () -> Void) -> some View {
         PermissionRow(icon: icon, title: title, detail: detail) {
-            PermissionStatus(state: state, request: request, settings: access.openSettings)
+            PermissionStatus(state: state, request: request, settings: access.openSettings, manage: manage)
         }
         .modifier(RowEntrance(index: i, shown: shown))
     }
@@ -475,11 +477,14 @@ struct PermissionRow<Trailing: View>: View {
     }
 }
 
-/// "Allow" (pink, to do) → "On" (lime) or "Off" (opens Settings).
+/// "Allow" (pink, to do) → "On" (lime) or "Off" (opens Settings). Apple Health can also be
+/// "Asked" (neutral): answered, but no data has come back yet, so it may well be off.
 struct PermissionStatus: View {
     let state: DeviceAccess.State
     let request: () -> Void
     let settings: () -> Void
+    /// Where "Asked" leads (Apple Health: the Health app).
+    var manage: (() -> Void)? = nil
 
     var body: some View {
         Group {
@@ -488,6 +493,23 @@ struct PermissionStatus: View {
                 Button("Allow", action: request)
                     .buttonStyle(TwinButtonStyle(fill: Twin.Palette.pink, height: 34, fullWidth: false))
                     .font(Twin.Typeface.sans(14, .bold))
+            case .asked:
+                Button(action: manage ?? settings) {
+                    VStack(alignment: .trailing, spacing: 3) {
+                        Sticker(text: "Asked", fill: Twin.Palette.paper)
+                        HStack(spacing: 3) {
+                            Text("MANAGE IN HEALTH")
+                            Image(systemName: "arrow.up.right").font(.system(size: 7, weight: .bold))
+                        }
+                        .font(Twin.Typeface.mono(9))
+                        .foregroundStyle(Twin.Palette.inkMuted)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(PressableStyle())
+                .accessibilityLabel("Asked")
+                .accessibilityHint("Opens Apple Health, where you choose what Eczema Twin can read")
+                .transition(.opacity)
             case .on:
                 Sticker(text: "On", icon: "checkmark", fill: Twin.Palette.lime)
                     .transition(.scale(scale: 0.5).combined(with: .opacity))

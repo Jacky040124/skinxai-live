@@ -213,6 +213,9 @@ private struct LiveTextScanner: UIViewControllerRepresentable {
 private struct PhotoScanScreen: View {
     var finish: (LabelScanResult) -> Void
     var cancel: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Entrance rise (fade only with Reduce Motion).
+    private var rise: CGFloat { reduceMotion ? 0 : 14 }
     @State private var pick: PhotosPickerItem?
     @State private var reading = false
     @State private var result: LabelScanResult?
@@ -235,19 +238,19 @@ private struct PhotoScanScreen: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     .twinCard()
-                    .riseIn(0.05)
+                    .riseIn(0.05, distance: rise)
 
                     PhotosPicker(selection: $pick, matching: .images) {
                         Label("Choose a photo of a label", systemImage: "photo.on.rectangle")
                     }
                     .buttonStyle(TwinButtonStyle(fill: Twin.Palette.pink, height: 52))
-                    .riseIn(0.12)
+                    .riseIn(0.12, distance: rise)
 
                     Button(action: useSample) {
                         Label("Try a sample body-wash label", systemImage: "doc.text.magnifyingglass")
                     }
                     .buttonStyle(TwinButtonStyle(fill: Twin.Palette.paper, height: 50))
-                    .riseIn(0.18)
+                    .riseIn(0.18, distance: rise)
 
                     if reading {
                         HStack(spacing: 10) {
@@ -287,7 +290,7 @@ private struct PhotoScanScreen: View {
                                 .fixedSize(horizontal: false, vertical: true)
                         }
                         .padding(.top, 8)
-                        .riseIn(0.26)
+                        .riseIn(0.26, distance: rise)
                         .transition(.opacity)
                     }
                 }

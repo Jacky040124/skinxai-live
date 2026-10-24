@@ -8,7 +8,9 @@ import UIKit
 @MainActor
 final class DeviceAccess: NSObject, ObservableObject {
     enum State: Equatable {
-        case notAsked, on, off, unavailable
+        /// `asked`: the request was answered but nothing proves access yet (Apple Health only:
+        /// it never tells apps what was allowed, so this turns `on` once a query returns data).
+        case notAsked, asked, on, off, unavailable
     }
 
     @Published private(set) var health: State = .notAsked
@@ -28,7 +30,22 @@ final class DeviceAccess: NSObject, ObservableObject {
     }
 
     func refresh() async {
-        if HealthReader.isAvailable { health = await healthReader.wasAsked() ? .on : .notAsked }
+        if HealthReader.isAvailable {
+            if !(await healthReader.wasAsked()) {
+                health = .notAsked
+            } else {
+                health = await healthReader.returnsSamples() ? .on : .asked
+            }
+        }
+        #if DEBUG
+        // `-healthState asked|on|off` (screenshots: a script can't answer the Health sheet).
+        switch UserDefaults.standard.string(forKey: "healthState") {
+        case "asked": health = .asked
+        case "on": health = .on
+        case "off": health = .off
+        default: break
+        }
+        #endif
         location = Self.state(manager.authorizationStatus)
         let settings = await UNUserNotificationCenter.current().notificationSettings()
         notifications = switch settings.authorizationStatus {
@@ -59,6 +76,14 @@ final class DeviceAccess: NSObject, ObservableObject {
 
     func openSettings() {
         if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+    }
+
+    /// The Health app, where read access is managed (falls back to this app's Settings page).
+    func openHealth() {
+        guard let url = URL(string: "x-apple-health://") else { openSettings(); return }
+        UIApplication.shared.open(url) { [weak self] opened in
+            if !opened { Task { @MainActor in self?.openSettings() } }
+        }
     }
 
     // MARK: Location fix

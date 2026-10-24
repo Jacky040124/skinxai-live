@@ -42,6 +42,8 @@ targets:
       properties:
         CFBundleDisplayName: Eczema Twin
         UILaunchScreen: {}
+        # Wins over UILaunchScreen: the app's first frame (App/iOS/Shell/LaunchScreen.storyboard).
+        UILaunchStoryboardName: LaunchScreen
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         UIAppFonts: [SpaceGrotesk.ttf, SpaceMono-Regular.ttf, SpaceMono-Bold.ttf]
         NSHealthShareUsageDescription: Eczema Twin reads your sleep and heart data to understand your flares.

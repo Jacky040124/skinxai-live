@@ -15,16 +15,19 @@ source "$ROOT/scripts/common.sh"
 rssh "mkdir -p et/$NAME" || exit 1
 rsync -az --delete --exclude .git --exclude .build --exclude .swiftpm --exclude shots -e "$RSYNC_SSH" "$ROOT/" "$HOST:et/$NAME/src/" || exit 1
 REMOTE_SRC="/Users/jacky/et/$NAME/src"
+# Simulator builds are signed ad hoc ("Sign to Run Locally", what Xcode does): SpringBoard only shows
+# a launch storyboard from a sealed bundle (unsigned = black launch), and entitlements apply.
+SIM_SIGN="CODE_SIGN_IDENTITY=- CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER="
 build() {
-  local scheme=$1 dest=$2
+  local scheme=$1 dest=$2 sign=${3:-CODE_SIGNING_ALLOWED=NO}
   echo "== $scheme ($dest)"
-  rssh "cd et/$NAME/src && xcodebuild -project EczemaTwin.xcodeproj -scheme $scheme -destination '$dest' -derivedDataPath ../dd CODE_SIGNING_ALLOWED=NO build 2>&1" \
+  rssh "cd et/$NAME/src && xcodebuild -project EczemaTwin.xcodeproj -scheme $scheme -destination '$dest' -derivedDataPath ../dd $sign build 2>&1" \
     | grep -E "error:|BUILD (SUCCEEDED|FAILED)|\*\* BUILD" | sed "s#$REMOTE_SRC#$ROOT#g" | awk '!seen[$0]++' | head -80
 }
 case $WHAT in
-  ios) build EczemaTwin 'generic/platform=iOS Simulator' ;;
-  watch) build EczemaTwinWatch 'generic/platform=watchOS Simulator' ;;
-  all) build EczemaTwin 'generic/platform=iOS Simulator'; build EczemaTwinWatch 'generic/platform=watchOS Simulator' ;;
+  ios) build EczemaTwin 'generic/platform=iOS Simulator' "$SIM_SIGN" ;;
+  watch) build EczemaTwinWatch 'generic/platform=watchOS Simulator' "$SIM_SIGN" ;;
+  all) build EczemaTwin 'generic/platform=iOS Simulator' "$SIM_SIGN"; build EczemaTwinWatch 'generic/platform=watchOS Simulator' "$SIM_SIGN" ;;
   device) build EczemaTwin 'generic/platform=iOS' ;;
   *) echo "unknown target $WHAT"; exit 2 ;;
 esac

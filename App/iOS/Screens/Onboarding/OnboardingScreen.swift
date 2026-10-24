@@ -187,9 +187,12 @@ struct OnboardingScreen: View {
         min(1, (width - 32) / 372, (height - 12) / 336)
     }
 
+    /// Each page dot is a 44 × 44 pt target; the row starts at the page margin.
+    private let dotSlot: CGFloat = 44
+
     private var controls: some View {
         HStack(alignment: .center) {
-            HStack(spacing: 6) {
+            HStack(spacing: 0) {
                 ForEach(0..<count, id: \.self) { i in
                     Button { go(to: i) } label: {
                         ZStack {
@@ -205,14 +208,16 @@ struct OnboardingScreen: View {
                                     .frame(width: 10, height: 10)
                             }
                         }
-                        .frame(height: 30)
+                        .frame(width: dotSlot, height: dotSlot)
                         .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(ControlPressStyle(scale: 0.8))
                     .accessibilityLabel("Page \(i + 1) of \(count)")
                     .accessibilityAddTraits(i == page ? [.isSelected] : [])
                 }
             }
+            // The first dot (pill on page 1, square after) starts on the page margin.
+            .padding(.leading, -(dotSlot - (page == 0 ? 26 : 10)) / 2)
             .animation(.spring(response: 0.4, dampingFraction: 0.72), value: page)
             Spacer()
             Button {
@@ -236,10 +241,10 @@ struct OnboardingScreen: View {
         reduceMotion ? .easeInOut(duration: 0.25) : .spring(response: 0.5, dampingFraction: 0.86)
     }
 
+    /// No haptic here: every button that calls this already tapped on press (swipes tap themselves).
     private func go(to target: Int) {
         let t = min(max(target, 0), count - 1)
         guard t != page else { return }
-        Haptics.tap()
         withAnimation(pageSpring) { page = t; drag = 0 }
     }
 

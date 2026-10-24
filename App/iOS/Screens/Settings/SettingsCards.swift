@@ -323,7 +323,6 @@ struct ClaudeSettingsCard: View {
 
     private func modelRow(name: String, note: String, on: Bool, select: @escaping () -> Void) -> some View {
         Button {
-            Haptics.tap()
             withAnimation(.spring(response: 0.36, dampingFraction: 0.75)) { select() }
         } label: {
             HStack(spacing: 10) {
@@ -353,7 +352,7 @@ struct ClaudeSettingsCard: View {
             }
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(ControlPressStyle(scale: 0.97))
         .accessibilityAddTraits(on ? [.isSelected] : [])
     }
 

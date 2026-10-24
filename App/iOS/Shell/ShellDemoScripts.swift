@@ -13,6 +13,12 @@ import EczemaKit
 ///               (skipped when a real key is stored)
 ///   watch       a live scratch episode arrives from the watch (merge + toast)
 ///   scan        open the tag sheet, open the label scanner, read the sample label, use it
+///   tabs        Today → Insight → Test → Trends → Today, 2 s apart (page transitions)
+///   midnight    the app "stayed open overnight": yesterday's story + a live episode from today,
+///               then midnight passes (counts dataset updates: the overlay must not loop)
+///   hour        today's story as it looked 4 hours ago, then the top of the hour passes
+///   inbox       a watch payload arrives before anyone listens (background wake), then the frame attaches
+///   haptics     card → tab, tab bar → tab and "Start test" paths: one haptic per touch
 @MainActor
 enum ShellDemoScript {
     static func runIfRequested(app: AppState, services: ShellServices) {
@@ -90,6 +96,69 @@ enum ShellDemoScript {
             let episode = ScratchEpisode(start: end.addingTimeInterval(-95), end: end, meanHz: 4.2, meanRMS: 0.41,
                                          intense: true, source: .live, label: .confirmed)
             services.watch.onEpisodes?([episode])
+        case "tabs":
+            for tab in [Tab.insight, .experiment, .trends, .today] {
+                try await pause(2.0)
+                app.select(tab)
+            }
+        case "midnight":
+            try await pause(2.0)
+            guard let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: Date()) else { return }
+            app.update { $0 = DemoData.make(today: yesterday, revealThroughHour: 23) }
+            var updates = 0
+            let counter = app.$dataset.dropFirst().sink { _ in updates += 1 }
+            let end = Date()
+            services.watch.onEpisodes?([ScratchEpisode(start: end.addingTimeInterval(-80), end: end, meanHz: 4.0,
+                                                       meanRMS: 0.3, intense: false, source: .live, label: .confirmed)])
+            try await pause(2.0)
+            let stale = updates
+            NotificationCenter.default.post(name: UIApplication.significantTimeChangeNotification, object: nil)
+            try await pause(1.5)
+            counter.cancel()
+            let onToday = app.dataset.today.map { Calendar.current.isDateInToday($0.day) } ?? false
+            let live = app.dataset.episodes.contains { $0.source == .live }
+            let ok = stale == 0 && onToday && live
+            services.toasts.show("\(stale) updates while stale · \(onToday ? "on today" : "still yesterday") · live \(live ? "merged" : "missing")",
+                                 mood: ok ? .done : .warning, seconds: 8)
+        case "inbox":
+            try await pause(1.5)
+            // As when WatchConnectivity wakes the app in the background: nobody listens yet.
+            let listener = services.watch.onEpisodes
+            services.watch.onEpisodes = nil
+            let end = Date()
+            let episode = ScratchEpisode(start: end.addingTimeInterval(-70), end: end, meanHz: 4.4, meanRMS: 0.38,
+                                         intense: true, source: .live, label: .confirmed)
+            let data = try JSONEncoder().encode([episode])
+            services.watch.simulateDelivery(["kind": "episodes", "data": data])
+            try await pause(1.0)
+            let savedFirst = RealStore.loadEpisodes().contains { $0.id == episode.id }
+            services.watch.onEpisodes = listener      // the app frame attaches
+            try await pause(2.4)
+            let merged = app.dataset.episodes.contains { $0.id == episode.id }
+            services.toasts.show("Before anyone listened: \(savedFirst ? "saved" : "lost") · then \(merged ? "merged" : "never merged")",
+                                 mood: savedFirst && merged ? .done : .warning, seconds: 8)
+        case "hour":
+            try await pause(2.5)
+            services.data.rewindStoryClock(hours: 4)
+            try await pause(3.0)
+            services.data.keepStoryOnToday()
+        case "haptics":
+            try await pause(1.5)
+            Haptics.tap()                         // a card's press tap…
+            let press = Haptics.lastTapAt
+            app.select(.insight)                  // …and its action
+            let card = Haptics.lastTapAt == press
+            try await pause(1.2)
+            let before = Haptics.lastTapAt
+            app.select(.trends)                   // a switch with no press tap before it (tour, alert)
+            let tab = Haptics.lastTapAt != before
+            try await pause(1.2)
+            Haptics.tap()                         // "Start a 10-day test" press tap…
+            let start = Haptics.lastTapAt
+            app.startExperiment()                 // …then only the success haptic
+            let started = Haptics.lastTapAt == start
+            services.toasts.show("Card → tab \(card ? "1 tap" : "2 taps") · plain switch \(tab ? "taps" : "silent") · start \(started ? "success only" : "extra tap")",
+                                 mood: card && tab && started ? .done : .warning, seconds: 8)
         default:
             break
         }

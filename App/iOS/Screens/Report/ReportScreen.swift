@@ -16,23 +16,25 @@ struct ReportScreen: View {
     @State private var fullScreen: URL?
 
     private var facts: ReportFacts { ReportFacts(dataset: app.dataset, name: name) }
+    /// Entrance rise (fade only with Reduce Motion).
+    private var rise: CGFloat { reduceMotion ? 0 : 14 }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: Twin.Space.m) {
                 header
-                    .riseIn(0)
+                    .riseIn(0, distance: rise)
                 paper
                     .riseIn(0.05, distance: 0)
                 included
-                    .riseIn(0.25)
+                    .riseIn(0.25, distance: rise)
                 actions
-                    .riseIn(0.32)
+                    .riseIn(0.32, distance: rise)
                 Text("Nothing leaves your phone until you share it. The PDF has no account, no tracking, just this page.")
                     .font(Twin.Typeface.sans(12))
                     .foregroundStyle(Twin.Palette.inkHint)
                     .fixedSize(horizontal: false, vertical: true)
-                    .riseIn(0.38)
+                    .riseIn(0.38, distance: rise)
             }
             .padding(.horizontal, Twin.Space.screen)
             .padding(.top, 22)
@@ -92,20 +94,22 @@ struct ReportScreen: View {
             let scale = inner / ReportPage.size.width
             let pageH = ReportPage.size.height * scale
             ZStack(alignment: .top) {
-                ReportPage(facts: facts, animated: !reduceMotion)
-                    .scaleEffect(scale, anchor: .topLeading)
-                    .frame(width: inner, height: pageH, alignment: .topLeading)
-                    .overlay(Rectangle().strokeBorder(Twin.Palette.hairline, lineWidth: 1))
-                    .offset(y: printed || reduceMotion ? 0 : -pageH - 6)
-                    .padding(.top, 14)
-                    .frame(width: g.size.width, height: pageH + 28, alignment: .top)
-                    .clipped()
-                    .contentShape(Rectangle())
-                    .onTapGesture { if pdf != nil { fullScreen = pdf } }
-                    .accessibilityElement(children: .ignore)
-                    .accessibilityLabel("Report preview")
-                    .accessibilityHint("Opens the PDF full screen")
-                    .accessibilityAddTraits(.isButton)
+                // The page itself opens the PDF full screen (press squash + tap like every card).
+                Button { fullScreen = pdf } label: {
+                    ReportPage(facts: facts, animated: !reduceMotion)
+                        .scaleEffect(scale, anchor: .topLeading)
+                        .frame(width: inner, height: pageH, alignment: .topLeading)
+                        .overlay(Rectangle().strokeBorder(Twin.Palette.hairline, lineWidth: 1))
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(PressableStyle())
+                .disabled(pdf == nil)
+                .accessibilityLabel("Report preview")
+                .accessibilityHint("Opens the PDF full screen")
+                .offset(y: printed || reduceMotion ? 0 : -pageH - 6)
+                .padding(.top, 14)
+                .frame(width: g.size.width, height: pageH + 28, alignment: .top)
+                .clipped()
                 // The slot.
                 Capsule()
                     .fill(Twin.Palette.ink)

@@ -32,6 +32,10 @@ final class DataModeController: ObservableObject {
     private var received = RealStore.loadEpisodes()
     private var bag = Set<AnyCancellable>()
     private var lastWeatherFetch: Date?
+    /// Demo mode: the hour today's story is revealed through (see `keepStoryOnToday`).
+    private var revealedHour = DemoData.storyRevealHour()
+    /// Fires at the top of the next hour while the app is open.
+    private var clockTimer: Timer?
 
     static let modeKey = "dataMode"
 
@@ -61,6 +65,8 @@ final class DataModeController: ObservableObject {
             .sink { [weak self] day in
                 guard let self else { return }
                 self.storyDay = StoryPoint.flareLength
+                // `setExperimentDay` rebuilds the story for the current hour.
+                self.revealedHour = DemoData.storyRevealHour()
                 if day != nil, self.mode == .real { self.setMode(.demo, rebuild: false) }
             }
             .store(in: &bag)
@@ -74,12 +80,21 @@ final class DataModeController: ObservableObject {
 
         watch.onEpisodes = { [weak self] episodes in self?.receive(episodes) }
 
-        NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)
-            .sink { [weak self] _ in
-                guard let self, self.mode == .real else { return }
-                Task { await self.refreshReal() }
-            }
+        // "Today" moves on while the app stays open or sleeps in the background: midnight, a new
+        // hour, a time-zone change, coming back to the app.
+        let center = NotificationCenter.default
+        center.publisher(for: UIApplication.didBecomeActiveNotification)
+            .merge(with: center.publisher(for: UIApplication.significantTimeChangeNotification),
+                   center.publisher(for: .NSCalendarDayChanged))
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.clockDidChange() }
             .store(in: &bag)
+        // Before the first frame after the app comes back, so a new day never flashes yesterday.
+        center.publisher(for: UIApplication.willEnterForegroundNotification)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.keepStoryOnToday() }
+            .store(in: &bag)
+        scheduleClockTick()
 
         // Launch arguments for demo time travel always mean the demo story.
         let storyArg = UserDefaults.standard.integer(forKey: "storyDay")
@@ -157,8 +172,10 @@ final class DataModeController: ObservableObject {
         let shown = Set(app.dataset.episodes.map(\.id))
         let mergeable = mode == .real ? episodes : episodes.filter { isLiveToday($0) || shown.contains($0.id) }
         guard !mergeable.isEmpty else { return }
-        var added = 0
-        app.update { added = EpisodeMerge.apply(mergeable, to: &$0) }
+        var next = app.dataset
+        let added = EpisodeMerge.apply(mergeable, to: &next)
+        // Nothing landed (e.g. the episodes are from a day the data doesn't cover): don't republish.
+        if next != app.dataset { app.update { $0 = next } }
         if mode == .real { alerts?.check(app.dataset) }
         if added > 0 {
             Haptics.soft()
@@ -194,13 +211,94 @@ final class DataModeController: ObservableObject {
 
     /// Demo mode: today's live watch episodes stay on top of whatever story day is shown.
     private func applyLiveOverlay(to d: TwinDataset) {
-        let shown = Set(d.episodes.map(\.id))
-        let missing = received.filter { isLiveToday($0) && !shown.contains($0.id) }
-        guard !missing.isEmpty else { return }
+        guard !missingLive(in: d).isEmpty else { return }
         DispatchQueue.main.async { [weak self] in
-            guard let app = self?.app, app.dataset.isDemo else { return }
-            app.update { EpisodeMerge.apply(missing, to: &$0) }
+            guard let self, let app = self.app, app.dataset.isDemo else { return }
+            let missing = self.missingLive(in: app.dataset)
+            guard !missing.isEmpty else { return }
+            var next = app.dataset
+            // Publish only a merge that changed something, so this can never loop.
+            guard EpisodeMerge.apply(missing, to: &next) > 0 else { return }
+            app.update { $0 = next }
         }
+    }
+
+    /// Today's live episodes the dataset doesn't show yet and that land on one of its days (a
+    /// dataset still on yesterday can't take them: it gets rebuilt for today first).
+    private func missingLive(in d: TwinDataset) -> [ScratchEpisode] {
+        let shown = Set(d.episodes.map(\.id))
+        return received.filter {
+            isLiveToday($0) && !shown.contains($0.id) && $0.end > $0.start && EpisodeMerge.covers($0, d, .current)
+        }
+    }
+
+    // MARK: Clock
+
+    /// Midnight, a new hour, a time-zone change or a return to the app.
+    private func clockDidChange() {
+        switch mode {
+        case .real: Task { await refreshReal() }
+        case .demo: keepStoryOnToday()
+        }
+        scheduleClockTick()
+    }
+
+    /// Demo mode: the story's last day is always today, revealed through the current hour.
+    /// - A new day rebuilds the story at the same point of the timeline (like a fresh launch).
+    /// - A new hour only fills in today's scratching, so tags, Claude's case file and every list
+    ///   on screen stay as they are (episodes keep their ids).
+    func keepStoryOnToday(now: Date = Date()) {
+        guard mode == .demo, let app, app.dataset.isDemo, let shownDay = app.dataset.today?.day else { return }
+        let calendar = Calendar.current
+        guard calendar.isDate(shownDay, inSameDayAs: now) else {
+            travel(to: position, now: now)
+            return
+        }
+        let hour = DemoData.storyRevealHour(at: now, calendar: calendar)
+        guard hour != revealedHour else { return }
+        revealedHour = hour
+        let fresh = StoryClock.dataset(at: position, now: now, calendar: calendar)
+        guard let freshToday = fresh.today, calendar.isDate(freshToday.day, inSameDayAs: shownDay) else { return }
+
+        var next = app.dataset
+        let last = next.days.count - 1
+        next.days[last].scratchMinutesByHour = freshToday.scratchMinutesByHour
+        next.days[last].episodeCount = freshToday.episodeCount
+        next.days[last].intenseCount = freshToday.intenseCount
+        let isToday: (ScratchEpisode) -> Bool = { calendar.isDate($0.start, inSameDayAs: shownDay) }
+        var ids: [String: UUID] = [:]
+        for e in next.episodes where isToday(e) { ids["\(e.start.timeIntervalSince1970)-\(e.end.timeIntervalSince1970)"] = e.id }
+        let todays = fresh.episodes.filter(isToday).map { e -> ScratchEpisode in
+            var e = e
+            if let id = ids["\(e.start.timeIntervalSince1970)-\(e.end.timeIntervalSince1970)"] { e.id = id }
+            return e
+        }
+        // Live watch episodes come back on top through the live overlay.
+        next.episodes = (next.episodes.filter { !isToday($0) } + todays).sorted { $0.start < $1.start }
+        if next != app.dataset { app.update { $0 = next } }
+    }
+
+    /// QA (`-shellDemo hour`): today's story as it looked `hours` ago, so the next clock check
+    /// fills in the hours since.
+    func rewindStoryClock(hours: Int, now: Date = Date()) {
+        guard mode == .demo, let app else { return }
+        let hour = min(max(DemoData.storyRevealHour(at: now) - hours, 0), 23)
+        let earlier = StoryClock.dataset(at: position, now: now, reveal: hour)
+        app.update { $0 = earlier }
+        revealedHour = hour
+    }
+
+    /// Re-checks the clock a second after the next full hour (only while the app runs).
+    private func scheduleClockTick(now: Date = Date()) {
+        clockTimer?.invalidate()
+        guard let next = Calendar.current.nextDate(after: now, matching: DateComponents(minute: 0, second: 1),
+                                                   matchingPolicy: .nextTime) else { return }
+        let timer = Timer(fire: next, interval: 0, repeats: false) { [weak self] _ in
+            Task { @MainActor in self?.clockDidChange() }
+        }
+        timer.tolerance = 5
+        RunLoop.main.add(timer, forMode: .common)
+        clockTimer = timer
     }
 
     // MARK: Time travel
@@ -212,7 +310,7 @@ final class DataModeController: ObservableObject {
     }
 
     /// Demo time travel to any day of the story or the test.
-    func travel(to point: StoryPoint) {
+    func travel(to point: StoryPoint, now: Date = Date()) {
         guard let app else { return }
         if mode == .real { setMode(.demo, rebuild: false) }
         switch point {
@@ -223,10 +321,11 @@ final class DataModeController: ObservableObject {
                 app.setExperimentDay(nil)
             } else {
                 if app.experimentDay != nil || !app.dataset.isDemo { app.setExperimentDay(nil) }
-                let story = StoryClock.flareStory(day: d)
+                let story = StoryClock.flareStory(day: d, now: now)
                 app.update { $0 = story }
             }
             storyDay = min(max(d, 1), StoryPoint.flareLength)
         }
+        revealedHour = DemoData.storyRevealHour(at: now)
     }
 }

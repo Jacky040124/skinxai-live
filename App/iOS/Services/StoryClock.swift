@@ -34,17 +34,31 @@ enum StoryPoint: Hashable {
 /// from `DemoData.make`. Earlier days keep the window 14 days long (calm days in front) so every
 /// screen sees the same shape of data; Claude's case file only exists from day 14.
 enum StoryClock {
-    static func flareStory(day: Int, now: Date = Date(), calendar: Calendar = .current) -> TwinDataset {
+    /// The demo dataset for a point of the timeline, with today revealed through
+    /// `DemoData.storyRevealHour` (so last night's scratching is always there).
+    /// `reveal` overrides the hour today is revealed through (QA only).
+    static func dataset(at point: StoryPoint, now: Date = Date(), reveal: Int? = nil,
+                        calendar: Calendar = .current) -> TwinDataset {
+        switch point {
+        case .flare(let d): flareStory(day: d, now: now, reveal: reveal, calendar: calendar)
+        case .test(let d):
+            DemoData.make(today: now, experimentDay: min(max(d, 1), StoryPoint.testLength),
+                          revealThroughHour: reveal ?? DemoData.storyRevealHour(at: now, calendar: calendar), calendar: calendar)
+        }
+    }
+
+    static func flareStory(day: Int, now: Date = Date(), reveal: Int? = nil, calendar: Calendar = .current) -> TwinDataset {
         let n = StoryPoint.flareLength
         let day = min(max(day, 1), n)
-        if day == n { return DemoData.make(today: now, calendar: calendar) }
+        let reveal = reveal ?? DemoData.storyRevealHour(at: now, calendar: calendar)
+        if day == n { return DemoData.make(today: now, revealThroughHour: reveal, calendar: calendar) }
 
         // Generate the story so that story day `day` lands on today's date.
         let shift = n - day
         let shifted = calendar.date(byAdding: .day, value: shift, to: now) ?? now
         let full = DemoData.make(today: shifted, calendar: calendar)
         var story = Array(full.days.prefix(day))
-        guard let first = story.first else { return DemoData.make(today: now, calendar: calendar) }
+        guard let first = story.first else { return DemoData.make(today: now, revealThroughHour: reveal, calendar: calendar) }
 
         // Calm days in front, so the window stays 14 days long.
         let calm = Array(full.days.prefix(DemoData.flareStartDay))
@@ -59,10 +73,9 @@ enum StoryClock {
             pad.append(record)
         }
 
-        // Today: hours after "now" haven't happened yet.
-        let nowHour = calendar.component(.hour, from: now)
+        // Today: hours after "now" haven't happened yet (but last night always has).
         var today = story[story.count - 1]
-        for h in 0..<24 where h > nowHour { today.scratchMinutesByHour[h] = 0 }
+        for h in 0..<24 where h > reveal { today.scratchMinutesByHour[h] = 0 }
         story[story.count - 1] = today
 
         var days = pad + story

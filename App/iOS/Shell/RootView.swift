@@ -25,11 +25,16 @@ struct RootView: View {
                 Spacer(minLength: 0)
             }
 
+            // Two-page slide + crossfade: the ForEach diff plays the outgoing page's removal and
+            // the incoming page's insertion together. Each page fades as one flattened layer, so
+            // its white paper never washes over the still yellow frame (the bar stays solid).
             ZStack {
-                page(current)
+                ForEach([current], id: \.self) { tab in
+                    page(tab)
+                        .compositingGroup()
+                        .transition(pageTransition)
+                }
             }
-            .id(current)
-            .transition(pageTransition)
 
             VStack(spacing: 12) {
                 HStack {
@@ -137,7 +142,7 @@ struct TagButton: View {
                 .animation(Twin.Motion.bouncy, value: app.showTagSheet)
         }
         .buttonStyle(FABStyle())
-        .scaleEffect(appeared ? 1 : 0.4)
+        .scaleEffect(appeared || reduceMotion ? 1 : 0.4)
         .opacity(appeared ? 1 : 0)
         .onAppear { withAnimation(Twin.Motion.bouncy.delay(0.5)) { appeared = true } }
         .accessibilityLabel("Tag something new")
