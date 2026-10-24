@@ -10,8 +10,8 @@
   const DEFAULT_MODEL = "anthropic/claude-sonnet-5.5";
   const STARTER = "My eczema has been really bad the last few nights. Can you look at my scratching history and help me figure out why?";
   const SAVE_KEY = "twinChat";     // localStorage: the last completed conversation
-  const CPS = 75;                  // typewriter speed, characters per second
-  const CARD_MS = 650;             // every tool card spins at least this long, so it can be read
+  const CPS = 80;                  // typewriter speed, characters per second
+  const CARD_MS = 600;             // every tool card spins at least this long, so it can be read
   const THINK_MS = 600;            // "Claude is thinking…" never just flashes
   const TIMEOUT_MS = 45000;
   const calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -104,7 +104,18 @@
   ro.observe(feed); ro.observe(thread);
 
   function row(kind, html) { const r = el("div", `msg ${kind}`, html); feed.append(r); return r; }
-  const userSays = (text) => row("user", `<div class="bubble">${esc(text)}</div>`);
+  // Douglas's message. When it comes from the suggestion, an answer button or the input box, the bubble flies
+  // from there into place (transform only).
+  function userSays(text, from) {
+    const r = row("user", `<div class="bubble">${esc(text)}</div>`);
+    if (!from || calm) return r;
+    const f = from.getBoundingClientRect(), b = $(".bubble", r);
+    r.style.animation = "none";
+    const t = b.getBoundingClientRect();
+    b.animate([{ transform: `translate(${f.left - t.left}px, ${f.top - t.top}px)`, opacity: 0.5 }, { transform: "none", opacity: 1 }],
+      { duration: 650, easing: "cubic-bezier(.2, .8, .25, 1)" });
+    return r;
+  }
   const claudeRow = () => row("claude", `<div class="av">${SPARK}</div><div class="body"></div>`);
   // Where Claude's next block goes: the current Claude message, or a new one after Douglas spoke.
   function claudeBody() {
@@ -180,7 +191,7 @@
     let line;
     try { line = SUMMARY[name](result); } catch { line = result.error ? "Couldn't read this data" : "Done"; }
     t.done(line);
-    await sleep(240);   // let the check land before the next card
+    await sleep(200);   // let the check land before the next card
     return result;
   }
 
@@ -200,26 +211,26 @@
     const answer = await new Promise((resolve) => {
       pendingAsk = resolve;
       composerState();
-      buttons.forEach((b) => { b.onclick = () => resolve(b.textContent); });
+      buttons.forEach((b) => { b.onclick = () => resolve({ text: b.textContent, from: b }); });
       if (recorded == null) return;
       const b = buttons.find((x) => x.textContent === recorded);
       buttons.forEach((x) => { if (x !== b) x.disabled = true; });
       sleep(1800).then(async () => {
         if (my !== gen || pendingAsk !== resolve) return;
         if (b) { b.classList.add("press"); await sleep(180); } else await typeIn(recorded, my);
-        if (my === gen) resolve(recorded);
+        if (my === gen) resolve({ text: recorded, from: b || input });
       });
     });
     if (my !== gen) return null;
     pendingAsk = null;
     card.classList.add("answered");
-    buttons.forEach((b) => { b.disabled = true; b.classList.remove("press"); b.classList.toggle("picked", b.textContent === answer); });
+    buttons.forEach((b) => { b.disabled = true; b.classList.remove("press"); b.classList.toggle("picked", b.textContent === answer.text); });
     if (document.activeElement && card.contains(document.activeElement)) document.activeElement.blur();
     await sleep(260);
-    userSays(answer);
+    userSays(answer.text, answer.from);
     composerState();
-    await sleep(350);
-    return answer;
+    await sleep(calm ? 0 : 450);
+    return answer.text;
   }
 
   // ---------- artifact panel ----------
@@ -308,7 +319,7 @@
 
   function conclusionHTML(a) {
     const lv = { low: 1, medium: 2, high: 3 }[String(a.confidence || "").toLowerCase()] || 2;
-    const ruled = (Array.isArray(a.ruled_out) ? a.ruled_out : []).map((r) => (typeof r === "string" ? { item: r } : r || {})).filter((r) => r.item).slice(0, 4);
+    const ruled = (Array.isArray(a.ruled_out) ? a.ruled_out : []).map((r) => (typeof r === "string" ? { item: r } : r || {})).filter((r) => r.item).slice(0, 6);
     const cause = String(a.cause || "Not sure yet");
     const product = shownProduct && productOf(shownProduct), key = product ? norm(product.name.split(",")[0]) : "";
     const pic = key && norm(cause).includes(key) ? `<div class="concl-pic rv" style="--t:.4s">${BOTTLE(product.order && product.order.item.includes(",") ? product.order.item.split(",").pop().trim() : "", "bwConcl")}</div>` : "";
@@ -404,7 +415,7 @@
     chat.classList.add("open");
     showPage(ART[name].page);
     const moved = layoutEvidence(slot);
-    if (opening || paging || moved) await sleep(calm ? 0 : 650);   // let the panel (or its page) slide in, or the other card make room
+    if (opening || paging || moved) await sleep(calm ? 0 : opening || moved ? 650 : 400);   // let the panel (or its page) slide in, or the other card make room
     await nextPaint();
     if (my !== gen) return;
     slot.firstElementChild.classList.add("on");
@@ -465,13 +476,17 @@
   }
 
   // The loop: send the conversation, show the reply, run its tools, send the results; stop at a reply without tools.
-  async function converse(my) {
+  // `lead`: Douglas's message is still flying into place, so "Claude is thinking…" waits for it (the request doesn't).
+  async function converse(my, lead = 0) {
     busy = true; composerState();
     for (let round = 0; round < 16; round++) {
-      const think = thinkingRow(), t0 = performance.now();
+      const t0 = performance.now(), asked = fetchReply();
+      asked.catch(() => {});   // handled below; this only keeps the browser quiet while we wait
+      if (lead) { await sleep(lead); lead = 0; if (my !== gen) return; }
+      const think = thinkingRow();
       let reply;
       try {
-        reply = tidy(await fetchReply(), messages.length);
+        reply = tidy(await asked, messages.length);
         if (!reply.content.trim() && !reply.tool_calls) throw new Error("empty reply");
       } catch (err) {
         if (my !== gen) return;
@@ -499,12 +514,12 @@
     $("button", r).onclick = () => { if (my !== gen || busy) return; r.remove(); converse(my); };
   }
 
-  function send(text) {
+  function send(text, from) {
     if (!messages.length) startedAt = Date.now();
     leaveEmpty();
-    userSays(text);
+    userSays(text, from);
     messages.push({ role: "user", content: text });
-    converse(gen);
+    converse(gen, from && !calm ? 450 : 0);
   }
 
   // ---------- save and replay ----------
@@ -537,10 +552,11 @@
       if (my !== gen) return;
       if (m.role === "user") {
         const first = !feed.childElementCount;
-        if (first && m.content === STARTER) { $("#chatSuggest").classList.add("press"); await sleep(260); } else await typeIn(m.content, my);
+        const viaChip = first && m.content === STARTER;
+        if (viaChip) { $("#chatSuggest").classList.add("press"); await sleep(260); } else await typeIn(m.content, my);
         if (my !== gen) return;
+        userSays(m.content, viaChip ? $("#chatSuggest") : input);
         leaveEmpty();
-        userSays(m.content);
       } else if (m.role === "assistant") {
         const think = thinkingRow();
         await sleep(Math.min(3500, Math.max(THINK_MS + 200, (rec.ms && rec.ms[k++]) || 1500)));
@@ -593,8 +609,8 @@
   function submit() {
     const text = input.value.trim();
     if (!text || replaying) return;
-    if (pendingAsk) pendingAsk(text);   // a typed answer to Claude's question
-    else if (!busy) send(text);
+    if (pendingAsk) pendingAsk({ text, from: input });   // a typed answer to Claude's question
+    else if (!busy) send(text, input);
     else return;
     input.value = "";
     input.blur();                       // so the page shortcuts work again
@@ -617,7 +633,7 @@
   $(".hello .spark").innerHTML = SPARK;
   $("#chatServers").innerHTML = Object.entries(SERVERS).map(([name, [color, paths]]) => `<span class="server" style="--c:${color}"><i>${icon(paths)}</i>${name}</span>`).join("");
   $("#chatSuggest").innerHTML = `<span class="sg-ico">${icon('<path d="M7 17 17 7M9 7h8v8"/>', 2.2)}</span><span>${esc(STARTER)}</span>`;
-  $("#chatSuggest").addEventListener("click", () => { if (!busy && !replaying && !messages.length) send(STARTER); });
+  $("#chatSuggest").addEventListener("click", () => { if (!busy && !replaying && !messages.length) send(STARTER, $("#chatSuggest")); });
   $("#composer").addEventListener("submit", (e) => { e.preventDefault(); submit(); });
   input.addEventListener("input", composerState);
   input.addEventListener("keydown", (e) => { if (e.key === "Escape") input.blur(); });

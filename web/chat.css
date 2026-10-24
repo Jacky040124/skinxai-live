@@ -266,13 +266,13 @@
 .conf b { font: 700 max(12px, calc(17 * var(--k))) "Space Mono"; letter-spacing: .14em; color: var(--yellow); }
 .ruled { list-style: none; display: grid; gap: calc(10 * var(--k)) calc(12 * var(--k)); }
 .ruled.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.ruled li { min-width: 0; display: flex; flex-direction: column; gap: calc(5 * var(--k)); padding: calc(13 * var(--k)) calc(16 * var(--k)); border: 1px solid var(--line); border-radius: calc(12 * var(--k)); background: rgba(233, 239, 228, .025); }
-.ruled s { position: relative; align-self: flex-start; max-width: 100%; text-decoration: none; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  font: 700 calc(22 * var(--k)) "Space Grotesk"; color: rgba(233, 239, 228, .8); }
-.ruled s::after { content: ""; position: absolute; left: 0; right: 0; top: 55%; height: 2px; background: var(--red); transform: scaleX(0); transform-origin: left;
-  transition: transform .45s cubic-bezier(.2, .8, .25, 1) calc(var(--t) + .35s); }
-.on .ruled s::after { transform: none; }
-.ruled li > span { font-size: calc(18 * var(--k)); line-height: 1.35; color: var(--muted); }
+.ruled.two li:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.ruled li { min-width: 0; padding: calc(13 * var(--k)) calc(16 * var(--k)); border: 1px solid var(--line); border-radius: calc(12 * var(--k)); background: rgba(233, 239, 228, .025); }
+/* the strike is drawn left to right, across every line of a long item */
+.ruled s { text-decoration: none; font: 700 calc(22 * var(--k))/1.25 "Space Grotesk"; color: rgba(233, 239, 228, .8);
+  background: linear-gradient(var(--red), var(--red)) no-repeat 0 58% / 0 2px; transition: background-size .5s cubic-bezier(.2, .8, .25, 1) calc(var(--t) + .35s); }
+.on .ruled s { background-size: 100% 2px; }
+.ruled li > span { margin-top: calc(5 * var(--k)); font-size: calc(18 * var(--k)); line-height: 1.35; color: var(--muted); }
 .try { margin-top: calc(8 * var(--k)); padding: calc(16 * var(--k)) calc(20 * var(--k)); border: 1.5px solid rgba(169, 216, 119, .5); border-radius: calc(14 * var(--k)); background: rgba(169, 216, 119, .07); }
 .try .ek { color: var(--lime); }
 .try p { margin-top: calc(6 * var(--k)); font-size: calc(22 * var(--k)); line-height: 1.4; }
