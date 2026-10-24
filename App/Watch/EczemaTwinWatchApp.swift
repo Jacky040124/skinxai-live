@@ -15,12 +15,18 @@ struct EczemaTwinWatchApp: App {
                 .tint(Twin.Palette.yellow)
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { model.appBecameActive() }
+            switch phase {
+            case .active: model.appBecameActive()
+            case .background: model.appMovedToBackground()
+            default: break
+            }
         }
     }
 }
 
-/// Background refresh: read the all-day recording, send new episodes to the phone, book the next run.
+/// Background refresh: read a little more of the all-day recording, send new episodes to the
+/// phone, book the next run. watchOS gives a refresh only a few seconds: the read has its own
+/// small budget, and if the task is about to expire it stops reading and the task completes.
 final class WatchAppDelegate: NSObject, WKApplicationDelegate {
     func applicationDidFinishLaunching() {
         PhoneLink.shared.activate()
@@ -28,17 +34,37 @@ final class WatchAppDelegate: NSObject, WKApplicationDelegate {
 
     func handle(_ backgroundTasks: Set<WKRefreshBackgroundTask>) {
         for task in backgroundTasks {
-            if let refresh = task as? WKApplicationRefreshBackgroundTask {
-                Task { @MainActor in
-                    let model = WatchModel.shared
-                    await model.analyzeRecordings(maxSlices: 2)
-                    model.syncToPhone()
-                    model.scheduleBackgroundRefresh()
-                    refresh.setTaskCompletedWithSnapshot(false)
-                }
-            } else {
+            guard let refresh = task as? WKApplicationRefreshBackgroundTask else {
                 task.setTaskCompletedWithSnapshot(false)
+                continue
+            }
+            let done = TaskCompletion(refresh)
+            refresh.expirationHandler = {
+                Task { @MainActor in
+                    WatchModel.shared.cancelAnalysis()
+                    done.complete()
+                }
+            }
+            Task { @MainActor in
+                await WatchModel.shared.backgroundRefresh()
+                done.complete()
             }
         }
+    }
+}
+
+/// Completes a background task once, whichever comes first: the work or the expiration.
+private final class TaskCompletion: @unchecked Sendable {
+    private let lock = NSLock()
+    private var task: WKRefreshBackgroundTask?
+
+    init(_ task: WKRefreshBackgroundTask) { self.task = task }
+
+    func complete() {
+        lock.lock()
+        let t = task
+        task = nil
+        lock.unlock()
+        t?.setTaskCompletedWithSnapshot(false)
     }
 }

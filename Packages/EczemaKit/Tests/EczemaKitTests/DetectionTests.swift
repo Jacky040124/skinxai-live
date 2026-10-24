@@ -260,6 +260,44 @@ import Testing
         #expect(FeatureExtractor.crossingScore(2) > 0 && FeatureExtractor.crossingScore(2) < 1)
     }
 
+    // MARK: - Reading a recording in pieces (watch background refresh)
+
+    @Test func pendingSinceIsNilWhenNothingIsGoingOn() {
+        let detector = ScratchDetector()
+        detector.process(signal { $0.still(10) })
+        #expect(detector.pendingSince == nil)
+        detector.process(signal { $0.still(10); $0.scratch(8, hz: 4); $0.still(8) }.filter { $0.t > Self.t0 + 10 })
+        #expect(detector.pendingSince == nil, "the episode is over")
+    }
+
+    @Test func pendingSinceMarksAnOpenEpisode() throws {
+        let detector = ScratchDetector()
+        let events = detector.process(signal { $0.still(6); $0.scratch(9, hz: 4) })
+        #expect(events.episodes.isEmpty)
+        #expect(detector.isInEpisode)
+        let since = seconds(try #require(detector.pendingSince))
+        #expect(since >= 3 && since <= 7.5, "the first scratch window: \(since)")
+    }
+
+    /// A cut in the middle of a bout (time budget used up) must not split it: the next piece starts
+    /// again at `pendingSince` and finds one whole episode.
+    @Test func resumingAtPendingSinceKeepsOneEpisode() throws {
+        let samples = signal { $0.still(6); $0.scratch(12, hz: 4); $0.still(6) }
+        let whole = ScratchDetector.episodes(in: samples, model: ScratchModel()).map(\.episode)
+        #expect(whole.count == 1)
+
+        let first = ScratchDetector(source: .recorded)
+        let before = first.process(samples.filter { $0.t < Self.t0 + 12 })
+        #expect(before.episodes.isEmpty)
+        let resume = try #require(first.pendingSince).timeIntervalSinceReferenceDate
+        let second = ScratchDetector(source: .recorded)
+        let after = (second.process(samples.filter { $0.t >= resume }) + second.finish()).episodes.map(\.episode)
+        #expect(after.count == 1)
+        let e = try #require(after.first), w = try #require(whole.first)
+        #expect(abs(e.start.timeIntervalSince(w.start)) < 0.05)
+        #expect(abs(e.end.timeIntervalSince(w.end)) < 0.05)
+    }
+
     // MARK: - Episodes travel to the phone as JSON (contract: default JSONEncoder)
 
     @Test func episodesRoundTripWithDefaultCoders() throws {

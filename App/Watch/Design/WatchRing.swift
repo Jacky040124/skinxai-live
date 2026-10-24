@@ -1,60 +1,61 @@
 import SwiftUI
 
-/// Today's ring on black: fills from zero when it appears, carries a tick at "your usual",
-/// and when minutes are added the new stretch of ring glows white for a moment.
-struct WatchRing<Center: View>: View {
-    var progress: Double
+/// Today's ring on black, drawn from one minutes value: the arc is `minutes / scale` and the
+/// middle gets the very same `minutes`, so while it animates the number and the arc can never
+/// disagree. It carries a tick at "your usual", and when minutes are added the new stretch of
+/// ring glows white for a moment (`gainID` changes, the stretch starts at `gainFrom`).
+struct WatchRing<Center: View>: View, Animatable {
+    var minutes: Double
+    /// Minutes at which the ring is full.
+    var scale: Double
     /// Where "your usual" sits on the ring (0...1), nil to hide the tick.
     var usualMark: Double?
     var color: Color
     var lineWidth: CGFloat = 14
-    var delay: Double = 0.15
+    /// Start of the stretch that glows; a new `gainID` plays the glow.
+    var gainFrom: Double = 0
+    var gainID = 0
+    var markShown = true
     /// Pops the usual tick (while the middle shows the ratio).
     var highlightMark = false
-    @ViewBuilder var center: () -> Center
+    @ViewBuilder var center: (Double) -> Center
 
-    @State private var shown: Double
-    @State private var gainFrom: Double?
-    @State private var glow: Double = 0
-    @State private var markShown: Bool
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    /// `startProgress`: where the ring stands when it appears (nil = empty, then it fills).
-    init(progress: Double, startProgress: Double? = nil, usualMark: Double?, color: Color, lineWidth: CGFloat = 14,
-         delay: Double = 0.15, highlightMark: Bool = false, @ViewBuilder center: @escaping () -> Center) {
-        self.progress = progress
-        self.usualMark = usualMark
-        self.color = color
-        self.lineWidth = lineWidth
-        self.delay = delay
-        self.highlightMark = highlightMark
-        self.center = center
-        _shown = State(initialValue: startProgress ?? 0)
-        _markShown = State(initialValue: startProgress != nil)
+    var animatableData: Double {
+        get { minutes }
+        set { minutes = newValue }
     }
 
     var body: some View {
         GeometryReader { geo in
             let d = min(geo.size.width, geo.size.height)
             let r = (d - lineWidth) / 2
+            let progress = fraction(minutes)
             ZStack {
                 Circle()
                     .stroke(Twin.Palette.nightTrack, lineWidth: lineWidth)
                     .padding(lineWidth / 2)
-                Circle()
-                    .trim(from: 0, to: clamp(shown))
+                arc(from: 0, to: progress)
                     .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .butt))
                     .rotationEffect(.degrees(-90))
                     .padding(lineWidth / 2)
-                if let from = gainFrom {
-                    Circle()
-                        .trim(from: clamp(from), to: clamp(shown))
-                        .stroke(Color.white.opacity(glow), style: StrokeStyle(lineWidth: lineWidth, lineCap: .butt))
-                        .rotationEffect(.degrees(-90))
-                        .padding(lineWidth / 2)
-                }
+                arc(from: min(fraction(gainFrom), progress), to: progress)
+                    .stroke(Color.white, style: StrokeStyle(lineWidth: lineWidth, lineCap: .butt))
+                    .rotationEffect(.degrees(-90))
+                    .padding(lineWidth / 2)
+                    // The stretch starts right at the gain (never slides there with the fill); its
+                    // end follows `minutes` frame by frame.
+                    .transaction { $0.animation = nil }
+                    .keyframeAnimator(initialValue: 0.0, trigger: gainID) { content, glow in
+                        content.opacity(glow)
+                    } keyframes: { _ in
+                        KeyframeTrack {
+                            CubicKeyframe(0.9, duration: 0.25)
+                            LinearKeyframe(0.9, duration: 0.75)
+                            CubicKeyframe(0, duration: 1.2)
+                        }
+                    }
                 if let usualMark {
-                    let angle = Angle.degrees(clamp(usualMark) * 360 - 90)
+                    let angle = Angle.degrees(min(max(usualMark, 0), 1) * 360 - 90)
                     RoundedRectangle(cornerRadius: 1.2, style: .continuous)
                         .fill(highlightMark ? Twin.Palette.yellow : Color.white)
                         .overlay(RoundedRectangle(cornerRadius: 1.2, style: .continuous).strokeBorder(Color.black, lineWidth: 1.2))
@@ -65,26 +66,14 @@ struct WatchRing<Center: View>: View {
                         .opacity(markShown ? 1 : 0)
                         .animation(Twin.Motion.bouncy, value: highlightMark)
                 }
-                center()
+                center(minutes)
             }
             .frame(width: d, height: d)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .onAppear {
-            if shown != progress { withAnimation(Twin.Motion.fill.delay(delay)) { shown = progress } }
-            if !markShown { withAnimation(Twin.Motion.bouncy.delay(delay + 0.9)) { markShown = true } }
-        }
-        .onChange(of: progress) { old, new in
-            if new > old + 0.0005, !reduceMotion {
-                gainFrom = min(old, shown)
-                glow = 0.95
-                withAnimation(Twin.Motion.fill) { shown = new }
-                withAnimation(.easeOut(duration: 1.4).delay(0.9)) { glow = 0 }
-            } else {
-                withAnimation(Twin.Motion.fill) { shown = new }
-            }
-        }
     }
 
-    private func clamp(_ v: Double) -> Double { min(max(v, 0), 1) }
+    private func fraction(_ m: Double) -> Double { scale > 0 ? min(max(m / scale, 0), 1) : 0 }
+
+    private func arc(from: Double, to: Double) -> some Shape { Circle().trim(from: from, to: max(from, to)) }
 }
