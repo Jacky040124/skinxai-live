@@ -106,9 +106,10 @@ html, body { height: 100%; background: var(--bg); color: var(--text); font-famil
 .vv.small { font-size: clamp(30px, 3.4vh, 36px); letter-spacing: -.02em; color: var(--text); text-shadow: none; margin-top: 10px; transition: color .3s; }
 .vv.mid.hot, .vv.small.hot { color: var(--orange); }
 .vsub { font: 400 12px "Space Mono"; letter-spacing: .06em; color: var(--muted); margin-top: 10px; }
-/* segmented meter: lime → orange underneath, a dark cover (#vMeter) slides back to reveal it */
+/* segmented meter: lime → orange underneath, a dark cover (#vMeter) slides back to reveal it;
+   the ~12 px segments are stretched to fit a whole number of them */
 .meter { position: relative; height: 18px; margin-top: 14px; overflow: hidden; background: linear-gradient(90deg, var(--lime), var(--yellow) 62%, var(--orange));
-  -webkit-mask: repeating-linear-gradient(90deg, #000 0 9px, transparent 9px 12px); mask: repeating-linear-gradient(90deg, #000 0 9px, transparent 9px 12px); }
+  -webkit-mask: linear-gradient(90deg, #000 75%, transparent 75%) 0 0 / 12px 100% round; mask: linear-gradient(90deg, #000 75%, transparent 75%) 0 0 / 12px 100% round; }
 .meter i { position: absolute; inset: 0; background: #1c231f; transform-origin: right; transition: transform .3s var(--out); }
 
 /* ---------- monitor: session strip ---------- */

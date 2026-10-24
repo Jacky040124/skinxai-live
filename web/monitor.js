@@ -111,8 +111,11 @@
     v.animate([{ transform: "scale(1)" }, { transform: "scale(1.16)", offset: 0.3 }, { transform: "scale(1)" }], { duration: 700, easing: "cubic-bezier(.2,.7,.2,1)" });
     $("#vFlash").animate([{ opacity: 0.35, transform: "scale(.8)" }, { opacity: 1, transform: "scale(1.15)", offset: 0.25 }, { opacity: 0.35, transform: "scale(1)" }], { duration: 1300, easing: "ease-out" });
   }
-  // the intensity meter's dark cover slides back to light up the share f (0…1)
-  function setMeter(f) { $("#vMeter").style.transform = `scaleX(${1 - Math.min(1, Math.max(0, f))})`; }
+  // the intensity meter's dark cover slides back to light up the share f (0…1), in whole segments
+  function setMeter(f) {
+    const n = Math.max(1, Math.round($(".meter").clientWidth / 12));
+    $("#vMeter").style.transform = `scaleX(${1 - Math.round(Math.min(1, Math.max(0, f)) * n) / n})`;
+  }
 
   function reset() {
     scratchEnd(0);
