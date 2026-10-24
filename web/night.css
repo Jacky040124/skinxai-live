@@ -1,11 +1,53 @@
 /* Last night page (#p-night). */
-.bars { flex: 1; display: flex; align-items: flex-end; gap: 10px; margin-top: 18px; position: relative; min-height: 120px; }
-.bars i { flex: 1; border-radius: 4px 4px 0 0; background: rgba(233, 239, 228, .14); height: 0; transition: height .9s cubic-bezier(.34, 1.4, .64, 1); position: relative; }
-.bars i.hot { background: var(--orange); box-shadow: 0 0 22px rgba(248, 161, 111, .35); }
-.bars i.live { background: var(--pink); }
-.bars i b { position: absolute; top: -26px; left: 50%; transform: translateX(-50%); font: 700 14px "Space Mono"; color: var(--text); opacity: 0; transition: opacity .4s .6s; }
-.bars.shown i b { opacity: 1; }
-.axis { display: flex; gap: 10px; margin-top: 10px; }
-.axis span { flex: 1; text-align: center; font: 400 12px "Space Mono"; color: var(--muted); }
-.axis span.mark { color: var(--pink); font-weight: 700; }
-.note { margin-top: 12px; font: 400 14px "Space Mono"; color: var(--pink); min-height: 18px; }
+#p-night h1 { font-size: clamp(44px, 2.9vw, 56px); max-width: none; }
+#p-night .hl { display: inline-block; text-align: right; font-variant-numeric: tabular-nums; }
+#p-night .chip { font-size: 18px; padding: 9px 16px; }
+#p-night .cards4 .card { display: flex; flex-direction: column; justify-content: space-between; }
+#p-night .cv { line-height: 1; margin-top: 14px; }
+
+/* entrance: the title, the four cards one by one, then the chart (night.js counts up in step) */
+#p-night.on .ptitle, #p-night.on .cards4 .card, #p-night.on .card.grow { animation: nightRise .7s var(--out) both; }
+#p-night.on .ptitle { animation-delay: .08s; }
+#p-night.on .cards4 .card:nth-child(1) { animation-delay: .15s; }
+#p-night.on .cards4 .card:nth-child(2) { animation-delay: .22s; }
+#p-night.on .cards4 .card:nth-child(3) { animation-delay: .29s; }
+#p-night.on .cards4 .card:nth-child(4) { animation-delay: .36s; }
+#p-night.on .card.grow { animation-delay: .43s; }
+#p-night.on .chip { animation: chipIn .6s var(--spring) .9s both; }
+@keyframes nightRise { from { opacity: 0; transform: translateY(18px); } }
+@keyframes chipIn { from { opacity: 0; transform: scale(.8); } }
+
+/* hour-by-hour bars: each column is value · bar · hour; bars grow in sequence */
+#p-night .bars { flex: 1; min-height: 0; display: flex; gap: 12px; margin-top: 40px; }
+#p-night .bars .col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+#p-night .bars .plot { flex: 1; position: relative; border-bottom: 1px solid rgba(233, 239, 228, .16); }
+#p-night .bars .bar { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--h) * 100%); border-radius: 6px 6px 0 0; background: rgba(233, 239, 228, .13);
+  transform: scaleY(0); transform-origin: bottom; transition: transform 1s cubic-bezier(.16, 1, .3, 1) calc(var(--i) * 70ms + .45s); }
+#p-night .bars.shown .bar { transform: none; }
+#p-night .bars .val { position: absolute; left: 0; right: 0; bottom: calc(var(--h) * 100%); padding-bottom: 10px; text-align: center; white-space: nowrap; font: 700 22px/1 "Space Grotesk"; color: var(--text);
+  opacity: 0; transform: translateY(8px); transition: opacity .4s ease, transform .5s var(--out); transition-delay: calc(var(--i) * 70ms + .85s); }
+#p-night .bars.shown .val { opacity: 1; transform: none; }
+/* units hang off to the right at zero width, so each number stays centred on its bar */
+#p-night .bars small { display: inline-block; width: 0; text-indent: 4px; font: 700 12px "Space Mono"; letter-spacing: .06em; color: var(--muted); }
+#p-night .bars .hr { margin-top: 12px; text-align: center; white-space: nowrap; font: 500 17px/1.2 "Space Grotesk"; color: rgba(233, 239, 228, .7); }
+#p-night .bars .hot .bar { background: var(--orange); box-shadow: inset 0 2px 0 rgba(255, 255, 255, .28), 0 0 30px rgba(248, 161, 111, .3); }
+#p-night .bars .hot .val { font-size: clamp(34px, 2.1vw, 42px); letter-spacing: -.02em; }
+#p-night .bars .hot .val small { text-indent: 5px; font-size: 13px; }
+#p-night .bars .hot .hr { color: var(--orange); font-weight: 700; }
+#p-night .bars .hot .hr small { color: inherit; }
+/* what the watch caught this session, set apart by a dashed line */
+#p-night .bars .live { position: relative; margin-left: 22px; }
+#p-night .bars .live::before { content: ""; position: absolute; left: -18px; top: 0; bottom: 30px; border-left: 1px dashed rgba(254, 125, 168, .45); }
+#p-night .bars .live .bar { background: var(--pink); }
+#p-night .bars .live .bar::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: 0 0 30px rgba(254, 125, 168, .7); opacity: .4; }
+#p-night .bars.shown .live .bar::after { animation: livePulse 1.2s ease-in-out infinite alternate; }
+#p-night .bars .live .val, #p-night .bars .live .hr { color: var(--pink); }
+#p-night .bars .live .hr { font: 700 13px/1.6 "Space Mono"; letter-spacing: .14em; }
+@keyframes livePulse { to { opacity: 1; } }
+#p-night .note { margin-top: 14px; min-height: 20px; font: 400 14px "Space Mono"; color: var(--pink); opacity: 0; transition: opacity .5s ease; }
+#p-night .note:not(:empty)::before { content: ""; display: inline-block; width: 8px; height: 8px; margin: 0 10px 2px 0; border-radius: 50%; background: var(--pink); box-shadow: 0 0 8px var(--pink); }
+#p-night .bars.shown + .note { opacity: 1; transition-delay: 1.3s; }
+
+@media (prefers-reduced-motion: reduce) {
+  #p-night *, #p-night *::before, #p-night *::after { animation: none !important; transition-duration: .01s !important; transition-delay: 0s !important; }
+}
