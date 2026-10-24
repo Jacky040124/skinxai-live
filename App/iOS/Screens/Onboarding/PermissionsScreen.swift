@@ -266,6 +266,8 @@ private struct ScrolledUnder: ViewModifier {
 private struct HiddenControls: View {
     let reset: () -> Void
     let replay: () -> Void
+    /// The live monitor's view: "graph" (wrist motion) or "bars" (the watch's decision only).
+    @AppStorage("liveView") private var liveView = "graph"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -274,6 +276,10 @@ private struct HiddenControls: View {
                 .padding(.bottom, 6)
             row("Reset tonight’s count", button: "Reset", action: reset)
             row("Replay last Claude chat (offline)", button: "Replay", action: replay)
+            row(liveView == "bars" ? "Live view: bars" : "Live view: graph",
+                button: liveView == "bars" ? "Use graph" : "Use bars") {
+                liveView = liveView == "bars" ? "graph" : "bars"
+            }
         }
         .padding(Twin.Space.l)
         .frame(maxWidth: .infinity, alignment: .leading)

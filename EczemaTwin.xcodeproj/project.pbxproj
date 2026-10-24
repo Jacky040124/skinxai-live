@@ -74,6 +74,7 @@
 		BBBB1A58B05588354A87B2D1 /* DeviceAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = F06FE54F03E23DB9D8E77B2B /* DeviceAccess.swift */; };
 		BE0F69BD38BD8F2F926E4A96 /* LiveBars.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4920F844414A5B8042B0564 /* LiveBars.swift */; };
 		C2A59A49ED98B9FB21169240 /* SpaceMono-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E06B0299ACCBE9F04008DCEE /* SpaceMono-Regular.ttf */; };
+		C2C5EC54813E8B22D7D1F26F /* LiveGraph.swift in Sources */ = {isa = PBXBuildFile; fileRef = A05C32B1D057DE4A32192BED /* LiveGraph.swift */; };
 		C58F6EFE338BB4CE2C6A6B20 /* ChatCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DDE81F3D6AE5C299424DE60 /* ChatCards.swift */; };
 		D0A78FEA08952544FA30DCCB /* EczemaKit in Frameworks */ = {isa = PBXBuildFile; productRef = D2EA930CC5E12E9FB0AD6085 /* EczemaKit */; };
 		E05B340326EC3216606E365B /* EczemaTwinWatch.app in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 28A06BF100E5C5473F4637B6 /* EczemaTwinWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -160,6 +161,7 @@
 		89663F3DDC66BCF5E2268A7E /* Components.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Components.swift; sourceTree = "<group>"; };
 		8FDA7FBEEDDC38AC625DB4D1 /* ChatThreadViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatThreadViews.swift; sourceTree = "<group>"; };
 		98215790D60CBA5BA7B09831 /* TrendsData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrendsData.swift; sourceTree = "<group>"; };
+		A05C32B1D057DE4A32192BED /* LiveGraph.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveGraph.swift; sourceTree = "<group>"; };
 		A751231395BD9B08F0494C6A /* BackgroundRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundRecorder.swift; sourceTree = "<group>"; };
 		A85310267F1C2C624378E505 /* EczemaTwin.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = EczemaTwin.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		AA6FEF26FC09D4CA7D5E7D3E /* TabBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBar.swift; sourceTree = "<group>"; };
@@ -412,6 +414,7 @@
 			isa = PBXGroup;
 			children = (
 				C4920F844414A5B8042B0564 /* LiveBars.swift */,
+				A05C32B1D057DE4A32192BED /* LiveGraph.swift */,
 				5CFE75E6C8B3CF0CA5E9973C /* LiveMonitorPresenter.swift */,
 				E5DACAB9E72DC72192AD47F7 /* LiveMonitorView.swift */,
 				DE35167A82BBFBAF22509A89 /* LivePill.swift */,
@@ -602,6 +605,7 @@
 				A1348D1CAFD23E2A8D2BBE70 /* HourlyScratchChart.swift in Sources */,
 				10056456D441FC06F7913DF4 /* InsightScreen.swift in Sources */,
 				BE0F69BD38BD8F2F926E4A96 /* LiveBars.swift in Sources */,
+				C2C5EC54813E8B22D7D1F26F /* LiveGraph.swift in Sources */,
 				8AF9D793035A366205AE4763 /* LiveMonitorPresenter.swift in Sources */,
 				FA881C809B2B0BECE02DB009 /* LiveMonitorView.swift in Sources */,
 				0C47E3279B980203D1702F0C /* LivePill.swift in Sources */,

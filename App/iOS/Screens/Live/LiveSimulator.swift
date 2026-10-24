@@ -22,6 +22,8 @@ final class LiveSimulator {
     private var origin: Date?
     private var loop: Task<Void, Never>?
     private var nextWindow: TimeInterval = 0
+    /// The next wrist-motion value to send (25 a second, like the watch).
+    private var nextSample: TimeInterval = 0
     private let scratches: [(start: TimeInterval, end: TimeInterval)]
     private var index = 0
     private var inScratch = false
@@ -93,6 +95,24 @@ final class LiveSimulator {
             }
             windows.append(inScratch ? Self.scratchWindow : Self.calmWindow)
         }
-        onBatch?(LiveBatch(live: true, windows: windows, events: events))
+        // Wrist motion, 25 values a second: a still wrist (about 0.01 g) and, during a scratch, a hand
+        // moving back and forth about 4 times a second (0.15–0.85 g).
+        if t - nextSample > 5 { nextSample = (t / 0.04).rounded(.down) * 0.04 }
+        var motion: [Double] = []
+        while nextSample <= t {
+            let s = nextSample
+            nextSample += 0.04
+            let noise = Self.noise(s)
+            let scratch = scratches.contains { s >= $0.start && s < $0.end }
+            motion.append(scratch ? max(0.05, 0.5 + 0.32 * sin(2 * .pi * 4.2 * s) + 0.08 * (noise - 0.5))
+                                  : 0.008 + 0.012 * noise)
+        }
+        onBatch?(LiveBatch(live: true, windows: windows, events: events, motion: motion))
+    }
+
+    /// A fixed pseudo-random value in 0..<1 for a time (same run every launch).
+    private static func noise(_ s: TimeInterval) -> Double {
+        let x = sin(s * 12.9898 * 25 + 78.233) * 43758.5453
+        return x - x.rounded(.down)
     }
 }

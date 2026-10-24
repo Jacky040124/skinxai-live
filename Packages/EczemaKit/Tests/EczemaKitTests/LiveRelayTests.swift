@@ -31,6 +31,7 @@ import Testing
         #expect(b.windows == [LiveBatch.Window(scratch: true, p: 0.994, hz: 3.644, strength: 0.847)])
         #expect(b.events == [LiveBatch.Event(.start, hz: 3.644, intense: false),
                              LiveBatch.Event(.end, hz: 2.868, intense: true, seconds: 21.085)])
+        #expect(b.motion == [0.012])
 
         #expect(LiveRelayMessage.parse(#"{"type":"reset"}"#) == .reset)
         #expect(LiveRelayMessage.parse(#"{"type":"hello","lastSeen":null,"now":1792821009}"#) == .other)
@@ -46,6 +47,16 @@ import Testing
         #expect(odd.live == nil)
         #expect(odd.windows == [LiveBatch.Window(scratch: true), LiveBatch.Window(scratch: false, p: 0.2)])
         #expect(odd.events == [LiveBatch.Event(.end)])
+        #expect(odd.motion == [])
+    }
+
+    @Test func motionKeepsTheWristValuesInOrderAndSkipsJunk() throws {
+        guard case let .batch(b) = try #require(LiveRelayMessage.parse(
+            #"{"type":"batch","live":true,"samples":[[1,0.02],[2,0.61],"x",[3],[4,-1],[5,"y"],[6,1.4]]}"#)) else {
+            Issue.record("not a batch")
+            return
+        }
+        #expect(b.motion == [0.02, 0.61, 1.4])
     }
 
     @Test func windowPassesOnTheWatchDecisionOnly() {

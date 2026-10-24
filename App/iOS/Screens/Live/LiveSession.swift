@@ -154,6 +154,7 @@ final class LiveSession: ObservableObject {
     /// Sets tonight's count back to zero (the hidden control, or the relay's `reset` message).
     func reset() {
         rules.reset(at: Date())
+        LiveMotionFeed.shared.clear()
         publish()
     }
 
@@ -190,6 +191,8 @@ final class LiveSession: ObservableObject {
         switch message {
         case .batch(let batch):
             let changes = rules.take(batch, at: now)
+            if changes.contains(.sessionStarted) { LiveMotionFeed.shared.clear() }
+            if batch.live != false { LiveMotionFeed.shared.append(batch.motion) }   // for the live graph
             if batch.live != false { greeted = false }        // the watch is (still) tracking
             publish(now)
             #if DEBUG

@@ -14,6 +14,9 @@ struct LiveMonitorView: View {
 
     @ObservedObject private var session = LiveSession.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// "graph" (default): the wrist-motion graph; "bars": the bars that follow the watch's decision only.
+    /// Switched under the hidden controls.
+    @AppStorage("liveView") private var liveView = "graph"
 
     var body: some View {
         VStack(spacing: 10) {
@@ -87,7 +90,11 @@ struct LiveMonitorView: View {
 
     private var chartCard: some View {
         ZStack(alignment: .topLeading) {
-            LiveBarsView(running: session.running, scratching: session.scratching)
+            if liveView == "bars" {
+                LiveBarsView(running: session.running, scratching: session.scratching)
+            } else {
+                LiveGraphView(running: session.running, scratching: session.scratching)
+            }
             if session.scratching {
                 Sticker(text: "Scratching", icon: "✋", fill: Twin.Palette.orange)
                     .padding(.top, 10)

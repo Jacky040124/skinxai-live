@@ -30,8 +30,9 @@ public enum LiveRelayMessage: Sendable, Equatable {
 }
 
 /// The parts of a relay batch the phone uses: `{live, windows: [{p, scratch, hz, strength}],
-/// events: [{type: "start"|"end", hz, intense, seconds}]}`. Raw motion (`samples`, `raw`) is
-/// ignored on purpose: the monitor shows the watch's decision, never wrist motion.
+/// events: [{type: "start"|"end", hz, intense, seconds}], samples: [[t, m]]}`. `samples` is the
+/// watch's wrist motion, 25 a second: `m` = how hard the wrist moves in g (gravity removed); the
+/// live graph draws it. The 50 Hz `raw` accelerometer is ignored.
 public struct LiveBatch: Sendable, Equatable {
     /// One detector window (3 s of motion, a new one every 0.5 s on the live preset).
     public struct Window: Sendable, Equatable {
@@ -73,11 +74,14 @@ public struct LiveBatch: Sendable, Equatable {
     public var live: Bool?
     public var windows: [Window]
     public var events: [Event]
+    /// Wrist motion in g (gravity removed), oldest first, 25 values a second (`samples[i][1]`).
+    public var motion: [Double]
 
-    public init(live: Bool? = true, windows: [Window] = [], events: [Event] = []) {
+    public init(live: Bool? = true, windows: [Window] = [], events: [Event] = [], motion: [Double] = []) {
         self.live = live
         self.windows = windows
         self.events = events
+        self.motion = motion
     }
 
     /// Lenient like the web page: missing or odd fields are skipped, never fatal.
@@ -93,6 +97,10 @@ public struct LiveBatch: Sendable, Equatable {
                   let kind = Event.Kind(rawValue: type) else { return nil }
             return Event(kind, hz: Self.number(e["hz"]), intense: Self.bool(e["intense"]) ?? false,
                          seconds: Self.number(e["seconds"]))
+        }
+        motion = (json["samples"] as? [Any] ?? []).compactMap { item in
+            guard let pair = item as? [Any], pair.count >= 2, let m = Self.number(pair[1]), m >= 0 else { return nil }
+            return m
         }
     }
 
