@@ -47,10 +47,6 @@ struct RootView: View {
         .onReceive(NotificationCenter.default.publisher(for: .twinToast).receive(on: DispatchQueue.main)) { note in
             if let text = note.userInfo?["text"] as? String { services.toasts.show(text) }
         }
-        // The watch starts tracking sleep: back to Today, where the Live sticker shows up.
-        .onReceive(LiveSession.shared.$tracking.removeDuplicates().dropFirst()) { tracking in
-            if tracking { watchStarted() }
-        }
         .shellEnvironment(app, services)
         .onAppear {
             if shown == nil { shown = app.tab }
@@ -80,12 +76,6 @@ struct RootView: View {
         DispatchQueue.main.async {
             withAnimation(reduceMotion ? .easeInOut(duration: 0.22) : Twin.Motion.slide) { shown = new }
         }
-    }
-
-    /// Same as the approved flow: whatever was open, the phone shows Today when the watch starts.
-    private func watchStarted() {
-        if app.showPermissions { app.showPermissions = false }
-        app.select(.today, haptic: false)
     }
 }
 
