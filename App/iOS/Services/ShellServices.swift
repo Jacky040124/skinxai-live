@@ -8,7 +8,8 @@ final class ShellServices: ObservableObject {
     let tour = DemoTour()
     let data = DataModeController()
     let access = DeviceAccess()
-    let watch = WatchInbox()
+    /// Already active since launch (see `WatchInbox`).
+    let watch = WatchInbox.shared
     let alerts = FlareAlerts()
     private var attached = false
 

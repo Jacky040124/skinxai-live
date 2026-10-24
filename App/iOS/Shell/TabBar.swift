@@ -2,6 +2,7 @@ import SwiftUI
 
 /// Raft-style phone tab bar. The selected icon sits in a yellow sticker that slides to the next tab
 /// with a spring, squashes and stretches on the way, and the new icon bounces when it lands.
+/// With Reduce Motion the sticker doesn't travel: it fades out of one slot and into the next.
 struct TwinTabBar: View {
     @EnvironmentObject var app: AppState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -22,8 +23,10 @@ struct TwinTabBar: View {
         .padding(.bottom, 2)
         // One sticker for the whole bar; it follows the selected icon slot.
         .background {
-            sticker
-                .matchedGeometryEffect(id: "tab.sticker", in: ns, properties: .frame, isSource: false)
+            if !reduceMotion {
+                sticker
+                    .matchedGeometryEffect(id: "tab.sticker", in: ns, properties: .frame, isSource: false)
+            }
         }
         .background(alignment: .top) {
             Twin.Palette.paper
@@ -62,7 +65,8 @@ struct TwinTabBar: View {
 
     private func item(_ tab: Tab) -> some View {
         let on = app.tab == tab
-        return Button { app.select(tab) } label: {
+        // The press style taps on touch-down, like every button in the app.
+        return Button { app.select(tab, haptic: false) } label: {
             VStack(spacing: 4) {
                 Image(systemName: tab.icon)
                     .font(.system(size: 16, weight: .semibold))
@@ -73,7 +77,11 @@ struct TwinTabBar: View {
                     .frame(width: 48, height: 32)
                     .background {
                         if on {
-                            Color.clear.matchedGeometryEffect(id: "tab.sticker", in: ns, properties: .frame)
+                            if reduceMotion {
+                                sticker.transition(.opacity)
+                            } else {
+                                Color.clear.matchedGeometryEffect(id: "tab.sticker", in: ns, properties: .frame)
+                            }
                         }
                     }
                 Text(tab.title)
@@ -91,11 +99,12 @@ struct TwinTabBar: View {
     }
 }
 
-/// Small squash on press (the haptic comes from `AppState.select`).
+/// Small squash and a light tap on press.
 private struct TabPressStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .scaleEffect(configuration.isPressed ? 0.92 : 1)
             .animation(Twin.Motion.bouncy, value: configuration.isPressed)
+            .onChange(of: configuration.isPressed) { _, pressed in if pressed { Haptics.tap() } }
     }
 }

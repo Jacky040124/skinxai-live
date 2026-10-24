@@ -375,7 +375,8 @@ struct PermissionCards: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            row(0, icon: "heart.fill", title: "Apple Health", detail: "Sleep, HRV, resting pulse", state: access.health) {
+            row(0, icon: "heart.fill", title: "Apple Health", detail: "Sleep, HRV, resting pulse", state: access.health,
+                manage: access.openHealth) {
                 Task { await access.requestHealth() }
             }
             row(1, icon: "location.fill", title: "Location", detail: "Air, humidity, pollen near you", state: access.location) {
@@ -398,9 +399,9 @@ struct PermissionCards: View {
     }
 
     private func row(_ i: Int, icon: String, title: String, detail: String, state: DeviceAccess.State,
-                     request: @escaping () -> Void) -> some View {
+                     manage: (() -> Void)? = nil, request: @escaping () -> Void) -> some View {
         PermissionRow(icon: icon, title: title, detail: detail) {
-            PermissionStatus(state: state, request: request, settings: access.openSettings)
+            PermissionStatus(state: state, request: request, settings: access.openSettings, manage: manage)
         }
         .modifier(RowEntrance(index: i, shown: shown))
     }
@@ -475,11 +476,14 @@ struct PermissionRow<Trailing: View>: View {
     }
 }
 
-/// "Allow" (pink, to do) → "On" (lime) or "Off" (opens Settings).
+/// "Allow" (pink, to do) → "On" (lime) or "Off" (opens Settings). Apple Health can also be
+/// "Asked" (neutral): answered, but no data has come back yet, so it may well be off.
 struct PermissionStatus: View {
     let state: DeviceAccess.State
     let request: () -> Void
     let settings: () -> Void
+    /// Where "Asked" leads (Apple Health: the Health app).
+    var manage: (() -> Void)? = nil
 
     var body: some View {
         Group {
@@ -488,6 +492,23 @@ struct PermissionStatus: View {
                 Button("Allow", action: request)
                     .buttonStyle(TwinButtonStyle(fill: Twin.Palette.pink, height: 34, fullWidth: false))
                     .font(Twin.Typeface.sans(14, .bold))
+            case .asked:
+                Button(action: manage ?? settings) {
+                    VStack(alignment: .trailing, spacing: 3) {
+                        Sticker(text: "Asked", fill: Twin.Palette.paper)
+                        HStack(spacing: 3) {
+                            Text("MANAGE IN HEALTH")
+                            Image(systemName: "arrow.up.right").font(.system(size: 7, weight: .bold))
+                        }
+                        .font(Twin.Typeface.mono(9))
+                        .foregroundStyle(Twin.Palette.inkMuted)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(PressableStyle())
+                .accessibilityLabel("Asked")
+                .accessibilityHint("Opens Apple Health, where you choose what Eczema Twin can read")
+                .transition(.opacity)
             case .on:
                 Sticker(text: "On", icon: "checkmark", fill: Twin.Palette.lime)
                     .transition(.scale(scale: 0.5).combined(with: .opacity))

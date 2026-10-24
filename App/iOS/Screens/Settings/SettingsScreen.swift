@@ -9,16 +9,20 @@ struct SettingsScreen: View {
     @EnvironmentObject var tour: DemoTour
     @EnvironmentObject var toasts: ShellToasts
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("profileName") private var name = "Douglas"
+
+    /// Entrance rise (fade only with Reduce Motion).
+    private var rise: CGFloat { reduceMotion ? 0 : 14 }
 
     var body: some View {
         ScrollViewReader { proxy in
         ScrollView {
             VStack(alignment: .leading, spacing: Twin.Space.m) {
                 header
-                    .riseIn(0)
+                    .riseIn(0, distance: rise)
                 profile
-                    .riseIn(Twin.Motion.stagger)
+                    .riseIn(Twin.Motion.stagger, distance: rise)
 
                 section("Data", index: 2) { DataSourceCard() }
                 if app.dataset.isDemo {
@@ -37,10 +41,10 @@ struct SettingsScreen: View {
                 }
                 .buttonStyle(TwinButtonStyle(fill: Twin.Palette.paper, height: 50))
                 .padding(.top, 4)
-                .riseIn(6 * Twin.Motion.stagger)
+                .riseIn(6 * Twin.Motion.stagger, distance: rise)
 
                 AboutCard()
-                    .riseIn(7 * Twin.Motion.stagger)
+                    .riseIn(7 * Twin.Motion.stagger, distance: rise)
                     .id("about")
             }
             .padding(.horizontal, Twin.Space.screen)
@@ -143,7 +147,7 @@ struct SettingsScreen: View {
                 .padding(.top, 8)
             content()
         }
-        .riseIn(Double(index) * Twin.Motion.stagger)
+        .riseIn(Double(index) * Twin.Motion.stagger, distance: rise)
     }
 
     private func playTour() {
@@ -191,7 +195,7 @@ private struct DataSourceCard: View {
                     statusRow("applewatch", "Apple Watch") { watchStatus }
                     statusRow("heart.fill", "Apple Health") {
                         PermissionStatus(state: access.health, request: { Task { await access.requestHealth(); await data.refreshReal(force: true) } },
-                                         settings: access.openSettings)
+                                         settings: access.openSettings, manage: access.openHealth)
                     }
                     statusRow("location.fill", "Location") {
                         PermissionStatus(state: access.location, request: access.requestLocation, settings: access.openSettings)
@@ -331,7 +335,6 @@ private struct UnitsCard: View {
             HStack(spacing: 0) {
                 ForEach([("c", "°C"), ("f", "°F")], id: \.0) { value, label in
                     Button {
-                        Haptics.tap()
                         withAnimation(.spring(response: 0.36, dampingFraction: 0.72)) { unit = value }
                     } label: {
                         Text(label)
@@ -347,8 +350,9 @@ private struct UnitsCard: View {
                                         .matchedGeometryEffect(id: "unit", in: ns)
                                 }
                             }
+                            .contentShape(Rectangle())
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(ControlPressStyle(scale: 0.92))
                     .accessibilityAddTraits(unit == value ? [.isSelected] : [])
                 }
             }

@@ -7,8 +7,15 @@ import EczemaKit
 /// Contract (watch → iPhone): `WCSession.default.transferUserInfo(["kind": "episodes", "data": Data])`
 /// where `data` is `JSONEncoder().encode([ScratchEpisode])`. The same payload is also accepted as a
 /// message, an application context, or a transferred file whose metadata has `"kind": "episodes"`.
+///
+/// The session goes live at process start (`EczemaTwinApp.init`), not when a screen appears:
+/// WatchConnectivity can wake the app in the background to deliver queued episodes, and then no
+/// screen ever appears. Episodes that arrive before the app frame is attached are saved to disk
+/// at once and handed over as soon as `onEpisodes` is set.
 @MainActor
 final class WatchInbox: NSObject, ObservableObject {
+    static let shared = WatchInbox()
+
     enum Status: Equatable {
         case unsupported            // iPad / no WatchConnectivity
         case connecting
@@ -19,8 +26,13 @@ final class WatchInbox: NSObject, ObservableObject {
     @Published private(set) var status: Status = .connecting
     @Published private(set) var lastSync: Date?
 
-    /// Called on the main actor with every batch of decoded episodes.
-    var onEpisodes: (([ScratchEpisode]) -> Void)?
+    /// Called on the main actor with every batch of decoded episodes (and, once set, with the
+    /// batches that arrived before).
+    var onEpisodes: (([ScratchEpisode]) -> Void)? {
+        didSet { deliverPending() }
+    }
+    /// Episodes received before anyone listened (already saved to disk).
+    private var pending: [ScratchEpisode] = []
 
     func activate() {
         guard WCSession.isSupported() else { status = .unsupported; return }
@@ -40,8 +52,25 @@ final class WatchInbox: NSObject, ObservableObject {
     fileprivate func deliver(_ episodes: [ScratchEpisode]) {
         guard !episodes.isEmpty else { return }
         lastSync = Date()
-        onEpisodes?(episodes)
+        if let onEpisodes {
+            onEpisodes(episodes)
+        } else {
+            // Woken in the background: keep them even if the app is suspended again right away.
+            RealStore.storeEpisodes(episodes)
+            pending += episodes
+        }
     }
+
+    private func deliverPending() {
+        guard onEpisodes != nil, !pending.isEmpty else { return }
+        let batch = pending
+        pending = []
+        // Next turn of the run loop: the listener is usually still being set up.
+        DispatchQueue.main.async { [weak self] in self?.onEpisodes?(batch) }
+    }
+
+    /// QA (`-shellDemo inbox`): a payload takes the same path as a WatchConnectivity delivery.
+    func simulateDelivery(_ payload: [String: Any]) { receive(payload) }
 
     /// Decodes the contract payload. `nil` when the payload is something else.
     nonisolated static func decode(_ payload: [String: Any]) -> [ScratchEpisode]? {

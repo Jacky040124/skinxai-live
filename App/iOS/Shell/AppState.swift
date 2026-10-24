@@ -41,9 +41,11 @@ final class AppState: ObservableObject {
 
     init() {
         let defaults = UserDefaults.standard
-        let exp = defaults.string(forKey: "expDay").flatMap(Int.init)
+        // Same range as `setExperimentDay`; 0 or less means the flare story.
+        let exp = defaults.string(forKey: "expDay").flatMap(Int.init).flatMap { $0 >= 1 ? min($0, 10) : nil }
         experimentDay = exp
-        dataset = DemoData.make(today: Date(), experimentDay: exp)
+        let now = Date()
+        dataset = DemoData.make(today: now, experimentDay: exp, revealThroughHour: DemoData.storyRevealHour(at: now))
         // Real data mode (Settings → Demo story off): start from what is stored on the phone.
         if exp == nil, DataModeController.launchMode == .real { dataset = DataModeController.storedRealDataset() }
         if let screen = defaults.string(forKey: "screen") { route(screen) }
@@ -60,19 +62,35 @@ final class AppState: ObservableObject {
         }
     }
 
-    func select(_ new: Tab) {
+    /// Switches tabs. `haptic: false` when the caller already gave feedback (a success haptic, or a
+    /// button that tapped on press). Even with `haptic: true` a touch only taps once: if a button's
+    /// press tap just fired for this touch, it stands in for the tab tap.
+    func select(_ new: Tab, haptic: Bool = true) {
         guard new != tab else { return }
         let all = Tab.allCases
         tabDirection = (all.firstIndex(of: new)! > all.firstIndex(of: tab)!) ? 1 : -1
-        Haptics.tap()
+        if haptic { tapOncePerTouch() }
         withAnimation(Twin.Motion.slide) { tab = new }
+    }
+
+    /// The press tap that last stood in for a tab tap (each press tap is used once).
+    private var absorbedTap: Date = .distantPast
+
+    private func tapOncePerTouch() {
+        let last = Haptics.lastTapAt
+        if Date().timeIntervalSince(last) < 0.5, last != absorbedTap {
+            absorbedTap = last
+            return
+        }
+        Haptics.tap()
+        absorbedTap = Haptics.lastTapAt
     }
 
     /// Starts the 10-day test suggested by the case file (demo: day 1 of the experiment story).
     func startExperiment() {
         if !dataset.isDemo { startRealExperiment(); return }
         setExperimentDay(1)
-        select(.experiment)
+        select(.experiment, haptic: false)
         Haptics.success()
     }
 
@@ -83,7 +101,9 @@ final class AppState: ObservableObject {
             let before = recent.isEmpty ? dataset.baselineMinutesPerDay : recent.reduce(0, +) / Double(recent.count)
             let start = Calendar.current.startOfDay(for: Date())
             update { $0.experiment = Experiment(plan: plan, startDay: start, baselineMinutesPerDay: before) }
+            select(.experiment, haptic: false)
             Haptics.success()
+            return
         }
         select(.experiment)
     }
@@ -92,7 +112,8 @@ final class AppState: ObservableObject {
     func setExperimentDay(_ day: Int?) {
         withAnimation(Twin.Motion.spring) {
             experimentDay = day.map { min(max($0, 1), 10) }
-            dataset = DemoData.make(today: Date(), experimentDay: experimentDay)
+            let now = Date()
+            dataset = DemoData.make(today: now, experimentDay: experimentDay, revealThroughHour: DemoData.storyRevealHour(at: now))
         }
     }
 

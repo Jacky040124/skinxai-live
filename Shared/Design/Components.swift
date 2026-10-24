@@ -236,7 +236,12 @@ struct PixelSpinner: View {
 // MARK: - Haptics
 
 enum Haptics {
+    /// When `tap()` last fired. Lets an action that follows a button's press tap (for example a
+    /// tab change started from a card) skip a second tap for the same touch.
+    private(set) static var lastTapAt: Date = .distantPast
+
     static func tap() {
+        lastTapAt = Date()
         #if os(iOS)
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
         #elseif os(watchOS)
