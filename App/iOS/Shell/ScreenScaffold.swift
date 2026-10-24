@@ -49,7 +49,8 @@ struct ScreenScaffold<Trailing: View, Content: View>: View {
                 VStack(alignment: .leading, spacing: Twin.Space.m) { content() }
                     .padding(.horizontal, Twin.Space.screen)
                     .padding(.top, Twin.Space.l)
-                    .padding(.bottom, 130)
+                    // The tab bar (~60 pt above the home indicator) + the prototype's 26 pt gap.
+                    .padding(.bottom, 86)
             }
             .scrollIndicators(.hidden)
         }

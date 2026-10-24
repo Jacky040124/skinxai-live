@@ -22,8 +22,10 @@ final class ShellServices: ObservableObject {
         Task { await access.refresh() }
 
         // The watch starts tracking sleep: whatever was open, the phone shows Today, where the
-        // Live sticker appears next to the avatar.
-        LiveSession.shared.$tracking
+        // Live sticker appears next to the avatar. `running` (not `tracking`) so a few seconds of
+        // network silence in the middle of the night, which hides and shows the sticker again,
+        // never pulls the phone away from another tab.
+        LiveSession.shared.$running
             .removeDuplicates()
             .dropFirst()
             .filter { $0 }

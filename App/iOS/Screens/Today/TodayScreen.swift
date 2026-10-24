@@ -18,10 +18,13 @@ struct TodayScreen: View {
     @State private var entrance = 0
     /// Today is on screen (not covered by the live monitor, not on another tab).
     @State private var onScreen = false
-    /// The watch's last tracking state; nil until the first value arrives.
+    /// Whether the watch's session was running at the last update; nil until the first value arrives.
     @State private var wasTracking: Bool?
     /// The watch stopped while the live monitor covered Today: replay when Today is back.
     @State private var replayWhenBack = false
+    /// Hides the sections while they wait for that replay, so the monitor dissolves into an empty
+    /// page that fills in, not into last night's card that then blanks and starts over.
+    @State private var heldForReplay = false
     /// The date in the top bar; moves on at midnight while the app stays open.
     @State private var now = Date()
 
@@ -37,6 +40,7 @@ struct TodayScreen: View {
                     Color.clear.frame(height: 0).id("today-top")
                     sections
                         .id(entrance)
+                        .opacity(heldForReplay ? 0 : 1)
                     Color.clear.frame(height: 1).id("today-bottom")
                 }
                 .onAppear {
@@ -44,16 +48,33 @@ struct TodayScreen: View {
                     TodayTrendsLaunch.scrollForScreenshot(proxy, bottomID: "today-bottom")
                     if replayWhenBack {
                         replayWhenBack = false
-                        replay(proxy, after: 0.45)
+                        // The monitor is already gone and the phone upright (the presenter turns it
+                        // back before it dismisses): rise in while the page dissolves in.
+                        replay(proxy, after: 0.05)
                     }
                 }
                 .onDisappear { onScreen = false }
                 .onNewDay { now = Date() }
-                .onReceive(LiveSession.shared.$tracking.removeDuplicates()) { tracking in
-                    defer { wasTracking = tracking }
-                    guard wasTracking == true, !tracking else { return }
+                // `running` ends when the watch stops (Stop, or 8 s of silence); `tracking` also
+                // blinks off during a few seconds of network silence, which is not waking up.
+                .onReceive(LiveSession.shared.$running.removeDuplicates()) { running in
+                    defer { wasTracking = running }
+                    guard wasTracking == true, !running else { return }
                     // He woke up: last night is ready.
-                    if onScreen { replay(proxy, after: 0.9) } else { replayWhenBack = true }
+                    if onScreen {
+                        replay(proxy, after: 0.9)
+                    } else {
+                        replayWhenBack = true
+                        heldForReplay = true
+                        // Safety: never leave Today blank if it doesn't get its onAppear back
+                        // (the monitor takes about 1 s to close).
+                        Task { @MainActor in
+                            try? await Task.sleep(for: .seconds(3))
+                            guard heldForReplay, replayWhenBack else { return }
+                            replayWhenBack = false
+                            replay(proxy, after: 0)
+                        }
+                    }
                 }
             }
         }
@@ -107,6 +128,7 @@ struct TodayScreen: View {
             try? await Task.sleep(for: .seconds(delay))
             proxy.scrollTo("today-top", anchor: .top)
             entrance += 1
+            heldForReplay = false        // the new sections start hidden and rise in
         }
     }
 }

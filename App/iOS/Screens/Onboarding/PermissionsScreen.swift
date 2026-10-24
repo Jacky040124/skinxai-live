@@ -269,7 +269,8 @@ private struct HiddenControls: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Eyebrow(text: "Demo controls · hidden")
+            // Neutral on purpose: the phone is mirrored to the big screen if this is ever used on stage.
+            Eyebrow(text: "Advanced")
                 .padding(.bottom, 6)
             row("Reset tonight’s count", button: "Reset", action: reset)
             row("Replay last Claude chat (offline)", button: "Replay", action: replay)
