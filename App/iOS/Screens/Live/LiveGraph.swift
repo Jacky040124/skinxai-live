@@ -46,7 +46,9 @@ final class LiveMotionFeed: @unchecked Sendable {
 /// Input: the watch's wrist motion `m` (g, gravity removed, 25 values a second, see `LiveStreamer` on
 /// the watch). Each value is smoothed a little before it is drawn:
 ///
-///     I(n) = I(n−1) + 0.35 · (m(n) − I(n−1))      (about 0.1 s of smoothing)
+///     I(n) = I(n−1) + 0.2 · (m(n) − I(n−1))       (about 0.2 s of smoothing)
+///
+/// and the line is drawn as a smooth curve through the points.
 ///
 /// The y axis is linear, 0 to 1.6 g; values above the top are drawn at the top. A still wrist sits near
 /// 0; moving the hand back and forth lifts the line (light scratching is about 0.3–0.9 g, hard about 2 g).
@@ -78,7 +80,7 @@ final class LiveGraphModel {
     static let seconds = 15.0                   // seconds on screen
     static let capacity = Int(rate * seconds) + 2
     static let top = 1.6                        // g at the top of the plot
-    static let smoothing = 0.35                 // I(n) = I(n−1) + 0.35 · (m(n) − I(n−1))
+    static let smoothing = 0.2                  // I(n) = I(n−1) + 0.2 · (m(n) − I(n−1))
     private static let gridLevels: [Double] = [0, 0.5, 1.0, 1.5]
 
     private var values = [Double](repeating: 0, count: capacity)
@@ -175,6 +177,7 @@ final class LiveGraphModel {
             let last = min(end + 1, count)
             var line = Path()
             var area = Path()
+            var previous = CGPoint.zero
             for k in j...last {
                 let v = values[(newest - k + Self.capacity) % Self.capacity]
                 let point = CGPoint(x: x(k), y: y(v))
@@ -183,9 +186,16 @@ final class LiveGraphModel {
                     area.move(to: CGPoint(x: point.x, y: plot.maxY))
                     area.addLine(to: point)
                 } else {
-                    line.addLine(to: point)
-                    area.addLine(to: point)
+                    // A smooth curve: through the midpoints, bending at each value.
+                    let mid = CGPoint(x: (previous.x + point.x) / 2, y: (previous.y + point.y) / 2)
+                    line.addQuadCurve(to: mid, control: previous)
+                    area.addQuadCurve(to: mid, control: previous)
+                    if k == last {
+                        line.addLine(to: point)
+                        area.addLine(to: point)
+                    }
                 }
+                previous = point
             }
             area.addLine(to: CGPoint(x: x(last), y: plot.maxY))
             area.closeSubpath()

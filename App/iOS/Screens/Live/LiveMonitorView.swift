@@ -24,16 +24,14 @@ struct LiveMonitorView: View {
             if wide {
                 HStack(spacing: 10) {
                     chartCard
-                    LiveCountCard(count: session.count).frame(width: 190)
+                    LiveCountCard(count: session.count, episodes: session.episodes).frame(width: 210)
                 }
             } else {
                 VStack(spacing: 10) {
                     chartCard
-                    LiveCountCard(count: session.count).frame(height: 190)
+                    LiveCountCard(count: session.count, episodes: session.episodes).frame(height: 190)
                 }
             }
-            LiveSessionStrip(startedAt: session.startedAt, episodes: session.episodes)
-                .frame(height: 16)
         }
         .padding(.horizontal, wide ? 8 : Twin.Space.screen)
         .padding(.top, 14)
@@ -111,10 +109,12 @@ struct LiveMonitorView: View {
     }
 }
 
-/// "SCRATCHES TONIGHT" and the count. Each new episode pops the number (bigger, orange for a
-/// moment) and sends one orange ring out from behind it.
+/// "SCRATCHING TONIGHT": total scratch time (seconds under a minute, then minutes + seconds) and the
+/// number of scratches under it. Each new episode pops the time (bigger, orange for a moment) and
+/// sends one orange ring out from behind it.
 struct LiveCountCard: View {
     var count: Int
+    var episodes: [LiveEpisode] = []
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var bumped = false
@@ -127,15 +127,20 @@ struct LiveCountCard: View {
     var body: some View {
         let card = RoundedRectangle(cornerRadius: Twin.Radius.card, style: .continuous)
         VStack(alignment: .leading, spacing: 0) {
-            Eyebrow(text: "Scratches tonight")
-            Text(verbatim: "\(count)")
-                .font(Twin.Typeface.sans(96, .bold))
-                .tracking(-4.8)
-                .foregroundStyle(bumped ? Twin.Palette.orange : Twin.Palette.ink)
-                .lineLimit(1)
-                .minimumScaleFactor(0.4)
-                .scaleEffect(bumped && !reduceMotion ? 1.18 : 1)
+            Eyebrow(text: "Scratching tonight")
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                VStack(spacing: 6) {
+                    scratchTime(at: context.date)
+                        .foregroundStyle(bumped ? Twin.Palette.orange : Twin.Palette.ink)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.4)
+                        .scaleEffect(bumped && !reduceMotion ? 1.18 : 1)
+                    Text(count == 1 ? "1 scratch" : "\(count) scratches")
+                        .font(Twin.Typeface.mono(13))
+                        .foregroundStyle(Twin.Palette.inkHint)
+                }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -156,8 +161,24 @@ struct LiveCountCard: View {
             if new > old { popAndRipple() }
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Scratches tonight")
-        .accessibilityValue("\(count)")
+        .accessibilityLabel("Scratching tonight")
+        .accessibilityValue("\(Self.seconds(episodes, at: Date())) seconds, \(count) scratches")
+    }
+
+    /// Seconds of scratching tonight (an episode still going counts up to now).
+    static func seconds(_ episodes: [LiveEpisode], at now: Date) -> Int {
+        Int(episodes.reduce(0) { $0 + max(0, ($1.end ?? now).timeIntervalSince($1.start)) }.rounded())
+    }
+
+    /// "45 s" under a minute, then "1 min 23 s": big numbers, small units.
+    private func scratchTime(at now: Date) -> Text {
+        let total = Self.seconds(episodes, at: now)
+        let big = Twin.Typeface.sans(64, .bold), small = Twin.Typeface.sans(22, .bold)
+        if total < 60 {
+            return Text("\(total)").font(big).tracking(-3) + Text(" s").font(small)
+        }
+        return Text("\(total / 60)").font(big).tracking(-3) + Text(" min ").font(small)
+            + Text("\(total % 60)").font(big).tracking(-3) + Text(" s").font(small)
     }
 
     private func popAndRipple() {
