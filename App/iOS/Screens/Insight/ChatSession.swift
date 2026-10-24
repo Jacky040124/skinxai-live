@@ -155,6 +155,8 @@ final class ChatSession: ObservableObject {
     func send(_ text: String) {
         let text = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty, !busy, !replaying else { return }
+        // Busy at once, not when the task starts: a chip tap and the return key in the same moment send once.
+        busy = true
         if messages.isEmpty { startedAt = Date() }
         clearPrompts()
         addUser(text)
@@ -185,6 +187,7 @@ final class ChatSession: ObservableObject {
     /// "Try again" after a failed request: asks again with the same conversation.
     func retry() {
         guard !busy, !replaying else { return }
+        busy = true
         removeAll { if case .failure = $0 { true } else { false } }
         let gen = generation
         work = Task { [weak self] in await self?.converse(gen, lead: 0.2) }
@@ -197,15 +200,25 @@ final class ChatSession: ObservableObject {
     }
 
     /// The hidden "Replay last Claude chat (offline)": plays the last finished conversation again with the
-    /// same rhythm, from the saved messages and tool results. No network.
+    /// same rhythm, from the saved messages and tool results. No network. A phone with none saved yet plays the
+    /// conversation the app ships with. Either way its dates move to today, so they match Today and Trends.
     func replay() {
-        guard let saved = ChatArchive.load(preferring: devModel) else {
+        guard let saved = ChatArchive.load(preferring: devModel, fallback: ChatArchive.bundled)?.moved(toDayOf: Date()) else {
             NotificationCenter.default.postTwinToast("No saved conversation yet")
             return
         }
         wipe()
         let gen = generation
         work = Task { [weak self] in await self?.play(saved, gen: gen) }
+    }
+
+    /// A new night (the watch started a session): back to Claude's greeting and the suggestions, so step 6 of the
+    /// stage opens on a fresh conversation, whatever a rehearsal left behind (a finished thread, a question still
+    /// waiting, a failed request). Whatever was going on stops.
+    func startOver() {
+        let fresh = messages.isEmpty && !busy && !replaying && items.count == 2
+        guard !fresh else { return }
+        wipe()
     }
 
     // MARK: - The conversation
@@ -231,6 +244,9 @@ final class ChatSession: ObservableObject {
                 reply = try await asked
             } catch {
                 guard gen == generation else { return }
+                #if DEBUG
+                print("[chat] request failed: \(error)")
+                #endif
                 remove(thinking)
                 add(.failure((error as? ChatFailure ?? .badReply).reason))
                 busy = false
@@ -310,8 +326,9 @@ final class ChatSession: ObservableObject {
         return result
     }
 
-    /// A display tool: its card in the thread, then a moment for its entrance to play. A card the conversation
-    /// already shows with the same contents isn't drawn twice (a model sometimes repeats a call).
+    /// A display tool: its card in the thread, then a moment for its entrance to play. The thread keeps one card
+    /// per thing (a model sometimes repeats a call, and the replay plays what was saved): a second conclusion, a
+    /// timeline marking the same night again or the same product again updates the card already there.
     private func show(_ call: ChatToolCall) async {
         let args = call.argumentsObject
         let now = startedAt ?? Date()
@@ -321,7 +338,8 @@ final class ChatSession: ObservableObject {
         case ChatTools.product: kind = .product(ChatProduct(arguments: args, now: now))
         default: kind = .conclusion(ChatConclusion(arguments: args))
         }
-        guard !items.contains(where: { $0.kind == kind }) else {
+        if let old = items.last(where: { Self.sameCard($0.kind, kind) }) {
+            if old.kind != kind { update(old.id) { $0.kind = kind } }
             await Self.pause(0.2)
             return
         }
@@ -336,14 +354,16 @@ final class ChatSession: ObservableObject {
     }
 
     /// `ask_user`: the question card, then Douglas's answer (a chip or the box) as his bubble. Nil if wiped.
-    /// `recorded`: a replay's answer, pressed for him after a moment.
+    /// `recorded`: a replay's answer, pressed for him after a moment. A replay always moves on (it takes no
+    /// input): without a saved answer it presses the first option.
     private func ask(_ call: ChatToolCall, gen: Int, recorded: String?) async -> String? {
         let question = ChatQuestion(arguments: call.argumentsObject)
         let id = add(.question(question, answer: nil))
         await Self.pause(0.3)
         guard gen == generation else { return nil }
         askingID = id
-        if let pick = recorded ?? (autoPlay ? question.options.first : nil) {
+        let fallback = autoPlay || replaying ? question.options.first ?? (replaying ? "Not sure" : nil) : nil
+        if let pick = recorded ?? fallback {
             Task { [weak self] in
                 await Self.pause(1.8)
                 guard let self, gen == self.generation, self.askingID == id else { return }
@@ -389,12 +409,12 @@ final class ChatSession: ObservableObject {
 
     // MARK: - Save and replay
 
-    /// Keeps the conversation once Claude has shown its conclusion.
+    /// Keeps the conversation once Claude has shown its conclusion (never over a complete one with a lesser one).
     private func save() {
         guard !replaying, ChatRules.concluded(messages), let startedAt else { return }
         let transcript = ChatTranscript(model: model ?? devModel ?? "anthropic/claude", startedAt: startedAt,
                                         messages: messages, latencies: latencies)
-        try? ChatArchive.save(transcript)
+        try? ChatArchive.keep(transcript)
     }
 
     private func play(_ saved: ChatTranscript, gen: Int) async {
@@ -494,6 +514,16 @@ final class ChatSession: ObservableObject {
     private func newID() -> Int {
         nextID += 1
         return nextID
+    }
+
+    /// Two display cards about the same thing: conclusions, timelines marking the same night, the same product.
+    private static func sameCard(_ a: ChatItem.Kind, _ b: ChatItem.Kind) -> Bool {
+        switch (a, b) {
+        case (.conclusion, .conclusion): true
+        case let (.timeline(x), .timeline(y)): x.marker == y.marker
+        case let (.product(x), .product(y)): x.title == y.title
+        default: false
+        }
     }
 
     private var motion: Animation { reduceMotion ? .easeOut(duration: 0.25) : Twin.Motion.spring }

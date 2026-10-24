@@ -9,7 +9,8 @@ import UIKit
 ///
 /// Opening: a blank page dissolves in over Today → the phone turns to landscape
 /// (`OrientationLock`) → the monitor fades in. Closing: the monitor fades out → portrait → the
-/// page dissolves away to Today. The screen stays awake while the monitor is up.
+/// page dissolves away to Today. The screen stays awake (the app keeps it awake whenever it is active,
+/// see `EczemaTwinApp`).
 @MainActor
 final class LiveMonitorPresenter: ObservableObject {
     static let shared = LiveMonitorPresenter()
@@ -53,18 +54,20 @@ final class LiveMonitorPresenter: ObservableObject {
             guard self.phase == .opening, monitor.presentingViewController == nil else { return }
             self.phase = .closed
             self.controller = nil
-            UIApplication.shared.isIdleTimerDisabled = false
             if OrientationLock.mask != .portrait { OrientationLock.set(.portrait) }
         }
     }
 
-    /// "Done": back to portrait and to the screen underneath.
+    /// "Done": back to portrait and to the screen underneath. If the watch had gone quiet (its Stop
+    /// never reached the phone), this is the wake-up: Today greets the morning as the monitor goes.
     func close() {
+        guard phase == .opening || phase == .open else { return }
+        if LiveSession.shared.greetAfterQuiet() { greetWhenClosed = true }
         startClosing()
     }
 
-    /// The watch stopped. An open monitor closes itself and Today (underneath) greets the morning;
-    /// a closed one has nothing to do (the pill hides on its own).
+    /// The watch's Stop (never mere silence). An open monitor closes itself and Today (underneath)
+    /// greets the morning; a closed one has nothing to do (the pill hides on its own).
     func watchDidStop() {
         guard phase != .closed else { return }
         greetWhenClosed = true
@@ -126,7 +129,6 @@ final class LiveMonitorPresenter: ObservableObject {
     private func finish() {
         phase = .closed
         controller = nil
-        UIApplication.shared.isIdleTimerDisabled = false
         if OrientationLock.mask != .portrait { OrientationLock.set(.portrait) }
         if greetWhenClosed {
             greetWhenClosed = false

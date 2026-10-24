@@ -5,8 +5,11 @@ import EczemaKit
 ///
 /// Runs while the app is active (`LiveSession` starts and stops it). Says "ping" every 15 s,
 /// reconnects with backoff (0.5 s, 1 s, 2 s … at most 5 s, like the page), and drops a socket that
-/// went quiet: while the watch streams a batch comes every 0.3–1 s, so 5 s of nothing means the
-/// socket is dead (a half-open connection after a network change never reports an error itself).
+/// went quiet (a half-open connection after a network change never reports an error itself). While
+/// the watch streams, a few seconds without a batch are normal (its sends time out after 5 s and a
+/// stuck one is cancelled after 6 s, then it resends at once): after 4 s the socket is asked ("ping",
+/// the relay answers "pong" at once) instead of dropped, and only 10 s of nothing drops it. A drop
+/// at the wrong moment would lose a batch for good: the relay keeps no backlog.
 @MainActor
 final class LiveRelayClient {
     static let url = URL(string: "wss://eczema-twin-live.zhongzhenyu190.workers.dev/api/live")!
@@ -146,19 +149,26 @@ final class LiveRelayClient {
             return
         }
         let streaming = now.timeIntervalSince(lastBatchAt) < 15
-        if now.timeIntervalSince(lastMessageAt) > (streaming ? 5 : 40) {
+        let quiet = now.timeIntervalSince(lastMessageAt)
+        if quiet > (streaming ? 10 : 40) {
             drop()
             return
         }
-        if now.timeIntervalSince(lastPingAt) >= 15 {
-            lastPingAt = now
-            let gen = generation
-            t.send(.string("ping")) { [weak self] error in
-                guard error != nil else { return }
-                Task { @MainActor in
-                    guard let self, self.generation == gen else { return }
-                    self.drop()
-                }
+        let sincePing = now.timeIntervalSince(lastPingAt)
+        if (streaming && quiet > 4 && sincePing > 4) || sincePing >= 15 {
+            ping(t, at: now)
+        }
+    }
+
+    /// "ping": the relay answers with a "pong" right away, which proves the socket is alive.
+    private func ping(_ t: URLSessionWebSocketTask, at now: Date) {
+        lastPingAt = now
+        let gen = generation
+        t.send(.string("ping")) { [weak self] error in
+            guard error != nil else { return }
+            Task { @MainActor in
+                guard let self, self.generation == gen else { return }
+                self.drop()
             }
         }
     }

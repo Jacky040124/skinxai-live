@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// App-wide HUD toast ("Good morning, Douglas · last night is ready"). Dark Raft HUD, drops in from
-/// the top. Anything can raise one with `NotificationCenter.default.postTwinToast(_:)`.
+/// App-wide HUD toast ("Good morning, Douglas · last night is ready"). Dark Raft HUD that rises into
+/// place just above the tab bar (prototype `.toast`: bottom 100 px, up 30 px). Anything can raise one
+/// with `NotificationCenter.default.postTwinToast(_:)`.
 @MainActor
 final class ShellToasts: ObservableObject {
     struct Toast: Identifiable, Equatable {
@@ -37,18 +38,21 @@ struct ShellToastHost: View {
     @EnvironmentObject var toasts: ShellToasts
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// From the bottom of the safe area: the tab bar (~62 pt) and the prototype's 14 pt gap above it.
+    static let bottomClearance: CGFloat = 76
+
     var body: some View {
         ZStack {
             if let toast = toasts.current {
                 ToastView(toast: toast)
                     .id(toast.id)
                     .transition(reduceMotion ? .opacity : .asymmetric(
-                        insertion: .offset(y: -40).combined(with: .opacity).combined(with: .scale(scale: 0.92, anchor: .top)),
-                        removal: .offset(y: -24).combined(with: .opacity)))
+                        insertion: .offset(y: 30).combined(with: .opacity).combined(with: .scale(scale: 0.92, anchor: .bottom)),
+                        removal: .offset(y: 16).combined(with: .opacity)))
                     .onTapGesture { toasts.hide() }
             }
         }
-        .padding(.top, 8)
+        .padding(.bottom, Self.bottomClearance)
         .frame(maxWidth: .infinity)
         .allowsHitTesting(toasts.current != nil)
     }

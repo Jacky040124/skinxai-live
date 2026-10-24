@@ -21,14 +21,22 @@ struct LiveEpisode: Identifiable, Equatable {
 /// watch with `-liveSim 1` — ticks it, and publishes the result for the pill and the monitor.
 /// It lives from launch (`EczemaTwinApp.init`) and listens while the app is active.
 ///
-/// When the watch stops (a `live: false` batch, or 8 s without batches) an open monitor closes
-/// itself (`LiveMonitorPresenter.watchDidStop()`); a closed one just loses its pill.
+/// When the watch's Stop arrives (its last batch says `live: false`) he woke up: `wokeUp` fires (Today
+/// replays its entrance) and an open monitor closes itself with the morning greeting
+/// (`LiveMonitorPresenter.watchDidStop()`); a closed one just loses its pill. 8 s without batches is
+/// not a wake-up (the Wi-Fi may have stalled in the middle of the scratch demo): the session goes quiet
+/// (`running` false: the pill hides, the monitor's bars flatten and its LIVE dot rests) and carries on
+/// with the same count when batches come back. If the Stop itself was lost, Done on the quiet monitor
+/// is the wake-up (`greetAfterQuiet()`).
 ///
 /// Launch arguments:
 ///
 ///     -screen live              open the monitor at launch
 ///     -liveSim 1                the built-in stand-in watch instead of the relay (no network)
 ///     -liveSimStop <seconds>    …which taps Stop that long after tracking began
+///     -liveSimQuiet <seconds>   …which goes silent that long after tracking began
+///     -liveSimQuietFor <secs>   …for that long (default: for good)
+///     -liveDone <seconds>       (Debug) with -screen live: tap Done that long after launch
 ///     -liveReplay <id>          (Debug) play a relay recording instead of the relay
 ///     -screen livepill          (Debug) Today's top bar with the pill, see `LivePillHarness`
 @MainActor
@@ -45,9 +53,15 @@ final class LiveSession: ObservableObject {
     @Published private(set) var startedAt: Date?
     /// Tonight's episodes, oldest first.
     @Published private(set) var episodes: [LiveEpisode] = []
-    /// A session runs from its first batch until the watch stops. Unlike `tracking` it rides out a
-    /// few seconds without batches, so the monitor's bars don't flatten on a network hiccup.
+    /// A session runs from its first batch until the watch stops (or goes quiet for 8 s). Unlike
+    /// `tracking` it rides out a few seconds without batches, so the monitor's bars don't flatten and
+    /// the pill doesn't blink out on a network hiccup.
     @Published private(set) var running = false
+
+    /// A new session began (the watch's Start, or batches after a minute of silence): count from 0.
+    let sessionStarted = PassthroughSubject<Void, Never>()
+    /// He woke up: the watch's Stop arrived (or Done closed a monitor that had gone quiet). Last night is ready.
+    let wokeUp = PassthroughSubject<Void, Never>()
 
     private var rules = LiveRelayState()
     private let relay: LiveRelayClient?
@@ -61,6 +75,8 @@ final class LiveSession: ObservableObject {
     private var deafSince: Date?
     private var ticker: Task<Void, Never>?
     private var bag = Set<AnyCancellable>()
+    /// Done already greeted the morning of this quiet session, so its late Stop doesn't do it again.
+    private var greeted = false
 
     private init() {
         let defaults = UserDefaults.standard
@@ -71,7 +87,9 @@ final class LiveSession: ObservableObject {
         #endif
         if let sim = defaults.string(forKey: "liveSim"), !["", "0", "NO", "no", "false"].contains(sim) {
             let stop = defaults.double(forKey: "liveSimStop")
-            simulator = LiveSimulator(stopAfter: stop > 0 ? stop : nil)
+            let quiet = defaults.double(forKey: "liveSimQuiet"), quietFor = defaults.double(forKey: "liveSimQuietFor")
+            simulator = LiveSimulator(stopAfter: stop > 0 ? stop : nil, quietAt: quiet > 0 ? quiet : nil,
+                                      quietFor: quietFor > 0 ? quietFor : nil)
             relay = nil
         } else if replayID != nil {
             simulator = nil
@@ -118,6 +136,15 @@ final class LiveSession: ObservableObject {
             DispatchQueue.main.async {
                 LiveMonitorPresenter.shared.openWhenReady(waitForTracking: waitForTracking)
             }
+            #if DEBUG
+            let done = defaults.double(forKey: "liveDone")
+            if done > 0 {
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: UInt64(done * 1_000_000_000))
+                    LiveMonitorPresenter.shared.close()
+                }
+            }
+            #endif
         }
         #if DEBUG
         DispatchQueue.main.async { LivePillHarness.presentIfRequested() }
@@ -163,10 +190,12 @@ final class LiveSession: ObservableObject {
         switch message {
         case .batch(let batch):
             let changes = rules.take(batch, at: now)
+            if batch.live != false { greeted = false }        // the watch is (still) tracking
             publish(now)
             #if DEBUG
             for change in changes { print("[live] \(change) · count \(rules.count)") }
             #endif
+            if changes.contains(.sessionStarted) { sessionStarted.send() }
             if changes.contains(.watchStopped) { watchStopped() }
             startTicking()
         case .reset:
@@ -180,7 +209,7 @@ final class LiveSession: ObservableObject {
     // MARK: - Time
 
     /// Ten times a second while anything can still change with time (the 1.2 s scratch hold,
-    /// tracking's 3.5 s, the 8 s stop); idle otherwise.
+    /// tracking's 3.5 s, the 8 s quiet rule); idle otherwise.
     private func startTicking() {
         guard ticker == nil else { return }
         ticker = Task { @MainActor [weak self] in
@@ -198,18 +227,31 @@ final class LiveSession: ObservableObject {
     /// Returns false when nothing is left to change.
     private func tick() -> Bool {
         let now = Date()
-        // Silence only counts while the phone can hear the relay.
+        // Silence only counts while the phone can hear the relay. Going quiet is not a wake-up: the
+        // pill and the monitor follow `running`, nothing closes or greets.
         let changes = listening ? rules.tick(at: now) : []
         publish(now)
         #if DEBUG
         for change in changes { print("[live] \(change) (silence)") }
         #endif
-        if changes.contains(.watchStopped) { watchStopped() }
         return rules.isRunning || tracking || scratching
     }
 
+    /// The watch's Stop: last night is ready.
     private func watchStopped() {
+        defer { greeted = false }
+        guard !greeted else { return }
+        wokeUp.send()
         LiveMonitorPresenter.shared.watchDidStop()
+    }
+
+    /// Done on the monitor while the session is quiet (the watch's Stop never reached the phone): that was
+    /// the wake-up. Fires `wokeUp` and returns true so the monitor greets the morning as it closes.
+    func greetAfterQuiet() -> Bool {
+        guard rules.isQuiet, !greeted else { return false }
+        greeted = true
+        wokeUp.send()
+        return true
     }
 
     /// Copies the rules' state into the published properties (only what changed, so views redraw
@@ -223,7 +265,10 @@ final class LiveSession: ObservableObject {
         if isScratching != scratching { scratching = isScratching }
         if rules.count != count { count = rules.count }
         if rules.startedAt != startedAt { startedAt = rules.startedAt }
-        if rules.isRunning != running { running = rules.isRunning }
+        // The pill shows while tracking or running: both come and go with a spring.
+        if rules.isRunning != running {
+            withAnimation(rules.isRunning ? Twin.Motion.bouncy : Twin.Motion.slide) { running = rules.isRunning }
+        }
         let list = rules.episodes.map { LiveEpisode(id: $0.id, start: $0.start, end: $0.end) }
         if list != episodes { episodes = list }
     }

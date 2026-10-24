@@ -93,20 +93,14 @@ struct InsightScreen: View {
 
 // MARK: - "✶ Claude" badge
 
-/// The pink "✶ Claude" sticker in the top bar. The sparkle turns and pulses while Claude is working.
+/// The pink "✶ Claude" sticker in the top bar. Claude's mark (the ✶ of Today's pink card) pulses while Claude is
+/// working; it never turns (turned, it reads as a close "×" on the big screen).
 struct ClaudeBadge: View {
     var active: Bool
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 5) {
-            Image(systemName: "sparkle")
-                .font(.system(size: 11, weight: .bold))
-                .symbolEffect(.pulse, options: .repeating, isActive: active)
-                // The turn is movement: Reduce Motion keeps only the opacity pulse.
-                .rotationEffect(.degrees(active && !reduceMotion ? 90 : 0))
-                .animation(active && !reduceMotion ? .linear(duration: 1.6).repeatForever(autoreverses: false) : .spring(),
-                           value: active)
+            ClaudeMark(size: 12, pulsing: active)
             Text("Claude").font(Twin.Typeface.sans(13, .bold))
         }
         .foregroundStyle(Twin.Palette.ink)
@@ -115,5 +109,25 @@ struct ClaudeBadge: View {
         .sticker(Twin.Palette.pink)
         .accessibilityElement(children: .combine)
         .accessibilityLabel(active ? "Claude is working" : "Claude")
+    }
+}
+
+/// Claude's mark, "✶" (prototype v5: the badge, the CLAUDE label, "✶ FROM CLAUDE", Today's pink card). Only the
+/// Insight tab icon is the four-point sparkle. `pulsing`: it fades in and out (a fade, so also with Reduce Motion).
+struct ClaudeMark: View {
+    var size: CGFloat
+    var pulsing = false
+
+    var body: some View {
+        let mark = Text("✶").font(.system(size: size, weight: .bold)).accessibilityHidden(true)
+        if pulsing {
+            mark.phaseAnimator([1.0, 0.3]) { content, opacity in
+                content.opacity(opacity)
+            } animation: { _ in
+                .easeInOut(duration: 0.7)
+            }
+        } else {
+            mark
+        }
     }
 }

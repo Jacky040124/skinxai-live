@@ -7,9 +7,9 @@ import EczemaKit
 /// "Ask Claude what changed" card that opens Insight, Sleep and Stress, and "Around you". The top bar
 /// has the live pill (only while the watch tracks sleep) next to the avatar.
 ///
-/// Sections rise in one after another, numbers count up, the ring fills, the bars grow. When the watch
-/// stops tracking (he woke up), the sections play their entrance again once Today is back on screen:
-/// last night is ready.
+/// Sections rise in one after another, numbers count up, the ring fills, the bars grow. When he wakes
+/// up (the watch's Stop, `LiveSession.wokeUp`), the sections play their entrance again once Today is
+/// back on screen: last night is ready. A few seconds of network silence never do that.
 struct TodayScreen: View {
     @EnvironmentObject var app: AppState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -18,9 +18,7 @@ struct TodayScreen: View {
     @State private var entrance = 0
     /// Today is on screen (not covered by the live monitor, not on another tab).
     @State private var onScreen = false
-    /// Whether the watch's session was running at the last update; nil until the first value arrives.
-    @State private var wasTracking: Bool?
-    /// The watch stopped while the live monitor covered Today: replay when Today is back.
+    /// He woke up while the live monitor covered Today: replay when Today is back.
     @State private var replayWhenBack = false
     /// Hides the sections while they wait for that replay, so the monitor dissolves into an empty
     /// page that fills in, not into last night's card that then blanks and starts over.
@@ -41,7 +39,8 @@ struct TodayScreen: View {
                     sections
                         .id(entrance)
                         .opacity(heldForReplay ? 0 : 1)
-                    Color.clear.frame(height: 1).id("today-bottom")
+                    // No height: the last card keeps the prototype's 26 pt above the tab bar.
+                    Color.clear.frame(height: 0).id("today-bottom")
                 }
                 .onAppear {
                     onScreen = true
@@ -55,11 +54,8 @@ struct TodayScreen: View {
                 }
                 .onDisappear { onScreen = false }
                 .onNewDay { now = Date() }
-                // `running` ends when the watch stops (Stop, or 8 s of silence); `tracking` also
-                // blinks off during a few seconds of network silence, which is not waking up.
-                .onReceive(LiveSession.shared.$running.removeDuplicates()) { running in
-                    defer { wasTracking = running }
-                    guard wasTracking == true, !running else { return }
+                // Only the watch's Stop is waking up (a Wi-Fi stall in the night is not).
+                .onReceive(LiveSession.shared.wokeUp) { _ in
                     // He woke up: last night is ready.
                     if onScreen {
                         replay(proxy, after: 0.9)

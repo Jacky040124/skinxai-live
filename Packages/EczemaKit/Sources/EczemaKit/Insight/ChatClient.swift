@@ -77,9 +77,12 @@ public struct ChatClient: Sendable {
         switch url.code {
         case .cancelled: return CancellationError()
         case .timedOut: return ChatFailure.timedOut(Int(timeout.rounded()))
-        case .notConnectedToInternet, .networkConnectionLost, .cannotFindHost, .cannotConnectToHost,
-             .dnsLookupFailed, .internationalRoamingOff, .dataNotAllowed, .secureConnectionFailed:
+        // Only these mean the phone itself has no internet; the rest blame the way to the server, not the phone.
+        case .notConnectedToInternet, .internationalRoamingOff, .dataNotAllowed:
             return ChatFailure.offline
+        case .networkConnectionLost, .cannotFindHost, .cannotConnectToHost, .dnsLookupFailed, .secureConnectionFailed,
+             .serverCertificateUntrusted, .serverCertificateHasBadDate, .serverCertificateNotYetValid:
+            return ChatFailure.unreachable
         default: return ChatFailure.server(0)
         }
     }

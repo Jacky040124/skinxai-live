@@ -6,6 +6,7 @@ import EczemaKit
 struct EczemaTwinApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var app = AppState()
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         // The watch link starts with the process: WatchConnectivity may wake the app in the
@@ -23,6 +24,11 @@ struct EczemaTwinApp: App {
                 .environmentObject(app)
                 .preferredColorScheme(.light)
                 .tint(Twin.Palette.ink)
+                // The phone is mirrored to the big screen and lies on a stand for minutes at a time
+                // (Douglas "asleep", the chat): it never locks while the app is in front.
+                .onChange(of: scenePhase, initial: true) { _, phase in
+                    UIApplication.shared.isIdleTimerDisabled = phase == .active
+                }
         }
     }
 }

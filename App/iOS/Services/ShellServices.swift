@@ -21,19 +21,19 @@ final class ShellServices: ObservableObject {
         watch.onEpisodes = { episodes in _ = RealStore.storeEpisodes(episodes) }
         Task { await access.refresh() }
 
-        // The watch starts tracking sleep: whatever was open, the phone shows Today, where the
-        // Live sticker appears next to the avatar. `running` (not `tracking`) so a few seconds of
-        // network silence in the middle of the night, which hides and shows the sticker again,
-        // never pulls the phone away from another tab.
-        LiveSession.shared.$running
-            .removeDuplicates()
-            .dropFirst()
-            .filter { $0 }
+        // The watch starts a new night (Start): whatever was open, the phone shows Today, where the
+        // Live sticker appears next to the avatar, says so in a toast, and Claude starts a fresh
+        // conversation (step 6 must never open on a rehearsal's thread). Only a new session does
+        // this: batches coming back after a quiet spell carry on the same night and never pull the
+        // phone away from another tab.
+        LiveSession.shared.sessionStarted
             .receive(on: DispatchQueue.main)
-            .sink { [weak app] _ in
-                guard let app else { return }
+            .sink { [weak self, weak app] _ in
+                guard let self, let app else { return }
                 if app.showPermissions { app.showPermissions = false }
                 app.select(.today, haptic: false)
+                ChatSession.shared.startOver()
+                self.toasts.show("Sleep tracking started on your watch", mood: .info, symbol: "applewatch")
             }
             .store(in: &bag)
     }

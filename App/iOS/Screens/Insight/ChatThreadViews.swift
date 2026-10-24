@@ -88,8 +88,7 @@ struct CardEntrance: ViewModifier {
 struct ClaudeLabel: View {
     var body: some View {
         HStack(spacing: 6) {
-            Image(systemName: "sparkle")
-                .font(.system(size: 9, weight: .bold))
+            ClaudeMark(size: 11)
                 .foregroundStyle(Twin.Palette.ink)
                 .frame(width: 20, height: 20)
                 .sticker(Twin.Palette.pink)

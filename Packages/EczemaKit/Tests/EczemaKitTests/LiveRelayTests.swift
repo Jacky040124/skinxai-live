@@ -198,19 +198,37 @@ import Testing
         #expect(s.episodes[0].end == at(1))
     }
 
-    @Test func eightSecondsOfSilenceStopTheWatchOnce() {
+    @Test func eightSecondsOfSilenceGoQuietOnce() {
         var s = LiveRelayState()
         s.take(batch([Self.scratchWindow], [.init(.start)]), at: at(0))
         #expect(s.tick(at: at(7.9)).isEmpty)
         #expect(s.isRunning && s.isScratching(at: at(7.9)) && !s.isTracking(at: at(7.9)))
-        #expect(s.tick(at: at(8)) == [.episodeEnded(1), .watchStopped])
+        // Silence is not the watch's Stop: the session pauses, it doesn't end the night.
+        #expect(s.tick(at: at(8)) == [.episodeEnded(1), .wentQuiet])
         #expect(s.tick(at: at(9)).isEmpty)
-        #expect(!s.isRunning && !s.isScratching(at: at(9)))
+        #expect(!s.isRunning && s.isQuiet && !s.isScratching(at: at(9)))
 
         // Batches back within 60 s: the same night goes on (count kept, no new session).
         #expect(s.take(batch(), at: at(30)).isEmpty)
-        #expect(s.isRunning && s.count == 1 && s.startedAt == at(0) && s.isTracking(at: at(30)))
+        #expect(s.isRunning && !s.isQuiet && s.count == 1 && s.startedAt == at(0) && s.isTracking(at: at(30)))
         #expect(s.take(batch([Self.scratchWindow], [.init(.start)]), at: at(31)) == [.episodeStarted(2)])
+    }
+
+    @Test func theWatchsStopAfterAQuietSpellIsStillAStop() {
+        var s = LiveRelayState()
+        s.take(batch([Self.scratchWindow], [.init(.start)]), at: at(0))
+        #expect(s.tick(at: at(8)) == [.episodeEnded(1), .wentQuiet])
+        // The Wi-Fi comes back just as he taps Stop: the last batch says live: false.
+        #expect(s.take(batch(live: false), at: at(12)) == [.watchStopped])
+        #expect(!s.isRunning && !s.isQuiet && s.count == 1)
+        #expect(s.take(batch(live: false), at: at(13)).isEmpty)
+        // Whatever comes next is a new night.
+        #expect(s.take(batch(), at: at(20)) == [.sessionStarted])
+        #expect(s.count == 0 && s.startedAt == at(20))
+
+        // A `live: false` from a session the phone never heard running is nothing.
+        var fresh = LiveRelayState()
+        #expect(fresh.take(batch(live: false), at: at(0)).isEmpty)
     }
 
     @Test func sixtySecondsOfSilenceStartANewSession() {
@@ -228,7 +246,7 @@ import Testing
         // Heard 2 s of silence, then the phone was away (background, socket down) until 20 s.
         s.notListening(from: at(2), to: at(20))
         #expect(s.tick(at: at(25.9)).isEmpty)
-        #expect(s.tick(at: at(26)) == [.watchStopped])
+        #expect(s.tick(at: at(26)) == [.wentQuiet])
 
         // A batch clears the time away; a gap that started before the last batch only counts from it.
         var t = LiveRelayState()
@@ -237,7 +255,7 @@ import Testing
         t.take(batch(), at: at(6))
         t.notListening(from: at(3), to: at(7))
         #expect(t.tick(at: at(14.9)).isEmpty)
-        #expect(t.tick(at: at(15)) == [.watchStopped])
+        #expect(t.tick(at: at(15)) == [.wentQuiet])
     }
 
     @Test func resetClearsTonight() {
@@ -277,7 +295,7 @@ import Testing
                 var t = previous + 0.1
                 while t < frame.received {
                     if !s.isTracking(at: at(t)) { trackingDrops += 1 }
-                    stops += s.tick(at: at(t)).filter { $0 == .watchStopped }.count
+                    stops += s.tick(at: at(t)).filter { $0 == .watchStopped || $0 == .wentQuiet }.count
                     t += 0.1
                 }
             }
@@ -289,7 +307,7 @@ import Testing
                 switch change {
                 case .episodeStarted: started.append(frame.received)
                 case .episodeEnded: ended.append(frame.received)
-                case .watchStopped: stops += 1
+                case .watchStopped, .wentQuiet: stops += 1
                 case .sessionStarted: sessions += 1
                 }
             }
@@ -303,8 +321,8 @@ import Testing
         #expect(s.episodes.allSatisfy { $0.end != nil } && s.episodes.allSatisfy(\.intense))
         let last = try #require(LiveRecordingFixture.frames.last?.received)
         #expect(s.isTracking(at: at(last + 1)) && !s.isScratching(at: at(last + 1)))
-        // Nothing after the last batch: tracking ends after 3.5 s and the watch "stops" after 8 s.
+        // Nothing after the last batch: tracking ends after 3.5 s and the session goes quiet after 8 s.
         #expect(!s.isTracking(at: at(last + 3.5)))
-        #expect(s.tick(at: at(last + 8)) == [.watchStopped])
+        #expect(s.tick(at: at(last + 8)) == [.wentQuiet])
     }
 }

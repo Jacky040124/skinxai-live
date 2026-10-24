@@ -344,6 +344,12 @@ final class ChatStub: URLProtocol {
         #expect(shown("That fits. Last question: where is the itch worst right now?", "Where is the itch worst right now?") == "That fits.")
         #expect(shown("Got it. Next one — has this week been stressful", "Has this week been stressful?") == "Got it.")
         #expect(shown("First: where does it itch?", "Where does it itch?") == "")
+        // The question inside a longer sentence: the whole sentence goes, nothing dangles ("Next: for you?").
+        #expect(shown("That rules out detergent — your order history shows the same fragrance-free one every month for two years. Next: has this week been more stressful than usual for you?",
+                      "Has this week been more stressful than usual?")
+                == "That rules out detergent — your order history shows the same fragrance-free one every month for two years.")
+        #expect(shown("That fits. Next, I'd like to know: has this week been more stressful than usual?", "Has this week been more stressful than usual?")
+                == "That fits.")
         #expect(shown("Your orders agree: same detergent for two years.", "Has this week been stressful?")
                 == "Your orders agree: same detergent for two years.")
         // The same question in other words.

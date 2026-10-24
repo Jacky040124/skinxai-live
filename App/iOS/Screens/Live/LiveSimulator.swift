@@ -9,11 +9,15 @@ import EczemaKit
 ///
 /// `-liveSimStop <seconds>`: the stand-in taps Stop that long after tracking started
 /// (a last batch with `live: false`).
+/// `-liveSimQuiet <seconds>`: the stand-in goes silent that long after tracking started (a Wi-Fi
+/// stall, or a Stop whose last batch never arrived); `-liveSimQuietFor <seconds>`: for that long,
+/// then it carries on (default: for good).
 @MainActor
 final class LiveSimulator {
     var onBatch: ((LiveBatch) -> Void)?
 
     private let stopAfter: TimeInterval?
+    private let quiet: Range<TimeInterval>?
     /// When tracking starts; seconds below are counted from here.
     private var origin: Date?
     private var loop: Task<Void, Never>?
@@ -26,8 +30,9 @@ final class LiveSimulator {
     private static let scratchWindow = LiveBatch.Window(scratch: true, p: 0.93, hz: 3.8, strength: 0.42)
     private static let calmWindow = LiveBatch.Window(scratch: false, p: 0.03, hz: 0, strength: 0.012)
 
-    init(stopAfter: TimeInterval?) {
+    init(stopAfter: TimeInterval?, quietAt: TimeInterval? = nil, quietFor: TimeInterval? = nil) {
         self.stopAfter = stopAfter
+        quiet = quietAt.map { $0..<($0 + (quietFor ?? .infinity)) }
         // The prototype's seeded generator (`rng(seed)`): same night every run.
         var seed: UInt32 = 11
         func random() -> Double {
@@ -66,6 +71,7 @@ final class LiveSimulator {
             onBatch?(LiveBatch(live: false))
             return
         }
+        if let quiet, quiet.contains(t) { return }
         var windows: [LiveBatch.Window] = []
         var events: [LiveBatch.Event] = []
         if t - nextWindow > 5 { nextWindow = (t / 0.5).rounded(.down) * 0.5 }   // back from a pause

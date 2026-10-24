@@ -21,11 +21,12 @@ private extension View {
 /// A small sticker for card corners ("✶ FROM CLAUDE", "FIRST TIME").
 private struct CornerSticker: View {
     let text: String
-    var symbol: String? = nil
+    /// Claude's ✶ in front of the text.
+    var claude = false
     let fill: Color
     var body: some View {
         HStack(spacing: 4) {
-            if let symbol { Image(systemName: symbol).font(.system(size: 8, weight: .bold)) }
+            if claude { ClaudeMark(size: 10) }
             Text(text).font(Twin.Typeface.sans(10, .bold)).lineLimit(1)
         }
         .foregroundStyle(Twin.Palette.ink)
@@ -144,7 +145,7 @@ struct TimelineCardView: View {
             HStack(alignment: .center) {
                 Eyebrow(text: "Your nights · last \(card.minutes.count)")
                 Spacer(minLength: 8)
-                CornerSticker(text: "FROM CLAUDE", symbol: "sparkle", fill: Twin.Palette.pink)
+                CornerSticker(text: "FROM CLAUDE", claude: true, fill: Twin.Palette.pink)
             }
             GeometryReader { geo in chart(width: geo.size.width) }
                 .frame(height: pinSpace + chartHeight)

@@ -108,23 +108,27 @@ public struct ChatReply: Hashable, Sendable {
 
 /// Why a request didn't bring a usable reply.
 public enum ChatFailure: Error, Equatable, Sendable {
-    /// No connection to the internet.
+    /// The phone has no connection to the internet.
     case offline
+    /// The phone is online but the server can't be reached (no route, DNS, TLS, a dropped connection).
+    case unreachable
     /// No answer within the time limit (seconds).
     case timedOut(Int)
-    /// The server answered with an error (its HTTP status, 0 if unknown).
+    /// The server answered with an error (its HTTP status, 0 if unknown; kept for the logs, never shown).
     case server(Int)
     /// The answer wasn't a reply the app can read.
     case badReply
     /// A reply without text and without tool calls.
     case empty
 
-    /// One short sentence for the error row under "Claude didn't answer".
+    /// One short sentence for the error row under "Claude didn't answer". Never a status code: the phone
+    /// may be on the big screen.
     public var reason: String {
         switch self {
         case .offline: return "Your phone is offline."
+        case .unreachable: return "Couldn't reach Claude."
         case .timedOut(let seconds): return "No answer after \(seconds) s."
-        case .server(let status): return status > 0 ? "The server had a problem (\(status))." : "The server had a problem."
+        case .server: return "The server had a problem."
         case .badReply: return "The reply came back garbled."
         case .empty: return "The reply came back empty."
         }
@@ -183,10 +187,15 @@ public enum ChatWire {
         return ChatReply(model: object["model"] as? String, message: tidy(raw, round: round))
     }
 
+    /// Tool calls the server forwards per assistant message (worker `tool_calls.slice(0, 8)`). The app runs and
+    /// answers only these: a result for a call the server dropped would make every later request fail.
+    public static let maxToolCalls = 8
+
     /// The reply as it goes back into the conversation (chat.js `tidy`): string content, a usable id on every
-    /// call (`call_<round>_<k>` when the model sent none) and arguments that parse (malformed ones become `{}`).
+    /// call (`call_<round>_<k>` when the model sent none), arguments that parse (malformed ones become `{}`),
+    /// and at most `maxToolCalls` calls.
     public static func tidy(_ message: ChatMessage, round: Int) -> ChatMessage {
-        let calls = message.toolCalls.filter { !$0.name.isEmpty }.enumerated().map { k, call in
+        let calls = message.toolCalls.filter { !$0.name.isEmpty }.prefix(maxToolCalls).enumerated().map { k, call in
             ChatToolCall(id: call.id.isEmpty ? "call_\(round)_\(k)" : call.id, name: call.name,
                          arguments: json(object(fromJSON: call.arguments)))
         }

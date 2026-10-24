@@ -31,7 +31,9 @@ struct TrendsScreen: View {
                             withAnimation(Twin.Motion.slide) { proxy.scrollTo("trends-chart", anchor: .top) }
                         }
                     }
-                    Color.clear.frame(height: 1).id("trends-bottom")
+                    // The end marker rides on the last card (a stack child would add 12 pt of spacing
+                    // under it): the card ends the prototype's 26 pt above the tab bar.
+                    .background(alignment: .bottom) { Color.clear.frame(height: 1).id("trends-bottom") }
                 }
                 .onAppear { TodayTrendsLaunch.scrollForScreenshot(proxy, bottomID: "trends-bottom") }
             }

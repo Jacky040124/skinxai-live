@@ -1,8 +1,10 @@
 import SwiftUI
 
 /// The cyan "● Live" sticker next to the avatar in Today's top bar (prototype `.livepill`), shown
-/// only while the watch is tracking sleep. Tapping it turns the phone sideways into the live
-/// monitor; Done (or the watch's Stop) turns it back.
+/// only while the watch is tracking sleep: while batches arrive, and through a few seconds without
+/// them until the session goes quiet (real gaps reach 3.4 s; a tap must never land on a sticker
+/// that just blinked out). Tapping it turns the phone sideways into the live monitor; Done (or the
+/// watch's Stop) turns it back.
 ///
 /// When hidden it takes no room at all, so the avatar keeps its place:
 ///
@@ -12,7 +14,7 @@ struct LivePill: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        if session.tracking {
+        if session.tracking || session.running {
             Button {
                 // The monitor covers everything, so Today is still underneath when it closes.
                 LiveMonitorPresenter.shared.open()

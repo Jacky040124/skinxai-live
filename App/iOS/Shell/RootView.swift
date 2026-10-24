@@ -42,7 +42,8 @@ struct RootView: View {
         // VoiceOver stays on the permissions page while it covers the tabs.
         .accessibilityHidden(app.showPermissions)
         .overlay { PermissionsHost() }
-        .overlay(alignment: .top) { ShellToastHost() }
+        // Above the tab bar, never over a top bar's title or the avatar (prototype `.toast`).
+        .overlay(alignment: .bottom) { ShellToastHost() }
         // A toast from anywhere (`NotificationCenter.default.postTwinToast(_:)`).
         .onReceive(NotificationCenter.default.publisher(for: .twinToast).receive(on: DispatchQueue.main)) { note in
             if let text = note.userInfo?["text"] as? String { services.toasts.show(text) }

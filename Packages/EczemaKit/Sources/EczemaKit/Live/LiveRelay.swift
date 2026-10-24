@@ -118,7 +118,10 @@ public struct LiveBatch: Sendable, Equatable {
 /// - **tracking** = a batch arrived in the last 3.5 s and its `live` wasn't `false`;
 /// - a **new session** (count from 0) starts when batches resume after ≥ 60 s of silence or after a
 ///   `live: false` batch;
-/// - the **watch stopped** = a `live: false` batch, or 8 s without batches while a session runs.
+/// - the **watch stopped** = a `live: false` batch (the watch's Stop: `.watchStopped`), or 8 s without
+///   batches while a session runs (`.wentQuiet`: the session pauses; batches back within 60 s carry
+///   on with the same count). Only the Stop is a wake-up: a Wi-Fi stall in the middle of the night
+///   must not look like one on the big screen.
 ///
 /// One safety the page doesn't have: an `end` lost on the way (the socket reconnected at the wrong
 /// moment) would leave "scratching" on for good. The watch ends an episode after ~2 s of quiet
@@ -139,7 +142,10 @@ public struct LiveRelayState: Sendable {
         case sessionStarted
         case episodeStarted(Int)
         case episodeEnded(Int)
+        /// The watch's Stop: its last batch said `live: false`.
         case watchStopped
+        /// 8 s without a batch while the session ran (the watch, or the network, went quiet).
+        case wentQuiet
     }
 
     public static let trackingWindow: TimeInterval = 3.5
@@ -156,8 +162,10 @@ public struct LiveRelayState: Sendable {
     public private(set) var startedAt: Date?
     public private(set) var lastBatchAt: Date?
     public private(set) var lastBatchLive = false
-    /// A session runs from its first batch until the watch stops.
+    /// A session runs from its first batch until the watch stops (or goes quiet for 8 s).
     public private(set) var isRunning = false
+    /// The session paused after 8 s without batches (not the watch's Stop). Cleared by the next batch.
+    public private(set) var isQuiet = false
 
     /// No session yet, or the last one ended with `live: false`: the next live batch starts a new one.
     private var needsNewSession = true
@@ -196,6 +204,7 @@ public struct LiveRelayState: Sendable {
     public mutating func take(_ batch: LiveBatch, at now: Date) -> [Change] {
         var changes: [Change] = []
         let live = batch.live != false
+        let wasQuiet = isQuiet
         if live {
             let silence = lastBatchAt.map { now.timeIntervalSince($0) } ?? .infinity
             if needsNewSession || silence >= Self.newSessionAfter {
@@ -215,6 +224,7 @@ public struct LiveRelayState: Sendable {
         lastBatchAt = now
         lastBatchLive = live
         deafSeconds = 0
+        isQuiet = false
 
         if isRunning {
             // monitor.js take(): every window first, then every event.
@@ -257,18 +267,21 @@ public struct LiveRelayState: Sendable {
         if !live {
             // The watch's last batch after Stop. Whatever comes next is a new night.
             needsNewSession = true
-            if isRunning { changes += stop(at: now) }
+            // Also after a quiet spell: the Stop that ends it is still the watch's Stop.
+            if isRunning || wasQuiet { changes += stop(at: now) + [.watchStopped] }
         }
         return changes
     }
 
-    /// Time passing: ends the session after 8 s of heard silence. Call it a few times a second, and
-    /// only while the phone is connected to the relay (it can't hear silence it isn't listening to).
+    /// Time passing: pauses the session after 8 s of heard silence (`.wentQuiet`). Call it a few times
+    /// a second, and only while the phone is connected to the relay (it can't hear silence it isn't
+    /// listening to).
     @discardableResult
     public mutating func tick(at now: Date) -> [Change] {
         guard isRunning, let last = lastBatchAt else { return [] }
         guard now.timeIntervalSince(last) - deafSeconds >= Self.stopAfter else { return [] }
-        return stop(at: now)
+        isQuiet = true
+        return stop(at: now) + [.wentQuiet]
     }
 
     /// The phone couldn't hear the relay between `from` and `to` (app in the background, socket
@@ -308,12 +321,12 @@ public struct LiveRelayState: Sendable {
         return [.episodeEnded(episodes[last].id)]
     }
 
+    /// Ends the running session's open episode and the session itself (the caller adds why).
     private mutating func stop(at now: Date) -> [Change] {
-        var changes = endEpisode(at: now, intense: false)
+        let changes = endEpisode(at: now, intense: false)
         isRunning = false
         ignoring = false
         scratchUntil = nil
-        changes.append(.watchStopped)
         return changes
     }
 }

@@ -65,14 +65,19 @@ public enum ChatRules {
             var range = text.range(of: question, options: .caseInsensitive)
             if range == nil, question.hasSuffix("?"), question.count > 12,
                let bare = text.range(of: String(question.dropLast()), options: .caseInsensitive) {
-                let next = bare.upperBound < text.endIndex && text[bare.upperBound] == "?" ? text.index(after: bare.upperBound) : bare.upperBound
+                // Up to the end of its sentence: "… than usual for you?" must not leave "for you?" behind.
+                var next = bare.upperBound
+                if let end = text[bare.upperBound...].firstIndex(where: { "?.!\n".contains($0) }), text[end] == "?",
+                   text.distance(from: bare.upperBound, to: end) <= 40 {
+                    next = text.index(after: end)
+                }
                 range = bare.lowerBound..<next
             }
             if range == nil { range = restatedQuestion(in: text, question) }
             guard let range else { continue }
             text.removeSubrange(range)
             text = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            if let lead = text.range(of: #"(?:^|(?<=[.!?…]))\s*[A-Za-z][A-Za-z'’ ]{0,24}[:,–—-]$"#, options: .regularExpression) {
+            if let lead = text.range(of: #"(?:^|(?<=[.!?…]))\s*[A-Za-z][A-Za-z'’ ,]{0,32}[:,–—-]$"#, options: .regularExpression) {
                 text.removeSubrange(lead)
                 text = text.trimmingCharacters(in: .whitespacesAndNewlines)
             }
@@ -106,9 +111,21 @@ public struct ChatTranscript: Codable, Hashable, Sendable {
         for m in messages where m.role == .tool { if let id = m.toolCallID { results[id] = m.content } }
         return results
     }
+
+    /// Claude showed everything a full answer has: the timeline, the product, at least two questions, and a
+    /// conclusion with at least two things it ruled out.
+    public var isComplete: Bool {
+        let calls = messages.flatMap(\.toolCalls)
+        let names = Set(calls.map(\.name))
+        guard names.isSuperset(of: [ChatTools.timeline, ChatTools.product, ChatTools.conclusion]),
+              calls.filter({ $0.name == ChatTools.question }).count >= 2,
+              let conclusion = calls.last(where: { $0.name == ChatTools.conclusion }) else { return false }
+        return ChatConclusion(arguments: conclusion.argumentsObject).ruledOut.count >= 2
+    }
 }
 
-/// Where the last finished conversation of each model is kept: one JSON file per model.
+/// Where the last finished conversation of each model is kept: one JSON file per model. The offline replay is the
+/// stage's plan B, so a complete conversation is never replaced by a lesser one, and the app ships with one.
 public enum ChatArchive {
     /// Application Support/Chat.
     public static var defaultDirectory: URL {
@@ -131,21 +148,43 @@ public enum ChatArchive {
         try data.write(to: directory.appendingPathComponent(fileName(for: transcript.model)), options: .atomic)
     }
 
-    /// The conversation to replay: the newest one with `model` (a development model), else the newest one
-    /// with Claude, else the newest one at all.
-    public static func load(preferring model: String? = nil, in directory: URL = defaultDirectory) -> ChatTranscript? {
+    /// Saves `transcript` unless that would replace a complete conversation of its model with one that isn't
+    /// (a rehearsal where Claude skipped the product or the ruled-out list doesn't become the stage's replay).
+    /// Returns whether it was saved.
+    @discardableResult
+    public static func keep(_ transcript: ChatTranscript, in directory: URL = defaultDirectory) throws -> Bool {
+        if !transcript.isComplete, let old = read(directory.appendingPathComponent(fileName(for: transcript.model))),
+           old.isComplete {
+            return false
+        }
+        try save(transcript, in: directory)
+        return true
+    }
+
+    /// The conversation to replay: the newest one with `model` (a development model); else the newest complete
+    /// one with Claude; else `fallback` (the conversation the app ships with); else the newest one with Claude;
+    /// else the newest one at all.
+    public static func load(preferring model: String? = nil, in directory: URL = defaultDirectory,
+                            fallback: ChatTranscript? = nil) -> ChatTranscript? {
         let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .millisecondsSince1970
         let all = files
             .filter { $0.lastPathComponent.hasPrefix("chat-") && $0.pathExtension == "json" }
-            .compactMap { url -> ChatTranscript? in
-                guard let data = try? Data(contentsOf: url),
-                      let t = try? decoder.decode(ChatTranscript.self, from: data), t.version == 1, !t.messages.isEmpty else { return nil }
-                return t
-            }
+            .compactMap(read)
             .sorted { $0.startedAt > $1.startedAt }
         if let model, let match = all.first(where: { $0.model == model }) { return match }
-        return all.first { $0.model.hasPrefix("anthropic/") } ?? all.first
+        let claude = all.filter { $0.model.hasPrefix("anthropic/") }
+        return claude.first(where: \.isComplete) ?? fallback ?? claude.first ?? all.first
+    }
+
+    /// The conversation the app ships with: a real one with Claude (Sonnet 5.5) about this story, recorded on the
+    /// stage build. A phone with nothing saved yet replays this one (moved to today, see `moved(toDayOf:)`).
+    public static let bundled: ChatTranscript? = Bundle.module.url(forResource: "stage-chat", withExtension: "json").flatMap(read)
+
+    private static func read(_ url: URL) -> ChatTranscript? {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .millisecondsSince1970
+        guard let data = try? Data(contentsOf: url),
+              let t = try? decoder.decode(ChatTranscript.self, from: data), t.version == 1, !t.messages.isEmpty else { return nil }
+        return t
     }
 }
