@@ -181,10 +181,19 @@ import Testing
     @Test func silenceIsOnlyCountedWhileListening() {
         var s = LiveRelayState()
         s.take(batch(), at: at(0))
-        // The phone was away (background, network) and reconnects at 20 s: 8 s from there.
-        s.resumeListening(at: at(20))
-        #expect(s.tick(at: at(27.9)).isEmpty)
-        #expect(s.tick(at: at(28)) == [.watchStopped])
+        // Heard 2 s of silence, then the phone was away (background, socket down) until 20 s.
+        s.notListening(from: at(2), to: at(20))
+        #expect(s.tick(at: at(25.9)).isEmpty)
+        #expect(s.tick(at: at(26)) == [.watchStopped])
+
+        // A batch clears the time away; a gap that started before the last batch only counts from it.
+        var t = LiveRelayState()
+        t.take(batch(), at: at(0))
+        t.notListening(from: at(1), to: at(5))
+        t.take(batch(), at: at(6))
+        t.notListening(from: at(3), to: at(7))
+        #expect(t.tick(at: at(14.9)).isEmpty)
+        #expect(t.tick(at: at(15)) == [.watchStopped])
     }
 
     @Test func resetClearsTonight() {

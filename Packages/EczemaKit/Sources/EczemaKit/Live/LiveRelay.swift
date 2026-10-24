@@ -163,8 +163,9 @@ public struct LiveRelayState: Sendable {
     private var ignoring = false
     /// monitor.js `passes(lastWin)`.
     private var lastWindowPassed = false
-    /// Silence is only counted while the phone can hear the relay (see `resumeListening(at:)`).
-    private var listeningSince: Date?
+    /// Seconds since the last batch during which the phone couldn't hear the relay
+    /// (see `notListening(from:to:)`): they don't count as the watch's silence.
+    private var deafSeconds: TimeInterval = 0
 
     public init() {}
 
@@ -204,6 +205,7 @@ public struct LiveRelayState: Sendable {
         }
         lastBatchAt = now
         lastBatchLive = live
+        deafSeconds = 0
 
         if isRunning {
             // monitor.js take(): every window first, then every event.
@@ -234,20 +236,21 @@ public struct LiveRelayState: Sendable {
         return changes
     }
 
-    /// Time passing: ends the session after 8 s of silence. Call it a few times a second, and only
-    /// while the phone is connected to the relay (it can't hear silence it isn't listening to).
+    /// Time passing: ends the session after 8 s of heard silence. Call it a few times a second, and
+    /// only while the phone is connected to the relay (it can't hear silence it isn't listening to).
     @discardableResult
     public mutating func tick(at now: Date) -> [Change] {
         guard isRunning, let last = lastBatchAt else { return [] }
-        let since = max(last, listeningSince ?? last)
-        guard now.timeIntervalSince(since) >= Self.stopAfter else { return [] }
+        guard now.timeIntervalSince(last) - deafSeconds >= Self.stopAfter else { return [] }
         return stop(at: now)
     }
 
-    /// The phone (re)connected to the relay at `now`: silence before that wasn't heard, so the 8 s
-    /// stop rule counts from here. (The 60 s new-session rule still uses the last batch.)
-    public mutating func resumeListening(at now: Date) {
-        listeningSince = now
+    /// The phone couldn't hear the relay between `from` and `to` (app in the background, socket
+    /// down): that time isn't the watch's silence, so the 8 s stop rule skips it. (The 60 s
+    /// new-session rule still counts from the last batch.)
+    public mutating func notListening(from: Date, to: Date) {
+        let start = max(from, lastBatchAt ?? from)
+        deafSeconds += max(0, to.timeIntervalSince(start))
     }
 
     /// "Reset tonight's count" (hidden control) or the relay's `reset`: count 0, no episodes, and the
