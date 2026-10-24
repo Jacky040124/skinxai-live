@@ -102,12 +102,30 @@ final class LiveSimulator {
         while nextSample <= t {
             let s = nextSample
             nextSample += 0.04
-            let noise = Self.noise(s)
-            let scratch = scratches.contains { s >= $0.start && s < $0.end }
-            motion.append(scratch ? max(0.05, 0.5 + 0.32 * sin(2 * .pi * 4.2 * s) + 0.08 * (noise - 0.5))
-                                  : 0.008 + 0.012 * noise)
+            motion.append(Self.motion(at: s, scratches: scratches))
         }
         onBatch?(LiveBatch(live: true, windows: windows, events: events, motion: motion))
+    }
+
+    /// The stand-in's wrist motion (g) at time s: scratches of different strength (light, medium, hard)
+    /// that swell in and fade out, slow strength changes inside a scratch, small fidgets and a turn-over
+    /// now and then between scratches (motion the detector does not call a scratch), and a still wrist.
+    private static func motion(at s: TimeInterval, scratches: [(start: TimeInterval, end: TimeInterval)]) -> Double {
+        let noise = noise(s)
+        if let i = scratches.firstIndex(where: { s >= $0.start && s < $0.end }) {
+            let sc = scratches[i]
+            let levels = [0.55, 0.3, 1.05, 0.7, 0.4, 1.3, 0.6, 0.85]
+            let level = levels[i % levels.count]
+            let ramp = min(1, (s - sc.start) / 0.6, (sc.end - s) / 0.5)        // swell in, fade out
+            let drift = 1 + 0.25 * sin(2 * .pi * 0.7 * s + Double(i))         // stronger / weaker strokes
+            let stroke = 0.75 + 0.25 * sin(2 * .pi * 4.2 * s)
+            return max(0.02, level * ramp * drift * stroke + 0.06 * (noise - 0.5))
+        }
+        // Between scratches: a turn-over (about 1 s, 0.5 g) once in a while, small fidgets, or stillness.
+        let cycle = s.truncatingRemainder(dividingBy: 11)
+        if cycle > 2.0, cycle < 3.0 { return 0.5 * sin(.pi * (cycle - 2.0)) + 0.04 * noise }
+        let fidget = max(0, sin(2 * .pi * s / 3.3)) * 0.06
+        return 0.008 + 0.012 * noise + fidget
     }
 
     /// A fixed pseudo-random value in 0..<1 for a time (same run every launch).

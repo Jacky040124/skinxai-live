@@ -46,7 +46,9 @@ final class LiveMotionFeed: @unchecked Sendable {
 /// Input: the watch's wrist motion `m` (g, gravity removed, 25 values a second, see `LiveStreamer` on
 /// the watch). Each value is smoothed a little before it is drawn:
 ///
-///     I(n) = I(n−1) + 0.2 · (m(n) − I(n−1))       (about 0.2 s of smoothing)
+///     R(n) = √( mean of m² over the last 12 values )   (0.48 s window: one value per stroke cycle,
+///                                                       so the back-and-forth wiggle disappears)
+///     I(n) = I(n−1) + 0.15 · (R(n) − I(n−1))           (then about 0.25 s of easing)
 ///
 /// and the line is drawn as a smooth curve through the points.
 ///
@@ -80,7 +82,11 @@ final class LiveGraphModel {
     static let seconds = 15.0                   // seconds on screen
     static let capacity = Int(rate * seconds) + 2
     static let top = 1.6                        // g at the top of the plot
-    static let smoothing = 0.2                  // I(n) = I(n−1) + 0.2 · (m(n) − I(n−1))
+    static let smoothing = 0.15                 // I(n) = I(n−1) + 0.15 · (R(n) − I(n−1))
+    static let window = 12                      // R(n): RMS over the last 12 values (0.48 s)
+    private var recent = [Double](repeating: 0, count: 12)
+    private var recentIndex = 0
+    private var recentSquares = 0.0
     private static let gridLevels: [Double] = [0, 0.5, 1.0, 1.5]
 
     private var values = [Double](repeating: 0, count: capacity)
@@ -117,7 +123,7 @@ final class LiveGraphModel {
         for i in 0..<n {
             if i < got.count {
                 starved = 0
-                smooth += Self.smoothing * (got[i] - smooth)
+                smooth += Self.smoothing * (rms(adding: got[i]) - smooth)
             } else {
                 // Nothing arrived yet: hold the line for half a second, then let it settle.
                 starved += 1
@@ -125,6 +131,15 @@ final class LiveGraphModel {
             }
             push(smooth, hot: scratching)
         }
+    }
+
+    /// Adds a value to the 0.48 s window and returns the window's RMS.
+    private func rms(adding m: Double) -> Double {
+        let old = recent[recentIndex]
+        recent[recentIndex] = m
+        recentIndex = (recentIndex + 1) % Self.window
+        recentSquares = max(0, recentSquares + m * m - old * old)
+        return (recentSquares / Double(Self.window)).squareRoot()
     }
 
     private func push(_ value: Double, hot isHot: Bool) {
