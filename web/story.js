@@ -4,8 +4,8 @@
 (() => {
   const DAY = 86400000;
   const USUAL = 12;                                                        // minutes a night, his usual
-  const NIGHTS = [11, 13, 10, 12, 14, 11, 12, 13, 12, 13, 15, 22, 31, 41]; // minutes of scratching, oldest → last night
-  const EPISODES = [9, 10, 8, 9, 11, 9, 10, 10, 9, 10, 11, 15, 19, 23];
+  const NIGHTS = [9, 14, 11, 8, 15, 12, 10, 16, 13, 11, 17, 24, 29, 41]; // minutes of scratching, oldest → last night
+  const EPISODES = [8, 11, 9, 7, 12, 10, 8, 12, 11, 9, 13, 16, 19, 23];
   const SLEEP = [7.4, 7.1, 6.2, 6.0, 6.4, 7.5, 7.3, 7.2, 7.6, 7.0, 6.9, 6.4, 5.6, 5.1];
   const WAKES = [0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 2, 3, 4];
   const HUMIDITY = [52, 49, 55, 51, 47, 50, 53, 48, 51, 50, 49, 47, 46, 29];
