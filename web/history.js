@@ -52,5 +52,4 @@
   }
 
   window.addEventListener("twin:page", (e) => { if (e.detail === "history") show(); });
-  if ($("#p-history").classList.contains("on")) show();   // #history can open the page before this script has loaded
 })();

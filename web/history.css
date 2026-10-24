@@ -1,6 +1,5 @@
 /* History page (#p-history): 14 nights against his usual, the last three emphasized. No causes on this page. */
 #p-history { --hm: 132px; }                             /* right margin for the usual label */
-#app:has(> #sound:not(.off)) #p-history { padding-bottom: 64px; }   /* keep the axis clear of the floating sound button while it shows */
 #p-history h1 { max-width: none; font-size: clamp(44px, 2.7vw, 52px); }
 #p-history h1 .hs { white-space: nowrap; }              /* wrap only between the two sentences */
 #p-history h1 .hu { color: var(--lime); }
