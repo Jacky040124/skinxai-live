@@ -93,8 +93,14 @@ private struct ButtonFace: View {
                     .foregroundStyle(Twin.Palette.ink)
                     .transition(.blurReplace)
             case .starting:
-                PixelSpinner(pixel: 4, color: Twin.Palette.cyan)
-                    .transition(.blurReplace)
+                VStack(spacing: 8) {
+                    PixelSpinner(pixel: 5, color: Twin.Palette.cyan)
+                    Text("STARTING")
+                        .font(WatchFont.mono(10, bold: true))
+                        .tracking(0.6)
+                        .foregroundStyle(Twin.Palette.nightMuted)
+                }
+                .transition(.blurReplace)
             case let .on(since, _):
                 VStack(spacing: 0) {
                     Text("Stop")
@@ -128,7 +134,7 @@ private struct PulseRing: View {
     var body: some View {
         if reduceMotion || dimmed {
             Circle()
-                .stroke(color.opacity(0.4), lineWidth: 2)
+                .stroke(color.opacity(0.55), lineWidth: 2)
                 .frame(width: diameter + reach, height: diameter + reach)
         } else {
             TimelineView(.animation(minimumInterval: 1 / 60)) { context in
@@ -204,16 +210,19 @@ private struct ScreenStatus: View {
     var body: some View {
         let (text, color) = status
         HStack(spacing: 6) {
-            if model.live != .off, model.screenLink == true {
-                LiveDot(size: 6, color: color)
-            } else {
-                Circle().fill(color).frame(width: 6, height: 6)
+            ZStack {
+                Circle().fill(color)
+                if model.live != .off, model.screenLink == true {
+                    LiveDot(size: 6, color: color).transition(.opacity)
+                }
             }
+            .frame(width: 6, height: 6)
             text
                 .font(WatchFont.sans(13, .semibold))
                 .foregroundStyle(color)
                 .lineLimit(1)
                 .minimumScaleFactor(0.75)
+                .contentTransition(.identity)                // swaps at once (a crossfade ghosts as the line re-centres)
         }
         .padding(.horizontal, 16)
         .animation(Twin.Motion.spring, value: model.screenLink)
