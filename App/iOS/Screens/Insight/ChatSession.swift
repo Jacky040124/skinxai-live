@@ -50,6 +50,8 @@ struct ChatToolRow: Identifiable, Equatable {
 ///   -chatModel <id>   ask the server for this model ("deepseek/deepseek-v4.1-flash"); never sent otherwise
 ///   -chatAuto 1       sends the first suggestion, taps the first answer of every question and "Go ahead"
 ///   -chatReplay 1     replays the last saved conversation when Insight first shows
+///   -chatEndpoint <url>  talks to another /api/chat (to see the failed-request row)
+///   -chatDraft <text>    starts with this text in the box and the keyboard up
 @MainActor
 final class ChatSession: ObservableObject {
     static let shared = ChatSession()
@@ -107,7 +109,8 @@ final class ChatSession: ObservableObject {
         let defaults = UserDefaults.standard
         let dev = defaults.string(forKey: "chatModel")?.trimmingCharacters(in: .whitespacesAndNewlines)
         devModel = dev?.isEmpty == false ? dev : nil
-        client = ChatClient(model: devModel)
+        let endpoint = defaults.string(forKey: "chatEndpoint").flatMap(URL.init(string:))
+        client = ChatClient(endpoint: endpoint ?? ChatWire.endpoint, model: devModel)
         autoPlay = defaults.bool(forKey: "chatAuto")
         items = opening()
         replayObserver = NotificationCenter.default.addObserver(forName: .twinReplayChat, object: nil, queue: .main) { [weak self] _ in
@@ -228,7 +231,7 @@ final class ChatSession: ObservableObject {
             if let name = reply.model { model = name }
             await Self.pause(Self.thinkMinimum - Date().timeIntervalSince(started))
             guard gen == generation else { return }
-            remove(thinking)
+            remove(thinking, animated: false)
             messages.append(reply.message)
             said = reply.message.content
             guard let results = await play(reply.message, gen: gen, recorded: nil) else { return }
@@ -297,19 +300,26 @@ final class ChatSession: ObservableObject {
         return result
     }
 
-    /// A display tool: its card in the thread, then a moment for its entrance to play.
+    /// A display tool: its card in the thread, then a moment for its entrance to play. A card the conversation
+    /// already shows with the same contents isn't drawn twice (a model sometimes repeats a call).
     private func show(_ call: ChatToolCall) async {
         let args = call.argumentsObject
         let now = startedAt ?? Date()
+        let kind: ChatItem.Kind
         switch call.name {
-        case ChatTools.timeline:
-            add(.timeline(ChatTimeline(arguments: args, now: now)))
-            await Self.pause(reduceMotion ? 0.4 : 1.5)
-        case ChatTools.product:
-            add(.product(ChatProduct(arguments: args, now: now)))
-            await Self.pause(reduceMotion ? 0.4 : 1.4)
+        case ChatTools.timeline: kind = .timeline(ChatTimeline(arguments: args, now: now))
+        case ChatTools.product: kind = .product(ChatProduct(arguments: args, now: now))
+        default: kind = .conclusion(ChatConclusion(arguments: args))
+        }
+        guard !items.contains(where: { $0.kind == kind }) else {
+            await Self.pause(0.2)
+            return
+        }
+        add(kind)
+        switch kind {
+        case .timeline: await Self.pause(reduceMotion ? 0.4 : 1.5)
+        case .product: await Self.pause(reduceMotion ? 0.4 : 1.4)
         default:
-            add(.conclusion(ChatConclusion(arguments: args)))
             Haptics.success()
             await Self.pause(reduceMotion ? 0.4 : 1.8)
         }
@@ -408,7 +418,7 @@ final class ChatSession: ObservableObject {
                 reply += 1
                 await Self.pause(min(3.5, max(Self.thinkMinimum + 0.2, Double(ms) / 1000)))
                 guard gen == generation else { return }
-                remove(thinking)
+                remove(thinking, animated: false)
                 guard await play(message, gen: gen, recorded: results) != nil else { return }
                 if message.toolCalls.isEmpty, i < saved.messages.count - 1 {
                     offerNudge(after: message.content, in: Array(saved.messages[...i]), gen: gen)
@@ -496,8 +506,15 @@ final class ChatSession: ObservableObject {
         if scroll { scrollTick += 1 }
     }
 
-    private func remove(_ id: Int) {
-        withAnimation(.easeOut(duration: 0.18)) { items.removeAll { $0.id == id } }
+    /// Takes a block out of the thread; `animated: false` for the thinking row Claude's words replace.
+    private func remove(_ id: Int, animated: Bool = true) {
+        if animated {
+            withAnimation(.easeOut(duration: 0.18)) { items.removeAll { $0.id == id } }
+        } else {
+            var instant = Transaction()
+            instant.disablesAnimations = true
+            withTransaction(instant) { items.removeAll { $0.id == id } }
+        }
     }
 
     private func removeAll(where match: (ChatItem.Kind) -> Bool) {

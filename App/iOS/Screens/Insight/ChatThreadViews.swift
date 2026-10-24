@@ -21,7 +21,7 @@ struct ChatItemView: View {
         case .user(let text):
             UserBubble(text: text)
         case .claude(let text, let from):
-            ClaudeWords(text: text, from: from)
+            ClaudeWords(text: text, from: from, fresh: item.isFresh)
         case .thinking:
             ThinkingRow()
         case .tools(let rows):
@@ -55,7 +55,10 @@ struct ChatItemView: View {
         case .user:
             return .asymmetric(insertion: .opacity.combined(with: .offset(y: 10)).combined(with: .scale(scale: 0.94, anchor: .bottomTrailing)),
                                removal: .opacity)
-        case .claude, .greeting, .nudge, .failure:
+        case .claude:
+            // Claude's words pop in by themselves (they often replace the thinking row in the same update).
+            return .asymmetric(insertion: .identity, removal: .opacity)
+        case .greeting, .nudge, .failure:
             return .asymmetric(insertion: .opacity.combined(with: .offset(y: 10)), removal: .opacity)
         case .suggestions:
             return .asymmetric(insertion: .opacity, removal: .opacity.combined(with: .scale(scale: 0.96, anchor: .topLeading)))
@@ -107,12 +110,16 @@ struct ClaudeWords: View {
     let from: Date
     var wordDelay = ChatSession.wordDelay
     @State private var shown: Int
+    /// False until a new block has popped in (prototype `@keyframes pop`: up 10 pt and fade in).
+    @State private var landed: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    init(text: ChatText, from: Date, wordDelay: Double = ChatSession.wordDelay) {
+    init(text: ChatText, from: Date, fresh: Bool = false, wordDelay: Double = ChatSession.wordDelay) {
         self.text = text
         self.from = from
         self.wordDelay = wordDelay
         _shown = State(initialValue: Self.words(text, from: from, delay: wordDelay, at: Date()))
+        _landed = State(initialValue: !fresh)
     }
 
     var body: some View {
@@ -124,6 +131,12 @@ struct ClaudeWords: View {
                 .foregroundStyle(Twin.Palette.ink)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .opacity(landed ? 1 : 0)
+        .offset(y: landed || reduceMotion ? 0 : 10)
+        .onAppear {
+            guard !landed else { return }
+            withAnimation(reduceMotion ? .easeOut(duration: 0.2) : Twin.Motion.slide) { landed = true }
         }
         .task(id: from) {
             while !Task.isCancelled {

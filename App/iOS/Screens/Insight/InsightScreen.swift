@@ -9,10 +9,11 @@ struct InsightScreen: View {
     @StateObject private var keyboard = KeyboardWatcher()
     @FocusState private var typing: Bool
     @State private var bottomY: CGFloat = 0
+    @State private var draftShown = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// The tab bar's height above the home indicator (the root draws it over the page).
-    static let tabBarClearance: CGFloat = 62
+    static let tabBarClearance: CGFloat = 60
     private static let bottomID = "chat-bottom"
 
     var body: some View {
@@ -52,19 +53,37 @@ struct InsightScreen: View {
                     .onChange(of: geo.frame(in: .global).maxY) { _, y in bottomY = y }
             }
         }
-        .onAppear { session.appear() }
+        .onAppear {
+            session.appear()
+            // -chatDraft <text> (hidden, development): text in the box and the keyboard up.
+            if let draft = UserDefaults.standard.string(forKey: "chatDraft"), session.draft.isEmpty, !draftShown {
+                draftShown = true
+                session.draft = draft
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { typing = true }
+            }
+        }
     }
 
     /// Above the tab bar; above the keyboard while it is up.
     private var composerBottom: CGFloat {
-        guard let top = keyboard.top else { return Self.tabBarClearance + 8 }
+        guard let top = keyboard.top else { return Self.tabBarClearance + 7 }
         return max(8, bottomY - top + 8)
     }
 
+    /// Glides to the newest line: once on the next run loop, and once more after the layout has settled (a
+    /// block that replaces another in the same update can leave the first pass short).
     private func scrollDown(_ proxy: ScrollViewProxy, animated: Bool) {
+        let glide = animated && !reduceMotion
         DispatchQueue.main.async {
-            if animated && !reduceMotion {
+            if glide {
                 withAnimation(.smooth(duration: 0.45)) { proxy.scrollTo(Self.bottomID, anchor: .bottom) }
+            } else {
+                proxy.scrollTo(Self.bottomID, anchor: .bottom)
+            }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            if glide {
+                withAnimation(.smooth(duration: 0.35)) { proxy.scrollTo(Self.bottomID, anchor: .bottom) }
             } else {
                 proxy.scrollTo(Self.bottomID, anchor: .bottom)
             }

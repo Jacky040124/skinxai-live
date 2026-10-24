@@ -20,13 +20,24 @@ public enum ChatRules {
         !concluded(messages) && !text.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("?")
     }
 
-    /// The text of Claude's reply as shown: trimmed, without a question it also asks on a question card.
+    /// The text of Claude's reply as shown: trimmed, without a question it also asks on a question card (any
+    /// case, with or without its "?"), and without the lead-in it leaves dangling ("… other things. First:").
     public static func shownText(_ message: ChatMessage) -> String {
         var text = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
         for call in message.toolCalls where call.name == ChatTools.question {
             let question = (call.argumentsObject["question"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
-            if !question.isEmpty, let range = text.range(of: question) {
-                text.removeSubrange(range)
+            guard !question.isEmpty else { continue }
+            var range = text.range(of: question, options: .caseInsensitive)
+            if range == nil, question.hasSuffix("?"), question.count > 12,
+               let bare = text.range(of: String(question.dropLast()), options: .caseInsensitive) {
+                let next = bare.upperBound < text.endIndex && text[bare.upperBound] == "?" ? text.index(after: bare.upperBound) : bare.upperBound
+                range = bare.lowerBound..<next
+            }
+            guard let range else { continue }
+            text.removeSubrange(range)
+            text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let lead = text.range(of: #"(?:^|(?<=[.!?…]))\s*[A-Za-z][A-Za-z'’ ]{0,24}[:,–—-]$"#, options: .regularExpression) {
+                text.removeSubrange(lead)
                 text = text.trimmingCharacters(in: .whitespacesAndNewlines)
             }
         }

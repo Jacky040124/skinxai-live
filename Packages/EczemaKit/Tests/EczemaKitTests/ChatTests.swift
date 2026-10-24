@@ -328,6 +328,19 @@ final class ChatStub: URLProtocol {
         let m = ChatMessage(role: .assistant, content: "Got it. Has this week been more stressful than usual?",
                             toolCalls: [ChatToolCall(id: "q", name: "ask_user", arguments: #"{"question":"Has this week been more stressful than usual?","options":["Yes","No"]}"#)])
         #expect(ChatRules.shownText(m) == "Got it.")
+        // The model's own wording: another case, a lead-in left dangling.
+        func shown(_ text: String, _ question: String) -> String {
+            ChatRules.shownText(ChatMessage(role: .assistant, content: text, toolCalls: [
+                ChatToolCall(id: "q", name: "ask_user", arguments: ChatWire.json(["question": question, "options": ["Yes", "No"]]))]))
+        }
+        #expect(shown("Before I settle on that, let me rule out a few other things. First: have you changed your laundry detergent recently?\n\n",
+                      "Have you changed your laundry detergent recently?")
+                == "Before I settle on that, let me rule out a few other things.")
+        #expect(shown("That fits. Last question: where is the itch worst right now?", "Where is the itch worst right now?") == "That fits.")
+        #expect(shown("Got it. Next one — has this week been stressful", "Has this week been stressful?") == "Got it.")
+        #expect(shown("First: where does it itch?", "Where does it itch?") == "")
+        #expect(shown("Your orders agree: same detergent for two years.", "Has this week been stressful?")
+                == "Your orders agree: same detergent for two years.")
     }
 
     @Test func richText() {

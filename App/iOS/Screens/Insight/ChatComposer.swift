@@ -34,9 +34,6 @@ struct ChatComposer: View {
                         .overlay(shape.strokeBorder(Twin.Palette.ink, lineWidth: Twin.Stroke.ink))
                 }
                 .buttonStyle(ChatPressStyle())
-                .disabled(!session.canSend || session.replaying)
-                .opacity(session.canSend ? 1 : 0.5)
-                .animation(.easeOut(duration: 0.15), value: session.canSend)
                 .accessibilityLabel("Send")
             }
             .padding(.leading, 12)
@@ -62,8 +59,13 @@ struct ChatComposer: View {
         }
     }
 
+    /// Sends what's in the box. With nothing to send, the tap opens the keyboard instead.
     private func send() {
-        guard session.canSend, !session.replaying else { return }
+        guard !session.replaying else { return }
+        guard session.canSend else {
+            if session.draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { typing.wrappedValue = true }
+            return
+        }
         typing.wrappedValue = false
         session.submitDraft()
     }
