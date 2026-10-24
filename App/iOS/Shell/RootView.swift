@@ -48,6 +48,10 @@ struct RootView: View {
         .ignoresSafeArea(.keyboard)
         .overlay { TagSheetHost() }
         .overlay(alignment: .top) { ShellToastHost() }
+        // A toast from anywhere (`NotificationCenter.default.postTwinToast(_:)`).
+        .onReceive(NotificationCenter.default.publisher(for: .twinToast).receive(on: DispatchQueue.main)) { note in
+            if let text = note.userInfo?["text"] as? String { services.toasts.show(text) }
+        }
         .overlay { OnboardingHost() }
         .overlayPreferenceValue(TourTargetKey.self) { anchors in
             TourTouchLayer(anchors: anchors)

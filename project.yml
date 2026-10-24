@@ -41,11 +41,12 @@ targets:
       path: App/iOS/Info.plist
       properties:
         CFBundleDisplayName: Eczema Twin
-        CFBundleVersion: "9"
+        CFBundleVersion: "10"
         UILaunchScreen: {}
         # Wins over UILaunchScreen: the app's first frame (App/iOS/Shell/LaunchScreen.storyboard).
         UILaunchStoryboardName: LaunchScreen
-        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        # Portrait everywhere; the live monitor turns the phone to landscape (OrientationLock in the app).
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UIAppFonts: [SpaceGrotesk.ttf, SpaceMono-Regular.ttf, SpaceMono-Bold.ttf]
         NSHealthShareUsageDescription: Eczema Twin reads your sleep and heart data to understand your flares.
         NSHealthUpdateUsageDescription: Eczema Twin saves nothing to Health.
@@ -74,7 +75,7 @@ targets:
       path: App/Watch/Info.plist
       properties:
         CFBundleDisplayName: Eczema Twin
-        CFBundleVersion: "9"
+        CFBundleVersion: "10"
         WKApplication: true
         WKCompanionAppBundleIdentifier: com.jackyzhong.eczematwin2
         WKBackgroundModes: [workout-processing, physical-therapy]
