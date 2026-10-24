@@ -45,21 +45,27 @@ public struct DetectorConfig: Sendable, Hashable {
     public var maxSampleGap: TimeInterval = 0.5
     /// Scratch windows in a row needed to start an episode (2 = about 4.5 s of scratching, 1 = 3 s).
     public var minWindows: Int = 2
-    /// Windows moving harder than this (g) never count as scratching (waving, big arm moves).
+    /// Windows moving harder than this (g) never count as scratching. Off by default: real hard
+    /// scratching reaches 2.5 g, more than waving.
     public var maxStrength: Double = .infinity
+    /// Windows whose dominant axis is spikier than this (kurtosis) never count: impacts such as patting
+    /// a thigh (6–10 in recordings) rather than a back-and-forth (scratching 2–4.5).
+    public var maxKurtosis: Double = .infinity
 
     public init() {}
 
     public static let standard = DetectorConfig()
 
-    /// Live detection on the wrist (stage demo + real use): reacts after one 3 s window, lets gentler
-    /// scratching through, and ignores big arm movements such as waving.
+    /// Live detection on the wrist (stage demo + real use): reacts after one 3 s window. Tuned on a
+    /// labelled recording from a real Apple Watch (light/normal/hard/head scratching vs patting a thigh,
+    /// waving, typing, talking with hands): a stricter probability keeps typing out, and the kurtosis
+    /// limit keeps patting out while hard scratching still counts.
     public static let live: DetectorConfig = {
         var c = DetectorConfig()
         c.movementGate = 0.012
-        c.threshold = 0.42
+        c.threshold = 0.6
         c.minWindows = 1
-        c.maxStrength = 0.9
+        c.maxKurtosis = 5.5
         c.alertCooldown = 20
         return c
     }()

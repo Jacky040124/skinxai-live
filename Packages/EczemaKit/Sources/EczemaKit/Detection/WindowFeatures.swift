@@ -24,12 +24,16 @@ public struct WindowFeatures: Sendable, Hashable, Codable {
     public var logStrength: Double
     /// How scratch-like the crossing rate is, 0...1 (1 inside 2.5–7.5 Hz, fading to 0 at 1.5 and 12 Hz).
     public var crossingScore: Double
+    /// Kurtosis of the dominant axis: about 1.5–3 for a smooth back-and-forth (scratching), well above 5
+    /// for a train of impacts (patting a thigh, tapping). nil in data saved before it existed.
+    public var kurtosis: Double?
 
     public init(start: TimeInterval, axisSD: [Double], strength: Double, moving: Bool, axis: Int, dominantHz: Double,
-                periodicity: Double, inBand: Double, crossingHz: Double, logStrength: Double, crossingScore: Double) {
+                periodicity: Double, inBand: Double, crossingHz: Double, logStrength: Double, crossingScore: Double,
+                kurtosis: Double? = nil) {
         self.start = start; self.axisSD = axisSD; self.strength = strength; self.moving = moving; self.axis = axis
         self.dominantHz = dominantHz; self.periodicity = periodicity; self.inBand = inBand; self.crossingHz = crossingHz
-        self.logStrength = logStrength; self.crossingScore = crossingScore
+        self.logStrength = logStrength; self.crossingScore = crossingScore; self.kurtosis = kurtosis
     }
 
     /// Inputs of the logistic model, in `ScratchModel.featureNames` order.
@@ -106,7 +110,17 @@ public struct FeatureExtractor: Sendable {
         let crossingHz = crossingRate(d, sd: maxSD)
         return WindowFeatures(start: start, axisSD: sds, strength: strength, moving: true, axis: axis,
                               dominantHz: rate.hz, periodicity: rate.height, inBand: inBand, crossingHz: crossingHz,
-                              logStrength: logStrength, crossingScore: Self.crossingScore(crossingHz))
+                              logStrength: logStrength, crossingScore: Self.crossingScore(crossingHz),
+                              kurtosis: Self.kurtosis(d))
+    }
+
+    /// Fourth moment over the squared second moment of an already de-meaned signal.
+    public static func kurtosis(_ d: [Double]) -> Double {
+        guard !d.isEmpty else { return 0 }
+        var m2 = 0.0, m4 = 0.0
+        for v in d { let q = v * v; m2 += q; m4 += q * q }
+        m2 /= Double(d.count); m4 /= Double(d.count)
+        return m2 > 1e-12 ? m4 / (m2 * m2) : 0
     }
 
     /// 1 inside 2.5–7.5 Hz, fading linearly to 0 at 1.5 Hz and at 12 Hz (sensor noise crosses ~12 Hz).

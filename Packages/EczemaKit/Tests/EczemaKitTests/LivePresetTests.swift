@@ -3,13 +3,32 @@ import Testing
 @testable import EczemaKit
 
 @Suite struct LivePresetTests {
-    @Test func gentleScratchIsCaughtLiveButNotByStandard() {
-        var s = SyntheticMotion(start: 0, seed: 7)
-        s.still(4)
-        s.scratch(5, hz: 4.2, amplitude: 0.06)
-        s.still(4)
-        let live = ScratchDetector.episodes(in: s.samples, model: ScratchModel(), config: .live)
-        #expect(live.count == 1)
+    @Test func lightAndHardScratchingAreCaughtLive() {
+        // Real light scratching measured 0.3–0.8 g of motion, hard scratching about 2.5 g.
+        for amplitude in [0.35, 3.6] {
+            var s = SyntheticMotion(start: 0, seed: 7)
+            s.still(4)
+            s.scratch(6, hz: 3.5, amplitude: amplitude)
+            s.still(4)
+            let live = ScratchDetector.episodes(in: s.samples, model: ScratchModel(), config: .live)
+            #expect(live.count == 1, "amplitude \(amplitude)")
+        }
+    }
+
+    @Test func pattingAThighIsIgnoredLive() {
+        // A pat every third of a second: a sharp ~3 g spike on one axis, near-still in between.
+        var samples: [MotionSample] = []
+        var rng = SystemRandomNumberGenerator()
+        for i in 0..<(50 * 12) {
+            let t = Double(i) / 50
+            let phase = t.truncatingRemainder(dividingBy: 1.0 / 3.0)
+            let spike = 3.2 * exp(-pow((phase - 0.05) / 0.018, 2)) - 0.6 * exp(-pow((phase - 0.1) / 0.03, 2))
+            let n = { Double.random(in: -0.02...0.02, using: &rng) }
+            samples.append(MotionSample(t: t, x: 0.1 + n(), y: -0.2 + n(), z: -0.97 + spike + n()))
+        }
+        let windows = ScratchDetector(model: ScratchModel(), config: .live).process(samples).windows
+        #expect(!windows.isEmpty && windows.allSatisfy { ($0.features.kurtosis ?? 0) > 5.5 })
+        #expect(ScratchDetector.episodes(in: samples, model: ScratchModel(), config: .live).isEmpty)
     }
 
     @Test func liveStartsAfterOneWindow() {
@@ -31,9 +50,9 @@ import Testing
         s.still(3)
         s.type(15)
         #expect(ScratchDetector.episodes(in: s.samples, model: ScratchModel(), config: .live).isEmpty)
-        // big waving: 2.4 Hz, ~1 g of arm motion
+        // big waving: measured at about 1.75 Hz with 1.2–1.6 g of arm motion
         var w = SyntheticMotion(start: 0, seed: 12)
-        w.scratch(10, hz: 2.4, amplitude: 1.6)
+        w.scratch(10, hz: 1.8, amplitude: 1.8)
         #expect(ScratchDetector.episodes(in: w.samples, model: ScratchModel(), config: .live).isEmpty)
     }
 }

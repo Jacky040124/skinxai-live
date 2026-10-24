@@ -93,6 +93,9 @@ final class WatchModel: ObservableObject {
     @Published private(set) var ringResume: TodaySummary?
     /// Big-screen relay: true = last send arrived, false = failing, nil = not sending.
     @Published private(set) var screenLink: Bool?
+    /// Why the last send to the big screen failed (URL error code, HTTP status), or "" when it worked.
+    @Published private(set) var screenDetail = ""
+    @Published private(set) var screenSent = 0
 
     private let store = WatchStore()
     private let link = PhoneLink.shared
@@ -135,9 +138,12 @@ final class WatchModel: ObservableObject {
         rebuildDisplay()
 
         monitor.onEvent = { [weak self] event in self?.handle(event) }
-        LiveStreamer.shared.onStatus = { [weak self] ok in
-            guard let self, self.live != .off, self.screenLink != ok else { return }
-            withAnimation(Twin.Motion.spring) { self.screenLink = ok }
+        LiveStreamer.shared.onStatus = { [weak self] status in
+            guard let self, self.live != .off else { return }
+            if self.screenDetail != status.detail { self.screenDetail = status.detail }
+            if self.screenSent != status.sent { self.screenSent = status.sent }
+            guard self.screenLink != status.ok else { return }
+            withAnimation(Twin.Motion.spring) { self.screenLink = status.ok }
         }
         link.onActivated = { [weak self] in self?.syncToPhone() }
         link.onFailed = { [weak self] ids in self?.store.markUnsent(ids) }
@@ -408,6 +414,8 @@ final class WatchModel: ObservableObject {
                 live = .off
                 ticks = []
                 screenLink = nil
+                screenDetail = ""
+                screenSent = 0
             }
         case let .window(w):
             tickCounter += 1

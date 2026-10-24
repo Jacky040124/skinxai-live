@@ -313,7 +313,11 @@ private struct LiveBadge: View {
     var backing: LiveMonitor.Backing
     var body: some View {
         let base = backing == .simulated ? "SIM" : "LIVE"
-        let suffix: String = switch model.screenLink { case .some(true): " ↗"; case .some(false): " ✕"; case .none: "" }
+        let suffix: String = switch model.screenLink {
+        case .some(true): " ↗\(model.screenSent)"
+        case .some(false): " ✕ \(model.screenDetail)"
+        case .none: model.screenDetail.isEmpty ? " ·" : " \(model.screenDetail)"
+        }
         Text(base + suffix)
             .font(WatchFont.mono(10, bold: true))
             .foregroundStyle(model.screenLink == false ? Twin.Palette.orange : Twin.Palette.cyan)
