@@ -77,6 +77,7 @@ struct PermissionsScreen: View {
             .overlay(alignment: .leading) { edgeSwipe(width: proxy.size.width) }
         }
         .accessibilityAddTraits(.isModal)
+        .accessibilityAction(.escape, close)
     }
 
     // MARK: Parts
