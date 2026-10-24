@@ -63,6 +63,7 @@ export class LiveRoom extends DurableObject {
       }
       const batch = {
         type: "batch", receivedAt: now, sentAt: body.sentAt || null, live: !!body.live,
+        backing: String(body.backing || "").slice(0, 20), appState: String(body.appState || "").slice(0, 12),
         samples: Array.isArray(body.samples) ? body.samples.slice(0, 2000) : [],
         raw: Array.isArray(body.raw) ? body.raw.slice(0, 4000) : [],
         windows: Array.isArray(body.windows) ? body.windows.slice(0, 100) : [],
@@ -131,20 +132,26 @@ async function analyze(request, env) {
   let body = {};
   try { body = await request.json(); } catch {}
   const model = body.model || env.ANALYSIS_MODEL || "anthropic/claude-sonnet-5.5";
-  const system = `You are the trigger-finding assistant inside Eczema Twin. You get a daily log (scratch minutes measured by an Apple Watch, sleep, humidity, exposures). Find likely personal flare triggers, considering 1-3 day lags and overlapping changes. Use confidence low/medium/high honestly; never diagnose. Reply with JSON only: {"summary": str (2-3 plain sentences), "suspects": [{"title": str, "confidence": "low|medium|high", "lag": str, "evidence": str}], "cannotSeparate": [str], "nextStep": str}`;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 25000);
-  try {
-    const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST", signal: controller.signal,
-      headers: { authorization: `Bearer ${env.OPENROUTER_KEY}`, "content-type": "application/json" },
-      body: JSON.stringify({ model, max_tokens: 1200, temperature: 0.4, messages: [{ role: "system", content: system }, { role: "user", content: JSON.stringify(body.log || {}) }] }),
-    });
-    const j = await r.json();
-    let text = (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || "";
-    text = text.trim().replace(/^```(json)?/, "").replace(/```$/, "").trim();
-    return json({ model, caseFile: JSON.parse(text) });
-  } catch (e) {
-    return json({ error: "analysis failed", detail: String(e).slice(0, 120) }, 502);
-  } finally { clearTimeout(timer); }
+  const system = `You are the trigger-finding assistant inside Eczema Twin. You get a nightly log for one person: minutes of scratching during sleep measured by their Apple Watch, sleep, humidity, and anything that changed. Find their most likely personal flare trigger. Consider 1-3 day delays, check whether each change came before or after the rise began, and rule things out when the timing does not fit. Sleep loss during a flare is usually a result of scratching, not a cause. Use confidence low/medium/high honestly; never diagnose. Talk to the person directly ("you"). Reply with JSON only, no prose around it: {"summary": "2-3 plain sentences", "suspects": [{"title": "at most 4 words", "confidence": "low|medium|high", "lag": "at most 6 words", "evidence": "at most 2 short sentences"}] (2-3 suspects, most likely first), "nextStep": "one or two sentences: a simple test to confirm"}`;
+  const ask = async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 25000);
+    try {
+      const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST", signal: controller.signal,
+        headers: { authorization: `Bearer ${env.OPENROUTER_KEY}`, "content-type": "application/json" },
+        body: JSON.stringify({ model, max_tokens: 1500, temperature: 0.3, messages: [{ role: "system", content: system }, { role: "user", content: JSON.stringify(body.log || {}) }] }),
+      });
+      const j = await r.json();
+      const text = (j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) || "";
+      const a = text.indexOf("{"), b = text.lastIndexOf("}");
+      if (a < 0 || b <= a) throw new Error(`no json (${r.status}) ${text.slice(0, 80)}`);
+      return JSON.parse(text.slice(a, b + 1));
+    } finally { clearTimeout(timer); }
+  };
+  let last;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try { return json({ model, caseFile: await ask() }); } catch (e) { last = e; if (String(e).includes("abort")) break; }
+  }
+  return json({ error: "analysis failed", detail: String(last).slice(0, 160) }, 502);
 }

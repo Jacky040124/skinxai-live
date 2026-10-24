@@ -10,8 +10,8 @@
   const USUAL = 12;                                                        // minutes a night, his usual
   const NIGHTS = [11, 13, 10, 12, 14, 11, 12, 13, 12, 13, 15, 22, 31, 41]; // oldest → last night
   const SLEEP = [7.4, 7.1, 6.2, 6.0, 6.4, 7.5, 7.3, 7.2, 7.6, 7.0, 6.9, 6.4, 5.6, 5.1];
-  const HUMIDITY = [52, 49, 55, 51, 47, 50, 53, 48, 51, 50, 49, 46, 28, 31];
-  const SHAMPOO = 10, DRY = 12, EXAMS = [1, 3];                            // night indexes
+  const HUMIDITY = [52, 49, 55, 51, 47, 50, 53, 48, 51, 50, 49, 47, 46, 29];
+  const SHAMPOO = 10, DRY = 13, EXAMS = [1, 3];                            // night indexes
   const LAST_NIGHT_HOURS = [["11P", 1], ["12A", 3], ["1A", 6], ["2A", 10], ["3A", 11], ["4A", 6], ["5A", 3], ["6A", 1]];
   const LAST_NIGHT = { episodes: 23, intense: 7, woke: 4, worst: "2–4 AM", from: "11:04 PM", to: "6:52 AM" };
 
@@ -88,7 +88,7 @@
     $("#hChange").textContent = `▲ ${(avg3 / USUAL).toFixed(1)}× his usual, 3 nights running`;
     $("#hTitleLead").textContent = `Since ${day(NIGHTS.length - 3, true)}:`;
 
-    const top = 46;
+    const top = 52;
     const flags = { [SHAMPOO]: ["NEW SHAMPOO", "pink"], [DRY]: ["DRY AIR", "cyan"], [EXAMS[0]]: ["MIDTERMS", "yellow"] };
     const el = $("#histBars");
     el.classList.remove("shown");
@@ -123,8 +123,8 @@
       suspects: [
         { title: "Your new shampoo", confidence: "high", lag: `STARTED ${s.toUpperCase()} · +1 DAY · WORSE EVERY NIGHT`,
           evidence: `It isn't in any of your earlier logs. Scratching rose on ${next} night and kept climbing. The label lists fragrance and methylisothiazolinone, two common causes of contact eczema.` },
-        { title: "Dry air", confidence: "low", lag: `STARTED ${dry.toUpperCase()} · TOO LATE`,
-          evidence: `Humidity fell to ${HUMIDITY[DRY]}% on ${dry}, a day after the rise began. It may be making things worse, but it didn't start it.` },
+        { title: "Dry air", confidence: "low", lag: `ONLY LAST NIGHT · TOO LATE`,
+          evidence: `Humidity fell to ${HUMIDITY[DRY]}% on ${dry}, two nights after the rise began. It may be making things worse, but it didn't start it.` },
         { title: "Stress", confidence: "low", lag: "MIDTERMS · NO EFFECT",
           evidence: `Your stress was higher during midterms (${md(nightDate(EXAMS[0]))}–${nightDate(EXAMS[1]).getDate()}) and your scratching stayed at its usual ${USUAL} minutes.` },
       ],

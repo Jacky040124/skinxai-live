@@ -165,3 +165,4 @@ h1 { font: 700 44px "Space Grotesk"; letter-spacing: -.02em; line-height: 1.1; m
 .recov .rh { font: 400 13px "Space Mono"; color: var(--muted); }
 .haxis { padding-right: 132px; }
 .usual span { top: -17px; right: 4px; width: auto; background: var(--panel); padding: 3px 6px; border-radius: 3px; text-align: center; }
+.hbars i b { background: var(--panel); padding: 0 3px; border-radius: 2px; z-index: 2; }
