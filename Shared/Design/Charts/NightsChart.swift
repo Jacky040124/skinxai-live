@@ -136,9 +136,10 @@ struct NightsChart: View {
     // MARK: Bars
 
     private func column(_ bar: Bar, k: Int, m: Metrics) -> some View {
-        let full = height(bar.value)
-        let h = (grown || reduceMotion) ? full : 0
+        let h = height(bar.value)
         let selected = selection == bar.id
+        // The bar grows out of the baseline as a render transform (its layout never changes), so the
+        // spring only overshoots its own height a little; the selection outline grows with it.
         return ZStack(alignment: .bottom) {
             barShape(bar.hot)
                 .frame(width: m.bar, height: h)
@@ -150,6 +151,7 @@ struct NightsChart: View {
                     .matchedGeometryEffect(id: "night-selection", in: ns)
             }
         }
+        .scaleEffect(x: 1, y: (grown || reduceMotion) ? 1 : 0.001, anchor: .bottom)
         .opacity(grown ? 1 : 0)
         .animation(reduceMotion ? nil : Twin.Motion.bouncy.delay(delay + Double(k) * stagger), value: grown)
         .frame(width: m.slot, height: plotHeight, alignment: .bottom)

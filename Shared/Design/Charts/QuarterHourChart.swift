@@ -51,14 +51,16 @@ struct QuarterHourChart: View {
         let v = values[i]
         let hot = v > hotAbove
         let full = max(2, CGFloat(v / top) * plotHeight)
-        // Not grown yet = not there (no stub waiting on the baseline). Reduce Motion: full height, fade only.
-        let height = (grown || reduceMotion) ? full : 0
         let shape = UnevenRoundedRectangle(topLeadingRadius: 1.5, topTrailingRadius: 1.5, style: .continuous)
+        // The layout never changes: each bar grows out of the baseline as a render transform, so the
+        // spring only overshoots its own height a little (animating the frame inside a bottom-aligned
+        // stack made bars shoot far past their height). Not grown yet = not there. Reduce Motion: fade only.
         return shape
             .fill(hot ? Twin.Palette.orange : Twin.Palette.ink.opacity(0.15))
             .overlay { if hot { shape.strokeBorder(Twin.Palette.ink, lineWidth: 1) } }
             .frame(maxWidth: .infinity)
-            .frame(height: height)
+            .frame(height: full)
+            .scaleEffect(x: 1, y: (grown || reduceMotion) ? 1 : 0.001, anchor: .bottom)
             .opacity(grown ? 1 : 0)
             .animation(reduceMotion ? nil : Twin.Motion.bouncy.delay(delay + Double(i) * stagger), value: grown)
     }
