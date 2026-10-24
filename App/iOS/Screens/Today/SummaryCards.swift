@@ -326,7 +326,7 @@ struct SummaryFactorsCard: View {
         let off = factors.filter { $0.level == .bad }.count
         VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
-                Eyebrow(text: "Factors · last night")
+                Eyebrow(text: "Factors · last night / yesterday")
                 Spacer(minLength: 8)
                 Text(off == 0 ? "ALL NORMAL" : "\(off) OFF USUAL")
                     .font(Twin.Typeface.mono(11, bold: off > 0))
