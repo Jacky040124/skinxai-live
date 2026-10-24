@@ -132,8 +132,8 @@ struct ReportPage: View {
                  tint: (facts.weekChange ?? 0) > 0.5 ? Twin.Palette.orange : nil)
             stat("USUAL", minHeight: d.statHeight, value: Self.minutes(facts.usual), unit: "min/day",
                  note: facts.usualIsEstimate ? "starting estimate" : "median of calm days", tint: nil)
-            stat("WORST HOURS", minHeight: d.statHeight, value: facts.worstHours ?? "—", unit: "",
-                 note: "\(Self.count(facts.totalEpisodes, "episode")), \(facts.intenseEpisodes) intense in 7 days", tint: nil)
+            stat("WORST HOURS · 7 DAYS", minHeight: d.statHeight, value: facts.worstHours ?? "—", unit: "",
+                 note: "\(Self.count(facts.totalEpisodes, "episode")) · \(facts.intenseEpisodes) intense", tint: nil)
         }
         .fixedSize(horizontal: false, vertical: true)
     }

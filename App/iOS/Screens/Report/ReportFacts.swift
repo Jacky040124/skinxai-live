@@ -97,12 +97,16 @@ struct ReportFacts {
         let prevAverage = prev7.isEmpty ? 0 : prev7.reduce(0, +) / Double(prev7.count)
         previousWeekAverage = prevAverage > 0 ? prevAverage : nil
 
-        // The two night hours with the most scratching over the last week.
+        // Worst hours of the last week: the run of hours with at least 55% of the busiest hour,
+        // around it. The same rule as Today's "Mostly at night, 1–5 am", so both say the same.
         var byHour = [Double](repeating: 0, count: 24)
         for day in days.suffix(7) { for h in 0..<24 { byHour[h] += day.scratchMinutesByHour[h] } }
-        if let best = (0..<24).max(by: { byHour[$0] + byHour[($0 + 1) % 24] < byHour[$1] + byHour[($1 + 1) % 24] }),
-           byHour[best] + byHour[(best + 1) % 24] > 0 {
-            worstHours = Self.hourRange(best, best + 2)
+        if let peak = byHour.max(), peak >= 0.5, let worst = byHour.firstIndex(of: peak) {
+            let hot = byHour.map { $0 >= peak * 0.55 }
+            var lo = worst, hi = worst
+            while lo > 0, hot[lo - 1] { lo -= 1 }
+            while hi < 23, hot[hi + 1] { hi += 1 }
+            worstHours = Self.hourRange(lo, hi + 1)
         } else {
             worstHours = nil
         }
