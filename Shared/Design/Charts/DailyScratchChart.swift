@@ -34,6 +34,8 @@ struct DailyScratchChart: View {
 
     var bars: [Bar]
     var usual: Double? = nil
+    /// Legend name of the dashed line: "your usual", or "usual · starting estimate" while it is a guess.
+    var usualLabel = "your usual"
     var markers: [Marker] = []
     @Binding var selection: Date?
     var plotHeight: CGFloat = 150
@@ -63,7 +65,7 @@ struct DailyScratchChart: View {
                     plot(width: w)
                 }
                 ForEach(placed) { p in stem(p, width: w, band: band) }
-                ForEach(placed) { p in flag(p, width: w, band: band) }
+                ForEach(placed) { p in flag(p, placed: placed, width: w, band: band) }
             }
             .frame(width: w, alignment: .topLeading)
             axis(width: w).padding(.top, 9)
@@ -134,7 +136,9 @@ struct DailyScratchChart: View {
     private func column(_ bar: Bar, index i: Int, step: CGFloat, barWidth bw: CGFloat) -> some View {
         let selected = selection == bar.id
         let full = barHeight(bar.value)
-        let h = (grown || reduceMotion) ? full : 3
+        // Not grown yet = not there (no 3 pt stub with an ink edge on the baseline): each bar grows
+        // out of the baseline and fades in on its beat. Reduce Motion: full height, fade only.
+        let h = (grown || reduceMotion) ? full : 0
         return ZStack(alignment: .bottom) {
             barShape(bar.tone)
                 .frame(width: bw, height: h)
@@ -146,7 +150,7 @@ struct DailyScratchChart: View {
                     .offset(y: 4.5)
             }
         }
-        .opacity(reduceMotion && !grown ? 0 : 1)
+        .opacity(grown ? 1 : 0)
         .animation(reduceMotion ? nil : Twin.Motion.bouncy.delay(delay + Double(i) * 0.035), value: grown)
         .frame(width: step, height: plotHeight, alignment: .bottom)
         .contentShape(Rectangle())
@@ -239,7 +243,27 @@ struct DailyScratchChart: View {
             .animation(reduceMotion ? nil : .easeOut(duration: 0.4).delay(markerDelay(p) + 0.12), value: decorated)
     }
 
-    private func flag(_ p: PlacedMarker, width w: CGFloat, band: CGFloat) -> some View {
+    /// Horizontal extent of a placed flag.
+    private func span(_ p: PlacedMarker, width w: CGFloat) -> ClosedRange<CGFloat> {
+        let x = (CGFloat(p.index) + 0.5) * step(w)
+        let fw = flagWidths[p.id] ?? Self.flagWidth(p.marker)
+        return p.flipped ? (x - fw)...x : x...(x + fw)
+    }
+
+    /// The 18 pt flag's tap area grows 8 pt up and down, unless a stacked flag sits right there:
+    /// then only half the 5 pt gap between rows, so a flag never takes a neighbour's taps.
+    /// Sideways 3 pt (flags on one row are at least 6 pt apart).
+    private func flagTapArea(_ p: PlacedMarker, placed: [PlacedMarker], width w: CGFloat) -> TapAreaShape {
+        let mine = span(p, width: w)
+        func stacked(_ row: Int) -> Bool {
+            placed.contains { q in q.row == row && q.id != p.id && span(q, width: w).overlaps(mine) }
+        }
+        let half = (rowHeight - flagHeight) / 2
+        return TapAreaShape(top: stacked(p.row + 1) ? half : 8, leading: 3,
+                            bottom: p.row > 0 && stacked(p.row - 1) ? half : 8, trailing: 3)
+    }
+
+    private func flag(_ p: PlacedMarker, placed: [PlacedMarker], width w: CGFloat, band: CGFloat) -> some View {
         let x = (CGFloat(p.index) + 0.5) * step(w)
         let m = p.marker
         return Button {
@@ -256,6 +280,7 @@ struct DailyScratchChart: View {
             .sticker(m.fill)
             .fixedSize()
             .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { flagWidths[m.id] = $0 }
+            .contentShape(flagTapArea(p, placed: placed, width: w))
         }
         .buttonStyle(PressableStyle())
         .scaleEffect(decorated || reduceMotion ? 1 : 0.6, anchor: p.flipped ? .bottomTrailing : .bottomLeading)
@@ -307,9 +332,11 @@ struct DailyScratchChart: View {
                     ChartHLine()
                         .stroke(Twin.Palette.ink.opacity(0.55), style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
                         .frame(width: 16, height: 2)),
-                    text: "your usual · \(Int(usual.rounded())) min")
+                    text: "\(usualLabel) · \(Int(usual.rounded())) min")
             }
         }
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
         .opacity(decorated ? 1 : 0)
         .animation(.easeOut(duration: 0.4).delay(reduceMotion ? 0 : decorationDelay), value: decorated)
         .accessibilityElement(children: .combine)

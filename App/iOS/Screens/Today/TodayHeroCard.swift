@@ -22,17 +22,13 @@ struct TodayHeroCard: View {
             }
 
             HStack(alignment: .center, spacing: 18) {
-                ring
+                TodayHeroRing(minutes: snap.minutes, fullAt: snap.ringFullAt, color: snap.accent,
+                              size: ringSize, lineWidth: ringLine, delay: 0.18)
                 VStack(alignment: .leading, spacing: 10) {
                     TodayRatioSticker(ratio: snap.ratio, level: snap.level)
                     summary
                         .fixedSize(horizontal: false, vertical: true)
-                    if snap.usual > 0 {
-                        Text("YOUR USUAL · \(Int(snap.usual.rounded())) MIN")
-                            .font(Twin.Typeface.mono(10))
-                            .tracking(0.6)
-                            .foregroundStyle(Twin.Palette.inkHint)
-                    }
+                    if snap.usual > 0 { usualLine }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -56,23 +52,21 @@ struct TodayHeroCard: View {
         .accessibilityAddTraits(.isButton)
     }
 
-    // MARK: Ring
-
-    private var ring: some View {
-        ZStack {
-            RingView(progress: snap.ringProgress, lineWidth: ringLine, color: snap.accent,
-                     track: Twin.Palette.fill, delay: 0.18)
-            VStack(spacing: 0) {
-                CountUp(value: snap.minutes.rounded(), font: Twin.Typeface.sans(46, .bold), delay: 0.18, duration: 1.2)
-                    .tracking(-1.5)
-                Text("MIN").font(Twin.Typeface.mono(11)).foregroundStyle(Twin.Palette.inkHint)
-                    .offset(y: -2)
-            }
-        }
-        .frame(width: ringSize, height: ringSize)
-    }
-
     // MARK: Text
+
+    /// "YOUR USUAL · 12 MIN"; until the watch has tracked 3 full days (real data) the usual is
+    /// only the starting estimate, and says so.
+    private var usualLine: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("YOUR USUAL · \(Int(snap.usual.rounded())) MIN")
+            if snap.usualIsEstimate { Text("STARTING ESTIMATE") }
+        }
+        .font(Twin.Typeface.mono(10))
+        .tracking(0.6)
+        .foregroundStyle(Twin.Palette.inkHint)
+        .lineLimit(1)
+        .minimumScaleFactor(0.85)
+    }
 
     private var summary: Text {
         let counts = countsLine
@@ -104,7 +98,73 @@ struct TodayHeroCard: View {
         }
         if let p = snap.pattern.phrase { parts.append("\(p.lead), \(p.range)") }
         parts.append(countsLine)
+        if snap.usual > 0 {
+            parts.append("Your usual: \(Int(snap.usual.rounded())) minutes\(snap.usualIsEstimate ? ", a starting estimate" : "")")
+        }
         return parts.joined(separator: ". ")
+    }
+}
+
+// MARK: - Hero ring
+
+/// The hero ring and its minutes, driven by ONE animated value so the number and the ring always
+/// agree: the ring is minutes ÷ (3 × usual), full from 3× on; the label is the rounded minutes.
+/// Fills from zero on appear and moves to the new value when today's minutes change.
+struct TodayHeroRing: View {
+    let minutes: Double
+    /// Minutes at which the ring is full (3 × usual). 0 = no usual, the ring stays empty.
+    let fullAt: Double
+    let color: Color
+    var size: CGFloat = 142
+    var lineWidth: CGFloat = 16
+    var delay: Double = 0.18
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var shown: Double = 0
+
+    var body: some View {
+        TodayRingFrame(minutes: shown, fullAt: fullAt, color: color, lineWidth: lineWidth)
+            .frame(width: size, height: size)
+            .onAppear { withAnimation(fill.delay(delay)) { shown = minutes } }
+            .onChange(of: minutes) { _, new in withAnimation(fill) { shown = new } }
+    }
+
+    /// The ring's fill curve; Reduce Motion keeps it short and calm.
+    private var fill: Animation { reduceMotion ? .easeOut(duration: 0.45) : Twin.Motion.fill }
+}
+
+private struct TodayRingFrame: View, Animatable {
+    var minutes: Double
+    var fullAt: Double
+    var color: Color
+    var lineWidth: CGFloat
+
+    var animatableData: Double {
+        get { minutes }
+        set { minutes = newValue }
+    }
+
+    var body: some View {
+        let progress = fullAt > 0 ? min(max(minutes / fullAt, 0), 1) : 0
+        ZStack {
+            Circle().stroke(Twin.Palette.fill, lineWidth: lineWidth)
+            Circle()
+                .trim(from: 0, to: progress)
+                .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .butt))
+                .rotationEffect(.degrees(-90))
+            VStack(spacing: 0) {
+                Text("\(Int(max(minutes, 0).rounded()))")
+                    .font(Twin.Typeface.sans(46, .bold))
+                    .tracking(-1.5)
+                    .monospacedDigit()
+                    .foregroundStyle(Twin.Palette.ink)
+                Text("MIN")
+                    .font(Twin.Typeface.mono(11))
+                    .foregroundStyle(Twin.Palette.inkHint)
+                    .offset(y: -2)
+            }
+        }
+        .padding(lineWidth / 2)
     }
 }
 

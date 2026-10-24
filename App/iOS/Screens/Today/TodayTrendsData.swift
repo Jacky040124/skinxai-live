@@ -23,8 +23,48 @@ enum TodayTrends {
         return s.count % 2 == 0 ? (s[m - 1] + s[m]) / 2 : s[m]
     }
 
-    static func usualSleep(in ds: TwinDataset) -> Double? { median(calmDays(in: ds).map(\.sleepHours)) }
-    static func usualHRV(in ds: TwinDataset) -> Double? { median(calmDays(in: ds).map(\.hrvMs)) }
+    /// Usual sleep / HRV: the median of the calm days that have a measurement (at least 3 of them).
+    static func usualSleep(in ds: TwinDataset) -> Double? { usual(calmDays(in: ds).compactMap { sleep($0, in: ds) }) }
+    static func usualHRV(in ds: TwinDataset) -> Double? { usual(calmDays(in: ds).compactMap { hrv($0, in: ds) }) }
+
+    private static func usual(_ measured: [Double]) -> Double? {
+        measured.count >= 3 ? median(measured) : nil
+    }
+
+    /// Full days the watch tracked (it found episodes), today excluded. Same rule as the report.
+    static func trackedDays(in ds: TwinDataset) -> Int {
+        ds.days.dropLast().filter { $0.episodeCount > 0 }.count
+    }
+
+    /// Real data: "your usual" is only the starting estimate until the watch has tracked 3 full days.
+    static func usualIsEstimate(in ds: TwinDataset) -> Bool {
+        !ds.isDemo && trackedDays(in: ds) < 3
+    }
+
+    /// Whether the watch tracked this day. Every demo day counts; in real data a day without any
+    /// episode may simply be a day the watch was not worn.
+    static func isTracked(_ d: DayRecord, in ds: TwinDataset) -> Bool {
+        ds.isDemo || d.episodeCount > 0
+    }
+
+    // MARK: Measured or missing
+
+    // Real data stores 0 for anything nobody measured (Health or location off, weather not loaded
+    // yet). Those zeros are "no data", never a real 0 h of sleep or 0% humidity.
+
+    static func sleep(_ d: DayRecord, in ds: TwinDataset) -> Double? { measured(d.sleepHours, in: ds) }
+    static func hrv(_ d: DayRecord, in ds: TwinDataset) -> Double? { measured(d.hrvMs, in: ds) }
+    static func humidity(_ d: DayRecord, in ds: TwinDataset) -> Double? { measured(d.humidityPct, in: ds) }
+    /// US AQI; 0 in real data means the air-quality feed did not load.
+    static func aqi(_ d: DayRecord, in ds: TwinDataset) -> Int? { (ds.isDemo || d.aqi > 0) ? d.aqi : nil }
+    /// Whether the day has a weather report. Humidity, temperature and AQI all 0 = none yet.
+    static func hasWeather(_ d: DayRecord, in ds: TwinDataset) -> Bool {
+        ds.isDemo || d.humidityPct > 0 || d.tempC != 0 || d.aqi > 0
+    }
+
+    private static func measured(_ value: Double, in ds: TwinDataset) -> Double? {
+        (ds.isDemo || value > 0) ? value : nil
+    }
 
     /// Flare day: at least 1.5× the usual minutes (the stats engine's anomaly threshold).
     static func isFlare(_ minutes: Double, usual: Double) -> Bool {
@@ -79,6 +119,8 @@ enum TodayTrends {
     // MARK: Formatting
 
     enum Format {
+        /// Shown instead of a number nobody measured (Apple Health / Weather style).
+        static let noValue = "--"
         static func h12(_ h: Int) -> Int { let x = h % 12; return x == 0 ? 12 : x }
         static func meridiem(_ h: Int) -> String { (h % 24) < 12 ? "am" : "pm" }
         /// "3 am"
@@ -116,13 +158,6 @@ enum TodayTrends {
             let m = s / 60, r = s % 60
             return r == 0 ? "\(m) min" : "\(m) min \(r) s"
         }
-        /// "52°F" / "11°C" following the phone's measurement system.
-        static func temperature(_ celsius: Double, locale: Locale = .current) -> String {
-            if locale.measurementSystem == .us {
-                return "\(Int((celsius * 9 / 5 + 32).rounded()))°F"
-            }
-            return "\(Int(celsius.rounded()))°C"
-        }
         /// "1 episode", "3 episodes".
         static func count(_ n: Int, _ singular: String, _ plural: String? = nil) -> String {
             "\(n) \(n == 1 ? singular : (plural ?? singular + "s"))"
@@ -149,6 +184,11 @@ struct TodaySnapshot {
     let intenseCount: Int
     let usualSleep: Double?
     let usualHRV: Double?
+    /// Last night's sleep and today's HRV; nil when Health has nothing (real data).
+    let sleep: Double?
+    let hrv: Double?
+    /// "Your usual" is the starting estimate (real data, fewer than 3 tracked days).
+    let usualIsEstimate: Bool
     /// Hours since midnight when the last day is today.
     let nowHour: Double?
 
@@ -171,6 +211,9 @@ struct TodaySnapshot {
         intenseCount = mine.isEmpty ? day.intenseCount : mine.filter(\.intense).count
         usualSleep = TodayTrends.usualSleep(in: ds)
         usualHRV = TodayTrends.usualHRV(in: ds)
+        sleep = TodayTrends.sleep(day, in: ds)
+        hrv = TodayTrends.hrv(day, in: ds)
+        usualIsEstimate = TodayTrends.usualIsEstimate(in: ds)
         nowHour = isToday ? now.timeIntervalSince(cal.startOfDay(for: now)) / 3600 : nil
     }
 
@@ -179,16 +222,16 @@ struct TodaySnapshot {
         min(max(date.timeIntervalSince(calendar.startOfDay(for: day.day)) / 3600, 0), 24)
     }
 
-    /// Ring progress: today ÷ (3 × usual).
-    var ringProgress: Double { usual > 0 ? minutes / (3 * usual) : 0 }
+    /// Minutes at which the hero ring is full: progress = today ÷ (3 × usual).
+    var ringFullAt: Double { max(0, 3 * usual) }
     var accent: Color { level == .above ? Twin.Palette.orange : Twin.Palette.lime }
     /// Hour-chart scale: the busiest hour, but never less than a calm day's busiest hour × ~3,
     /// so a calm day looks calm.
     var hourScaleMax: Double { max(day.scratchMinutesByHour.max() ?? 0, usual * 0.3) }
 
-    /// Last `n` days of a value (oldest first, today last).
-    func recent(_ n: Int, _ value: (DayRecord) -> Double) -> [Double] {
-        dataset.days.suffix(n).map(value)
+    /// Last `n` days of a value (oldest first, today last); 0 where nothing was measured.
+    func recent(_ n: Int, _ value: (DayRecord, TwinDataset) -> Double?) -> [Double] {
+        dataset.days.suffix(n).map { value($0, dataset) ?? 0 }
     }
 
     /// Exposures the user logged today (not detected automatically).

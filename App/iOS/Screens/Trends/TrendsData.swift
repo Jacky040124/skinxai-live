@@ -47,8 +47,13 @@ struct TrendsSnapshot {
     let days: [DayRecord]
     let visibleStart: Int
     let usual: Double
-    let thisWeek: Double
+    /// "Your usual" is only the starting estimate (real data, fewer than 3 tracked days).
+    let usualIsEstimate: Bool
+    /// Average minutes per tracked day over the last 7 days; nil when the watch tracked none.
+    let thisWeek: Double?
     let lastWeek: Double?
+    /// Whether the watch tracked each day (always true in the demo).
+    let tracked: [Bool]
     let tones: [DailyScratchChart.Tone]
     let changes: [TrendsChange]
     let routine: [TrendsRoutine]
@@ -62,18 +67,27 @@ struct TrendsSnapshot {
         let n = ds.days.count
         visibleStart = max(0, n - range.dayCount(total: n))
         usual = ds.baselineMinutesPerDay
+        usualIsEstimate = TodayTrends.usualIsEstimate(in: ds)
 
+        // Week averages count only days the watch tracked: in real data a day without episodes
+        // may be a day the watch stayed on the charger, and must not pull the average down.
         let minutes = ds.days.map(\.scratchMinutes)
-        let recent = minutes.suffix(7)
-        thisWeek = recent.isEmpty ? 0 : recent.reduce(0, +) / Double(recent.count)
-        let previous = minutes.dropLast(7).suffix(7)
-        lastWeek = previous.count >= 3 ? previous.reduce(0, +) / Double(previous.count) : nil
+        let tracked = ds.days.map { TodayTrends.isTracked($0, in: ds) }
+        self.tracked = tracked
+        func average(_ indices: [Int]) -> Double? {
+            let kept = indices.filter { tracked[$0] }
+            return kept.isEmpty ? nil : kept.reduce(0) { $0 + minutes[$1] } / Double(kept.count)
+        }
+        let recent = Array(ds.days.indices.suffix(7))
+        thisWeek = average(recent)
+        let previous = Array(ds.days.indices.dropLast(7).suffix(7))
+        lastWeek = previous.filter { tracked[$0] }.count >= 3 ? average(previous) : nil
 
         var seenFlare = false
         var t: [DailyScratchChart.Tone] = []
-        for m in minutes {
+        for (i, m) in minutes.enumerated() {
             if TodayTrends.isFlare(m, usual: ds.baselineMinutesPerDay) { t.append(.flare); seenFlare = true }
-            else { t.append(seenFlare ? .improving : .normal) }
+            else { t.append(seenFlare && tracked[i] ? .improving : .normal) }
         }
         tones = t
 
@@ -89,9 +103,12 @@ struct TrendsSnapshot {
 
     /// Week-over-week change as a fraction (1.56 = +156%), nil without a previous week.
     var weekChange: Double? {
-        guard let lastWeek, lastWeek > 0 else { return nil }
+        guard let thisWeek, let lastWeek, lastWeek > 0 else { return nil }
         return thisWeek / lastWeek - 1
     }
+
+    /// Legend name of the dashed usual line on the chart.
+    var usualLabel: String { usualIsEstimate ? "usual · starting estimate" : "your usual" }
 
     var subtitle: String {
         switch range {
@@ -114,7 +131,11 @@ struct TrendsSnapshot {
                 ? TodayTrends.Format.weekday(d.day).uppercased()
                 : months.contains(i) ? d.day.formatted(.dateTime.month(.abbreviated)).uppercased() : nil
             let m = Int(d.scratchMinutes.rounded())
-            let toneText: String = switch tones[i] { case .flare: "flare day"; case .improving: "improving"; case .normal: "normal day" }
+            let toneText: String = switch tones[i] {
+            case .flare: "flare day"
+            case .improving: "improving"
+            case .normal: tracked[i] ? "normal day" : "no episodes"
+            }
             return DailyScratchChart.Bar(
                 id: d.day, value: d.scratchMinutes, tone: tones[i],
                 label: d.day.formatted(.dateTime.day()),

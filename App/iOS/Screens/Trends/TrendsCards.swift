@@ -12,7 +12,12 @@ struct TrendsDayDetail: View {
 
     var body: some View {
         let d = snap.days[index]
+        let ds = snap.dataset
         let started = snap.changes.filter { $0.startIndex == index }
+        // Real data: only what was measured (0 h / 0 ms / 0% = nothing came in that day).
+        let sleep = TodayTrends.sleep(d, in: ds)
+        let hrv = TodayTrends.hrv(d, in: ds)
+        let humidity = TodayTrends.humidity(d, in: ds)
         VStack(alignment: .leading, spacing: 9) {
             HStack(alignment: .center, spacing: 8) {
                 Text(eyebrow(d))
@@ -23,7 +28,7 @@ struct TrendsDayDetail: View {
                 if showHint {
                     Sticker(text: "tap a day", icon: "hand.tap.fill", fill: Twin.Palette.paper)
                         .transition(.scale(scale: 0.6).combined(with: .opacity))
-                } else {
+                } else if snap.tracked[index] {
                     toneSticker(snap.tones[index])
                         .id(snap.tones[index])
                         .transition(.scale(scale: 0.6).combined(with: .opacity))
@@ -42,9 +47,16 @@ struct TrendsDayDetail: View {
             }
             .foregroundStyle(Twin.Palette.ink)
             HStack(spacing: 14) {
-                metric("moon.zzz.fill", String(format: "%.1f h", d.sleepHours))
-                metric("waveform.path.ecg", "\(Int(d.hrvMs.rounded())) ms")
-                metric("humidity.fill", "\(Int(d.humidityPct.rounded()))%")
+                if sleep == nil, hrv == nil, humidity == nil {
+                    Text("No sleep, HRV or weather data")
+                        .font(Twin.Typeface.sans(13))
+                        .foregroundStyle(Twin.Palette.inkMuted)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.85)
+                }
+                if let sleep { metric("moon.zzz.fill", String(format: "%.1f h", sleep)) }
+                if let hrv { metric("waveform.path.ecg", "\(Int(hrv.rounded())) ms") }
+                if let humidity { metric("humidity.fill", "\(Int(humidity.rounded()))%") }
                 Spacer(minLength: 4)
                 HStack(spacing: 4) {
                     ForEach(d.exposures.prefix(4)) { e in
@@ -99,7 +111,8 @@ struct TrendsDayDetail: View {
     }
 
     private func worstText(_ d: DayRecord) -> String {
-        guard let h = d.worstHour else { return "calm all day" }
+        // Real data: a day without episodes may be a day the watch was off, so no "calm" claim.
+        guard let h = d.worstHour else { return snap.tracked[index] ? "calm all day" : "no episodes" }
         return "worst at \(TodayTrends.Format.hour(h))"
     }
 
@@ -212,48 +225,76 @@ struct TrendsChangesCard: View {
 // MARK: - Sleep & stress
 
 /// Sleep and HRV over the same days as the chart (points line up with the bars); flare days
-/// are shaded and the selected day is marked in cyan.
+/// are shaded and the selected day is marked in cyan. Days without a Health value are gaps in
+/// the line (real data); with no value at all the card says what is missing and how to connect.
 struct TrendsBodyCard: View {
     let snap: TrendsSnapshot
     let selectedIndex: Int?
+    /// "Allow Health" chip (Health not asked yet).
+    var canAskHealth = false
+    /// Opens Settings (Apple Health). nil = the empty state is not tappable.
+    var onConnect: (() -> Void)? = nil
 
     var body: some View {
+        let ds = snap.dataset
         let days = Array(snap.visible)
+        let sleep = days.map { TodayTrends.sleep($0, in: ds) }
+        let hrv = days.map { TodayTrends.hrv($0, in: ds) }
+        if sleep.allSatisfy({ $0 == nil }) && hrv.allSatisfy({ $0 == nil }) {
+            empty
+        } else {
+            charts(sleep: sleep, hrv: hrv)
+        }
+    }
+
+    private func charts(sleep: [Double?], hrv: [Double?]) -> some View {
+        let ds = snap.dataset
         let sel = selectedIndex.map { $0 - snap.visibleStart }
         let flares = snap.visibleRange.map { snap.tones[$0] == .flare }
         let selected = selectedIndex.map { snap.days[$0] }
-        VStack(alignment: .leading, spacing: 18) {
+        let hasUsual = snap.usualSleep != nil || snap.usualHRV != nil
+        return VStack(alignment: .leading, spacing: 18) {
             signal(title: "Sleep",
-                   value: selected.map { String(format: "%.1f h", $0.sleepHours) } ?? "–",
+                   value: selected.flatMap { TodayTrends.sleep($0, in: ds) }.map { String(format: "%.1f h", $0) },
                    usual: snap.usualSleep.map { String(format: "usual %.1f h", $0) },
-                   chart: SignalLineChart(values: days.map(\.sleepHours), usual: snap.usualSleep, shaded: flares,
+                   values: sleep, missing: "No sleep data on these days",
+                   chart: SignalLineChart(values: sleep, usual: snap.usualSleep, shaded: flares,
                                           selectedIndex: sel, height: 54, delay: 0.45))
             signal(title: "Stress (HRV)",
-                   value: selected.map { "\(Int($0.hrvMs.rounded())) ms" } ?? "–",
+                   value: selected.flatMap { TodayTrends.hrv($0, in: ds) }.map { "\(Int($0.rounded())) ms" },
                    usual: snap.usualHRV.map { "usual \(Int($0.rounded())) ms" },
-                   chart: SignalLineChart(values: days.map(\.hrvMs), usual: snap.usualHRV, shaded: flares,
+                   values: hrv, missing: "No HRV data on these days",
+                   chart: SignalLineChart(values: hrv, usual: snap.usualHRV, shaded: flares,
                                           selectedIndex: sel, height: 54, delay: 0.6))
-            HStack(spacing: 14) {
-                HStack(spacing: 5) {
-                    RoundedRectangle(cornerRadius: 1.5, style: .continuous).fill(Twin.Palette.orangeSoft)
-                        .frame(width: 12, height: 10)
-                    Text("flare days")
+            if flares.contains(true) || hasUsual {
+                HStack(spacing: 14) {
+                    if flares.contains(true) {
+                        HStack(spacing: 5) {
+                            RoundedRectangle(cornerRadius: 1.5, style: .continuous).fill(Twin.Palette.orangeSoft)
+                                .frame(width: 12, height: 10)
+                            Text("flare days")
+                        }
+                    }
+                    if hasUsual {
+                        HStack(spacing: 5) {
+                            ChartHLine().stroke(Twin.Palette.ink.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                                .frame(width: 16, height: 2)
+                            Text("your usual")
+                        }
+                    }
                 }
-                HStack(spacing: 5) {
-                    ChartHLine().stroke(Twin.Palette.ink.opacity(0.4), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
-                        .frame(width: 16, height: 2)
-                    Text("your usual")
-                }
+                .font(Twin.Typeface.mono(10))
+                .foregroundStyle(Twin.Palette.inkHint)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
             }
-            .font(Twin.Typeface.mono(10))
-            .foregroundStyle(Twin.Palette.inkHint)
-            .lineLimit(1)
-            .minimumScaleFactor(0.8)
         }
         .twinCard()
     }
 
-    private func signal(title: String, value: String, usual: String?, chart: SignalLineChart) -> some View {
+    /// `value` nil = the selected day has no measurement.
+    private func signal(title: String, value: String?, usual: String?, values: [Double?], missing: String,
+                        chart: SignalLineChart) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Eyebrow(text: title)
@@ -261,13 +302,60 @@ struct TrendsBodyCard: View {
                 if let usual {
                     Text(usual).font(Twin.Typeface.mono(11)).foregroundStyle(Twin.Palette.inkHint)
                 }
-                Text(value)
+                Text(value ?? TodayTrends.Format.noValue)
                     .font(Twin.Typeface.sans(16, .bold))
-                    .foregroundStyle(Twin.Palette.ink)
+                    .foregroundStyle(value == nil ? Twin.Palette.inkHint : Twin.Palette.ink)
                     .monospacedDigit()
                     .contentTransition(.numericText())
             }
-            chart
+            if values.contains(where: { $0 != nil }) {
+                chart
+            } else {
+                // Same height as a chart, so the card keeps its rhythm.
+                ZStack {
+                    ChartHLine()
+                        .stroke(Twin.Palette.hairline, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [1.5, 4]))
+                        .frame(height: 2)
+                    Text(missing)
+                        .font(Twin.Typeface.sans(13))
+                        .foregroundStyle(Twin.Palette.inkHint)
+                        .padding(.horizontal, 8)
+                        .background(Twin.Palette.paper)
+                }
+                .frame(height: 54)
+            }
+        }
+    }
+
+    /// No Health value in the whole range (real data before Apple Health is connected).
+    @ViewBuilder private var empty: some View {
+        let content = HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "heart.fill")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(Twin.Palette.ink)
+                .frame(width: 36, height: 36)
+                .sticker(Twin.Palette.cream)
+            VStack(alignment: .leading, spacing: 3) {
+                Eyebrow(text: "Sleep & stress")
+                Text("Sleep and HRV from Apple Health show up here, day by day under your scratching.")
+                    .font(Twin.Typeface.sans(13))
+                    .foregroundStyle(Twin.Palette.inkMuted)
+                    .fixedSize(horizontal: false, vertical: true)
+                if canAskHealth {
+                    TodayConnectChip(symbol: "heart.fill", text: "Allow Health")
+                        .padding(.top, 5)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .twinCard()
+        .contentShape(RoundedRectangle(cornerRadius: Twin.Radius.card, style: .continuous))
+        if let onConnect {
+            Button(action: onConnect) { content }
+                .buttonStyle(PressableStyle())
+                .accessibilityHint("Opens Settings")
+        } else {
+            content
         }
     }
 }

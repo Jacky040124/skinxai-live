@@ -9,6 +9,8 @@ import EczemaKit
 /// follow the selected day.
 struct TrendsScreen: View {
     @EnvironmentObject var app: AppState
+    /// Health permission state (shell): real data offers "Allow Health" when nothing came in.
+    @EnvironmentObject var access: DeviceAccess
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// nil = the default for the story (14 days; everything once a test runs).
     /// `-trendsRange week|twoWeeks|all` picks one at launch (screenshots).
@@ -42,14 +44,23 @@ struct TrendsScreen: View {
                                 }
                             }
                         }
-                        section(3) { TrendsBodyCard(snap: snap, selectedIndex: selectedIndex) }
+                        section(3) {
+                            TrendsBodyCard(snap: snap, selectedIndex: selectedIndex,
+                                           canAskHealth: access.health == .notAsked || access.health == .off,
+                                           onConnect: access.health == .unavailable ? nil : { app.showSettings = true })
+                        }
                     }
                     Color.clear.frame(height: 1).id("trends-bottom")
                 }
                 .onAppear { TodayTrends.scrollForScreenshot(proxy, bottomID: "trends-bottom") }
             }
         }
-        .task { await tour() }
+        .task {
+            #if DEBUG
+            TodayTrendsFixture.applyIfRequested(app)
+            #endif
+            await tour()
+        }
     }
 
     /// `-trendsTour 1`: a scripted walk through the chart (screen recordings, stage backup):
@@ -122,16 +133,23 @@ struct TrendsScreen: View {
         VStack(alignment: .leading, spacing: 0) {
             Eyebrow(text: "Minutes scratching per day")
             HStack(alignment: .lastTextBaseline, spacing: 8) {
-                CountUp(value: snap.thisWeek.rounded(), font: Twin.Typeface.display, delay: 0.12, duration: 1.1)
-                    .tracking(-2)
+                if let week = snap.thisWeek {
+                    CountUp(value: week.rounded(), font: Twin.Typeface.display, delay: 0.12, duration: 1.1)
+                        .tracking(-2)
+                } else {
+                    // Real data, nothing tracked this week: no number rather than a false "0".
+                    Text(TodayTrends.Format.noValue)
+                        .font(Twin.Typeface.sans(56, .regular)).tracking(1)
+                        .foregroundStyle(Twin.Palette.inkHint)
+                }
                 Text("min / day this week")
                     .font(Twin.Typeface.sans(15))
                     .foregroundStyle(Twin.Palette.inkMuted)
             }
             .padding(.top, 4)
-            TrendsWeekSticker(change: snap.weekChange)
+            TrendsWeekSticker(change: snap.weekChange, tracking: snap.thisWeek != nil)
                 .padding(.top, 8)
-            DailyScratchChart(bars: snap.bars(), usual: snap.usual, markers: snap.markers,
+            DailyScratchChart(bars: snap.bars(), usual: snap.usual, usualLabel: snap.usualLabel, markers: snap.markers,
                               selection: selectionBinding(snap, selectedIndex), plotHeight: 150, delay: 0.25)
                 .padding(.top, 20)
             if let i = selectedIndex {
@@ -143,32 +161,80 @@ struct TrendsScreen: View {
     }
 }
 
-/// "▲ up 158% from last week" (orange) · "▼ down 20% from last week" (lime) · "About the same as last week".
+/// "▲ up 158% from last week" (orange) · "▼ down 20% from last week" (lime) · "About the same as
+/// last week". Stamps in like Today's "× your usual" sticker, then the percent counts up from 0
+/// (and rolls to the new value when the data changes).
 struct TrendsWeekSticker: View {
     let change: Double?
+    /// false = the watch tracked nothing this week (real data).
+    var tracking = true
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var stamped = false
+    @State private var shownPct: Double = 0
+
+    private static let stampDelay = 0.6
+
+    private enum Kind: Equatable { case up(Int), down(Int), same, first, none }
+
+    private var kind: Kind {
+        guard tracking else { return .none }
+        guard let change else { return .first }
+        let pct = Int((abs(change) * 100).rounded())
+        if change >= 0.1 { return .up(pct) }
+        if change <= -0.1 { return .down(pct) }
+        return .same
+    }
+
+    private var pct: Int {
+        switch kind { case .up(let p), .down(let p): p; default: 0 }
+    }
 
     var body: some View {
-        Group {
-            if let change {
-                let pct = Int((abs(change) * 100).rounded())
-                if change >= 0.1 {
-                    Sticker(text: "up \(pct)% from last week", icon: "arrowtriangle.up.fill", fill: Twin.Palette.orange)
-                } else if change <= -0.1 {
-                    Sticker(text: "down \(pct)% from last week", icon: "arrowtriangle.down.fill", fill: Twin.Palette.lime)
-                } else {
-                    Sticker(text: "About the same as last week", icon: "equal", fill: Twin.Palette.paper)
-                }
-            } else {
-                Sticker(text: "Your first week", icon: "sparkles", fill: Twin.Palette.paper)
+        sticker
+            .scaleEffect(stamped || reduceMotion ? 1 : 0.55, anchor: .leading)
+            .rotationEffect(.degrees(stamped || reduceMotion ? 0 : -8), anchor: .leading)
+            .opacity(stamped ? 1 : 0)
+            .onAppear {
+                withAnimation(reduceMotion ? .easeOut(duration: 0.3).delay(Self.stampDelay)
+                                           : Twin.Motion.bouncy.delay(Self.stampDelay)) { stamped = true }
+                withAnimation(.easeOut(duration: 0.9).delay(Self.stampDelay + 0.05)) { shownPct = Double(pct) }
             }
+            .onChange(of: pct) { _, new in withAnimation(.easeOut(duration: 0.9)) { shownPct = Double(new) } }
+    }
+
+    @ViewBuilder private var sticker: some View {
+        switch kind {
+        case .up(let p):
+            counting(icon: "arrowtriangle.up.fill", lead: "up ", pct: p, fill: Twin.Palette.orange)
+        case .down(let p):
+            counting(icon: "arrowtriangle.down.fill", lead: "down ", pct: p, fill: Twin.Palette.lime)
+        case .same:
+            Sticker(text: "About the same as last week", icon: "equal", fill: Twin.Palette.paper)
+        case .first:
+            Sticker(text: "Your first week", icon: "sparkles", fill: Twin.Palette.paper)
+        case .none:
+            Sticker(text: "No episodes this week", icon: "applewatch", fill: Twin.Palette.paper)
         }
-        .scaleEffect(stamped || reduceMotion ? 1 : 0.55, anchor: .leading)
-        .rotationEffect(.degrees(stamped || reduceMotion ? 0 : -8), anchor: .leading)
-        .opacity(stamped ? 1 : 0)
-        .onAppear {
-            withAnimation(reduceMotion ? .easeOut(duration: 0.3).delay(0.6) : Twin.Motion.bouncy.delay(0.6)) { stamped = true }
+    }
+
+    /// Same metrics as `Sticker`, with the percent as a counting number.
+    private func counting(icon: String, lead: String, pct: Int, fill: Color) -> some View {
+        HStack(spacing: 5) {
+            Image(systemName: icon).font(.system(size: 10, weight: .bold))
+            HStack(spacing: 0) {
+                Text(lead)
+                CountingText(value: shownPct, decimals: 0, font: Twin.Typeface.sans(12, .bold))
+                Text("% from last week")
+            }
+            .font(Twin.Typeface.sans(12, .bold))
+            .lineLimit(1)
         }
+        .foregroundStyle(Twin.Palette.ink)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .sticker(fill)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(lead)\(pct)% from last week")
     }
 }
