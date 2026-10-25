@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// The one screen: a big Start / Stop button, tonight's scratch count under it and one line about
-/// the big screen.
+/// The one screen: a big Start / Stop button, how long it has been running under it and one line
+/// about the big screen.
 struct MonitorScreen: View {
     @EnvironmentObject var model: WatchModel
 
@@ -13,7 +13,7 @@ struct MonitorScreen: View {
                     .padding(.top, m.aboveButton)
                     .watchRise(0.05, distance: 8)
                 Spacer(minLength: m.gap)
-                ScratchCount(count: model.scratches, scratching: model.scratching, size: m.number)
+                RunTime(live: model.live, size: m.number)
                     .watchRise(0.14, distance: 8)
                 Spacer(minLength: m.gap)
                 ScreenStatus(size: m.status)
@@ -42,8 +42,8 @@ private struct MonitorMetrics {
         gap = compact ? 8 : 10
         aboveButton = compact ? 6 : 8
         pulseReach = compact ? 10 : 14
-        // Under the button: the count's digits, the status line (its line box is 1.28 em) and the two gaps.
-        let below = number * ScratchCount.digitHeight + status * 1.28 + 2 * gap
+        // Under the button: the time's digits, the status line (its line box is 1.28 em) and the two gaps.
+        let below = number * RunTime.digitHeight + status * 1.28 + 2 * gap
         button = max(72, min(size.width * 0.58, size.height - aboveButton - below))
     }
 }
@@ -80,7 +80,7 @@ private struct LiveButton: View {
     }
 }
 
-/// "Start", a spinner while it starts, then "Stop" over the time it has been running.
+/// "Start", a spinner while it starts, then "Stop".
 private struct ButtonFace: View {
     var live: WatchModel.LiveState
     var diameter: CGFloat
@@ -103,17 +103,11 @@ private struct ButtonFace: View {
                         .foregroundStyle(Twin.Palette.nightMuted)
                 }
                 .transition(.blurReplace)
-            case let .on(since, _):
-                VStack(spacing: 0) {
-                    Text("Stop")
-                        .font(label)
-                        .foregroundStyle(.white)
-                    Text(since, style: .timer)
-                        .font(WatchFont.mono(diameter * 0.1))
-                        .monospacedDigit()
-                        .foregroundStyle(Twin.Palette.cyan)
-                }
-                .transition(.blurReplace)
+            case .on:
+                Text("Stop")
+                    .font(label)
+                    .foregroundStyle(.white)
+                    .transition(.blurReplace)
             }
         }
         .lineLimit(1)
@@ -153,54 +147,44 @@ private struct PulseRing: View {
     }
 }
 
-/// Tonight's scratches: a big number that rolls up and bumps on each new one, orange while the
-/// scratch goes on.
-private struct ScratchCount: View {
+/// How long it has been running: a big m:ss timer while on, a dim 0:00 while off.
+private struct RunTime: View {
     /// Space Grotesk's line box (ascent 0.984 em, descent 0.292 em) is far taller than its digits
-    /// (0.714 em high, 0.014 em below the baseline): the number is laid out by its digits alone.
+    /// (0.714 em high, 0.014 em below the baseline): the time is laid out by its digits alone.
     static let digitHeight: CGFloat = 0.728
     private static let trimTop: CGFloat = 0.984 - 0.714
     private static let trimBottom: CGFloat = 0.292 - 0.014
 
-    var count: Int
-    var scratching: Bool
+    var live: WatchModel.LiveState
     var size: CGFloat
-    @State private var bumps = 0
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(alignment: .center, spacing: size * 0.22) {
-            Text("\(count)")
-                .font(WatchFont.sans(size, .bold))
-                .tracking(-size * 0.04)
-                .monospacedDigit()
-                .foregroundStyle(scratching ? Twin.Palette.orange : .white)
-                .contentTransition(.numericText(value: Double(count)))
-                .keyframeAnimator(initialValue: 1.0, trigger: bumps) { content, scale in
-                    content.scaleEffect(scale)
-                } keyframes: { _ in
-                    KeyframeTrack {
-                        SpringKeyframe(1.22, duration: 0.14)
-                        SpringKeyframe(1, duration: 0.5)
-                    }
+            Group {
+                if case let .on(since, _) = live {
+                    Text(since, style: .timer)
+                } else {
+                    Text("0:00")
                 }
-                .padding(.top, -size * Self.trimTop)
-                .padding(.bottom, -size * Self.trimBottom)
+            }
+            .font(WatchFont.sans(size, .bold))
+            .tracking(-size * 0.04)
+            .monospacedDigit()
+            .foregroundStyle(live.isOn ? .white : Twin.Palette.nightMuted)
+            .padding(.top, -size * Self.trimTop)
+            .padding(.bottom, -size * Self.trimBottom)
             VStack(alignment: .leading, spacing: 1) {
-                Text(count == 1 ? "SCRATCH" : "SCRATCHES")
-                    .contentTransition(.identity)            // swaps at once (a crossfade doubles the letters as it slides)
-                Text("TONIGHT")
+                Text("TIME")
+                Text("RUNNING")
             }
             .font(WatchFont.mono(10, bold: true))
             .tracking(0.6)
             .foregroundStyle(Twin.Palette.nightMuted)
             .fixedSize()
         }
-        .animation(Twin.Motion.bouncy, value: count)
-        .animation(Twin.Motion.spring, value: scratching)
-        .onChange(of: count) { old, new in if new > old, !reduceMotion { bumps += 1 } }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(count) \(count == 1 ? "scratch" : "scratches") tonight")
+        .animation(Twin.Motion.spring, value: live)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(live.isOn ? "Running time" : "Not running")
     }
 }
 
