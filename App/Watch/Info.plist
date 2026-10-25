@@ -19,7 +19,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
-	<string>22</string>
+	<string>23</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>SkinXAI keeps a workout session so it can detect scratching in the background.</string>
 	<key>NSHealthUpdateUsageDescription</key>

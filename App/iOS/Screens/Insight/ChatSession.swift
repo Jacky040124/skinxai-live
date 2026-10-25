@@ -281,6 +281,8 @@ final class ChatSession: ObservableObject {
             guard let results = await play(reply.message, gen: gen, recorded: nil) else { return }
             if reply.message.toolCalls.isEmpty { break }
             messages.append(contentsOf: results)
+            // The conclusion card is the end: its "Try this" is the one call to action, nothing after it.
+            if reply.message.toolCalls.contains(where: { $0.name == ChatTools.conclusion }) { break }
         }
         busy = false
         save()

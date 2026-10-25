@@ -606,7 +606,7 @@ struct ConclusionCardView: View {
                     .scaleEffect(revealed || reduceMotion ? 1 : 0.96, anchor: .top)
                     .animation(Twin.Motion.bouncy.delay(0.5 + Double(card.ruledOut.count) * 0.18), value: revealed)
             }
-            Text("Not a diagnosis. A dermatologist can confirm it with a patch test.")
+            Text("Not a diagnosis.")
                 .font(Twin.Typeface.sans(11))
                 .foregroundStyle(Twin.Palette.inkHint)
                 .fixedSize(horizontal: false, vertical: true)
