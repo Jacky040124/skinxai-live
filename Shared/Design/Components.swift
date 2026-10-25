@@ -238,6 +238,7 @@ struct PixelSpinner: View {
 
 // MARK: - Haptics
 
+/// iPhone only: the watch stays silent (no buzz, no sound).
 enum Haptics {
     /// When `tap()` last fired. Lets an action that follows a button's press tap (for example a
     /// tab change started from a card) skip a second tap for the same touch.
@@ -247,29 +248,21 @@ enum Haptics {
         lastTapAt = Date()
         #if os(iOS)
         UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        #elseif os(watchOS)
-        WKInterfaceDevice.current().play(.click)
         #endif
     }
     static func soft() {
         #if os(iOS)
         UIImpactFeedbackGenerator(style: .soft).impactOccurred()
-        #elseif os(watchOS)
-        WKInterfaceDevice.current().play(.click)
         #endif
     }
     static func success() {
         #if os(iOS)
         UINotificationFeedbackGenerator().notificationOccurred(.success)
-        #elseif os(watchOS)
-        WKInterfaceDevice.current().play(.success)
         #endif
     }
     static func warning() {
         #if os(iOS)
         UINotificationFeedbackGenerator().notificationOccurred(.warning)
-        #elseif os(watchOS)
-        WKInterfaceDevice.current().play(.notification)
         #endif
     }
 }

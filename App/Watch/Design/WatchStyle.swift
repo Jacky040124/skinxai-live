@@ -12,9 +12,9 @@ enum WatchFont {
     }
 }
 
-/// Watch haptics (richer than the shared `Haptics`).
+/// Watch haptics: off. The watch stays silent while it tracks (no buzz, no sound).
 enum WatchHaptic {
-    static func play(_ type: WKHapticType) { WKInterfaceDevice.current().play(type) }
+    static func play(_ type: WKHapticType) {}
 }
 
 /// Press feedback without a fill (the big button draws its own).
