@@ -19,103 +19,91 @@ enum TrendsRange: String, CaseIterable, Identifiable, Hashable {
     var ids: [Int] { Array(TrendsStory.nightIDs.suffix(nights)) }
 }
 
-/// Something on the timeline's event lanes: a new item he bought (on its order date: all the app can
-/// read is the order, not when he used it), an exam week, a late workout.
+/// Something on the timeline: a new skin-contact product he bought (on its order date: all the app can read
+/// is the order, not when he used it), an exam week, the trip, a late workout.
 struct TrendsEvent: Identifiable, Hashable {
     enum Kind: String, CaseIterable {
-        case bodywash, sweater, detergent, exams, gym
+        case purchase, exams, trip, gym
     }
 
     let kind: Kind
-    /// First and last night (a bought item: the night of its order date, both).
+    /// First and last night (a purchase: the night of its order date, both).
     let start: Int
     let end: Int
-
-    /// "bodywash", "exams:1", "gym:7".
-    var id: String {
-        switch kind {
-        case .bodywash, .sweater, .detergent: return kind.rawValue
-        case .exams, .gym: return "\(kind.rawValue):\(start)"
-        }
-    }
-
-    var emoji: String {
-        switch kind {
-        case .bodywash: return "🧴"
-        case .sweater: return "👕"
-        case .detergent: return "🧺"
-        case .exams: return "📚"
-        case .gym: return "🏋️"
-        }
-    }
-
-    /// The factor `StageHistory` compares for it.
-    var factor: StageHistory.Factor {
-        switch kind {
-        case .bodywash: return .bodyWash
-        case .sweater: return .woolSweater
-        case .detergent: return .sampleDetergent
-        case .exams: return .exams
-        case .gym: return .gym
-        }
-    }
+    /// "shampoo", "bodywash", "exams:-26", "trip:-47", "gym:7".
+    let id: String
+    let emoji: String
+    /// The product's name without its size ("Summit Peak Mint Shampoo"); "Exams", "Trip", "Late gym".
+    let name: String
+    /// Where space is tight (the strip's chips): "Summit Peak Shampoo".
+    let shortName: String
+    /// A purchase: the order's full item name.
+    var item: String? = nil
 
     /// A new thing he bought (pink on the timeline).
-    var isProduct: Bool { [.bodywash, .sweater, .detergent].contains(kind) }
+    var isProduct: Bool { kind == .purchase }
 
-    /// The product's name (a bought item; without the size): "Brightwell Ocean Breeze Body Wash",
-    /// "Northfield Lambswool Crewneck Sweater", "FreshMeadow Spring Bloom Detergent"; else "Exams", "Late gym".
-    var name: String {
-        switch kind {
-        case .bodywash: return "Brightwell Ocean Breeze Body Wash"
-        case .sweater: return "Northfield Lambswool Crewneck Sweater"
-        case .detergent: return "FreshMeadow Spring Bloom Detergent"
-        case .exams: return "Exams"
-        case .gym: return "Late gym"
-        }
+    /// How the timeline draws a new product: its key (launch arguments, ids), its picture and short name.
+    /// Products without an entry still show, with a package and their own name.
+    static let products: [String: (key: String, emoji: String, short: String)] = {
+        typealias P = StageStory.Product
+        return [
+            P.coastlineSunscreen.item: ("sunscreen", "🌤", "Coastline Sunscreen"),
+            P.summitShampoo.item: ("shampoo", "💧", "Summit Peak Shampoo"),
+            P.alderPineDeodorant.item: ("deodorant", "🧴", "Alder & Pine Deodorant"),
+            P.baylineHoodie.item: ("hoodie", "👕", "Bayline Hoodie"),
+            P.lumenHandSoap.item: ("handsoap", "✋", "Lumen Hand Soap"),
+            P.baylineTShirts.item: ("tshirts", "👕", "Bayline T-Shirts"),
+            P.harborOatLotion.item: ("lotion", "🧴", "Harbor Oat Lotion"),
+            P.cloudrestPillow.item: ("pillow", "🛏", "Cloudrest Pillow"),
+            P.northfieldSweater.item: ("sweater", "🧶", "Northfield Sweater"),
+            P.freshMeadowDetergent.item: ("detergent", "🧺", "FreshMeadow Detergent"),
+            P.darnToughSocks.item: ("socks", "🧦", "Darn Tough Socks"),
+            P.brightwellBodyWash.item: ("bodywash", "🧴", "Brightwell Body Wash"),
+        ]
+    }()
+
+    /// A new skin-contact order as a timeline event.
+    static func purchase(_ o: StageStory.Order) -> TrendsEvent {
+        let name = o.item.components(separatedBy: ",")[0]
+        let look = products[o.item]
+        let key = look?.key ?? name.lowercased().filter(\.isLetter)
+        return TrendsEvent(kind: .purchase, start: o.night, end: o.night, id: key, emoji: look?.emoji ?? "📦",
+                           name: name, shortName: look?.short ?? name, item: o.item)
     }
 
-    /// Where space is tight (the strip's chips): "Brightwell Body Wash", "Northfield Lambswool Sweater",
-    /// "FreshMeadow Detergent Sample", "Exams", "Late gym".
-    var shortName: String {
-        switch kind {
-        case .bodywash: return "Brightwell Body Wash"
-        case .sweater: return "Northfield Lambswool Sweater"
-        case .detergent: return "FreshMeadow Detergent Sample"
-        case .exams: return "Exams"
-        case .gym: return "Late gym"
-        }
+    /// The new things he bought that touch his skin (they list ingredients or a material), oldest first.
+    static var purchases: [TrendsEvent] {
+        StageStory.orders(calendar: TrendsStory.calendar).filter { !$0.boughtBefore && $0.skinContact }.map(purchase)
     }
 
-    /// The night of the day he ordered it (a bought item): the body wash the day before night 10
-    /// (Oct 19), the sweater and the detergent sample on the day of night −5 (Oct 5).
-    static func purchaseNight(_ kind: Kind) -> Int? {
-        switch kind {
-        case .bodywash: return StageStory.bodyWashNight - 1
-        case .sweater, .detergent: return StageHistory.earlierSuspectsBoughtNight
-        case .exams, .gym: return nil
-        }
-    }
-
-    /// Every event, oldest first. Bought items sit on their order date only.
+    /// Every event, oldest first. Purchases sit on their order date only.
     static var all: [TrendsEvent] {
-        var list = [TrendsEvent.Kind.sweater, .detergent, .bodywash].compactMap { k in
-            purchaseNight(k).map { TrendsEvent(kind: k, start: $0, end: $0) }
+        var list = purchases
+        list += TrendsStory.runs(\.exams).map {
+            TrendsEvent(kind: .exams, start: $0.lowerBound, end: $0.upperBound, id: "exams:\($0.lowerBound)", emoji: "📚",
+                        name: "Exams", shortName: "Exams")
         }
-        list += TrendsStory.examRuns.map { TrendsEvent(kind: .exams, start: $0.lowerBound, end: $0.upperBound) }
-        list += StageHistory.nights.filter(\.gym).map { TrendsEvent(kind: .gym, start: $0.id, end: $0.id) }
+        list += TrendsStory.runs(\.trip).map {
+            TrendsEvent(kind: .trip, start: $0.lowerBound, end: $0.upperBound, id: "trip:\($0.lowerBound)", emoji: "✈",
+                        name: "Trip", shortName: "Trip")
+        }
+        list += StageHistory.nights.filter(\.gym).map {
+            TrendsEvent(kind: .gym, start: $0.id, end: $0.id, id: "gym:\($0.id)", emoji: "🏋️", name: "Late gym", shortName: "Late gym")
+        }
         return list.sorted { $0.start < $1.start }
     }
 
-    /// The event with id `id` ("bodywash", "sweater", "detergent", "exams:1", "gym:7"; also plain
-    /// "exams" = the midterms and "gym" = the last workout, for launch arguments).
+    /// The event with id `id` ("shampoo", "bodywash", "exams:1", "gym:7"; also plain "exams" = the midterms,
+    /// "trip" and "gym" = the last workout, for launch arguments).
     static func find(_ id: String) -> TrendsEvent? {
         let list = all
         if let e = list.first(where: { $0.id == id }) { return e }
         switch id {
         case "exams": return list.last { $0.kind == .exams }
+        case "trip": return list.last { $0.kind == .trip }
         case "gym": return list.last { $0.kind == .gym }
-        case "wash", "bodyWash": return list.first { $0.kind == .bodywash }
+        case "wash", "bodyWash": return list.first { $0.id == "bodywash" }
         default: return nil
         }
     }
@@ -241,15 +229,13 @@ enum TrendsStory {
 
     static func night(_ i: Int) -> StageHistory.Night { StageHistory.night(i) }
 
-    /// Heart-rate variability on night `i`, ms: `StageStory.hrvMs` for the last 14 nights; before them a
-    /// steady value around his usual with small deterministic night-to-night noise, a dip on the nights
-    /// of the earlier flare (poor sleep) and after short nights.
+    /// Heart-rate variability on night `i`, ms (`StageStory.hrv`, the numbers Claude's sleep tool reads).
     static func hrv(_ i: Int) -> Int { StageStory.hrv(i) }
 
-    /// The exam weeks, oldest first (mid-September and the midterms).
-    static var examRuns: [ClosedRange<Int>] {
+    /// The runs of nights with `flag`, oldest first (the exam weeks: mid-September and the midterms; the trip).
+    static func runs(_ flag: KeyPath<StageHistory.Night, Bool>) -> [ClosedRange<Int>] {
         var runs: [ClosedRange<Int>] = []
-        for n in StageHistory.nights where n.exams {
+        for n in StageHistory.nights where n[keyPath: flag] {
             if let last = runs.last, last.upperBound == n.id - 1 {
                 runs[runs.count - 1] = last.lowerBound...n.id
             } else {
@@ -281,20 +267,23 @@ enum TrendsStory {
         }
     }
 
-    /// The exam weeks on the chart's nights (clipped to the range).
+    /// The exam weeks and the trip on the chart's nights (clipped to the range), as light labelled bands.
     static func bands(_ range: TrendsRange) -> [OverlayBarChart.Band] {
         guard let first = range.ids.first, let last = range.ids.last else { return [] }
-        return examRuns.compactMap { run in
+        let all = runs(\.exams).map { ($0, "exams", "EXAMS", "📚") } + runs(\.trip).map { ($0, "trip", "TRIP", "✈") }
+        return all.compactMap { run, key, label, emoji in
             guard run.upperBound >= first, run.lowerBound <= last else { return nil }
-            return .init(id: "exams:\(run.lowerBound)", start: max(run.lowerBound, first), end: min(run.upperBound, last),
-                         label: "EXAMS", emoji: "📚")
+            return .init(id: "\(key):\(run.lowerBound)", start: max(run.lowerBound, first), end: min(run.upperBound, last),
+                         label: label, emoji: emoji)
         }
     }
 
-    /// The purchases on the chart's nights; the sweater and the detergent sample (same day) side by side.
+    /// The new products on the chart's nights; things bought the same day (the sweater and the detergent, Oct 5)
+    /// side by side, in order.
     static func markers(_ range: TrendsRange) -> [OverlayBarChart.Marker] {
-        TrendsEvent.all.filter { $0.isProduct && range.shows($0.start) }.map { e in
-            .init(id: e.id, night: e.start, row: e.kind == .detergent ? 1 : 0, emoji: e.emoji,
+        let shown = TrendsEvent.purchases.filter { range.shows($0.start) }
+        return shown.map { e in
+            .init(id: e.id, night: e.start, row: shown.filter { $0.start == e.start }.firstIndex(of: e) ?? 0, emoji: e.emoji,
                   fill: Twin.Palette.pink, accessibility: "\(e.name), bought \(dayText(night: e.start)). Opens details.")
         }
     }
@@ -330,8 +319,8 @@ enum TrendsStory {
         dayText(StageStory.nightDate(i, now: now, calendar: calendar))
     }
 
-    /// "Monday, Oct 19: 11 minutes. Slept 7.0 hours, humidity 50%, high 65°F, HRV 52 ms. Bought Brightwell Ocean
-    /// Breeze Body Wash."
+    /// "Monday, Oct 19: 11 minutes. Slept 7.0 hours, humidity 50%, high 65°F, HRV 53 ms. Bought Brightwell
+    /// Sensitive Fragrance-Free Body Wash."
     private static func accessibility(_ i: Int, date: Date) -> String {
         let n = night(i)
         var text = "\(StageStory.weekday(date, calendar: calendar)), \(StageStory.monthDay(date, calendar: calendar)): "
@@ -366,7 +355,7 @@ enum TrendsLaunch {
         return nil
         #endif
     }
-    /// `-trendsEvent bodywash|sweater|detergent|exams|gym`: opens that event's sheet.
+    /// `-trendsEvent shampoo|bodywash|sweater|…|exams|trip|gym`: opens that event's sheet.
     static var event: String? { string("trendsEvent") }
     /// `-trendsOverlay sleep|humidity|temp|stress`: the overlay drawn over the bars at launch.
     static var overlay: TrendsOverlay? {
@@ -378,15 +367,12 @@ enum TrendsLaunch {
 
 /// How scratching went right after he bought a new item, from what the app can read (the order date
 /// and the nightly minutes; not when he used it): the average of the 4 nights after the order date
-/// against his usual 12 min. Items bought the same day share those nights, so the data can't
-/// separate them (the sweater and the detergent sample, Oct 5).
+/// against his usual 12 min, and the other new things bought that day (they share those nights).
 struct TrendsPurchase {
     /// Nights after the order date that are compared.
     static let nightsAfter = 4
-    /// A flare that starts at most this many days after an order is read as "after" it.
-    static let leadDays = 3
 
-    let kind: TrendsEvent.Kind
+    let event: TrendsEvent
     /// The night of the order date.
     let bought: Int
     /// The nights compared (up to 4, ending at last night at the latest).
@@ -394,27 +380,22 @@ struct TrendsPurchase {
     /// Average minutes on those nights.
     let afterMinutes: Double
     let usual: Int
-    /// Other new items bought the same day.
-    let sameDay: [TrendsEvent.Kind]
+    /// Other new things bought the same day.
+    let sameDay: [TrendsEvent]
 
-    init?(_ kind: TrendsEvent.Kind) {
-        guard let b = TrendsEvent.purchaseNight(kind), b < StageStory.lastNightIndex else { return nil }
-        self.kind = kind
-        bought = b
-        nights = (b + 1)...min(b + Self.nightsAfter, StageStory.lastNightIndex)
+    init?(_ e: TrendsEvent) {
+        guard e.isProduct, e.start < StageStory.lastNightIndex else { return nil }
+        event = e
+        bought = e.start
+        nights = (bought + 1)...min(bought + Self.nightsAfter, StageStory.lastNightIndex)
         afterMinutes = Double(nights.map { StageHistory.night($0).minutes }.reduce(0, +)) / Double(nights.count)
         usual = StageStory.usual
-        sameDay = TrendsEvent.Kind.allCases.filter { $0 != kind && TrendsEvent.purchaseNight($0) == b }
+        sameDay = TrendsEvent.purchases.filter { $0.id != e.id && $0.start == e.start }
     }
 
     /// after − usual, rounded.
     var difference: Int { Int((afterMinutes - Double(usual)).rounded()) }
 
-    /// 5+ min above usual: strong (possible when another new item was bought the same day); 1.5–5: weak.
-    var verdict: StageHistory.Verdict {
-        let d = afterMinutes - Double(usual)
-        if d >= StageHistory.strongLinkMinutes { return sameDay.isEmpty ? .strong : .possible }
-        if d >= StageHistory.weakLinkMinutes { return .weak }
-        return .none
-    }
+    /// The average is over 1.5 × usual: drawn orange, like the chart's bars over that line.
+    var overFlareLine: Bool { afterMinutes > StageStory.flareFactor * Double(usual) }
 }

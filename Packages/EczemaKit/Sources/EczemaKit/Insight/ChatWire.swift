@@ -3,9 +3,10 @@ import Foundation
 // The /api/chat protocol of the Eczema Twin server (a port of the live page's `web/chat.js`).
 //
 // The app sends the whole conversation, OpenAI style, with today's date:
-//     POST /api/chat  {"today": "Saturday, October 24, 2026", "messages": [...]}   ("model" only for development)
+//     POST /api/chat  {"today": "Saturday, October 24, 2026", "story": "mi", "messages": [...]}   ("model" only for development)
 // and gets Claude's next turn back:
 //     {"model": "...", "message": {"role": "assistant", "content": "...", "tool_calls": [...]}}
+// `story` picks the server's scenario prompt (always "mi": the four-flare story of `StageHistory`).
 // The server adds the instructions and the tool list and holds the key. The app runs the data tools itself
 // (`StageStory`), draws the display tools and answers every tool call before it sends the next request.
 
@@ -140,18 +141,22 @@ public enum ChatWire {
     public static let endpoint = URL(string: "https://eczema-twin-live.zhongzhenyu190.workers.dev/api/chat")!
     /// Seconds to wait for one reply.
     public static let timeout: TimeInterval = 45
+    /// The scenario the server's prompt is written for, sent with every request.
+    public static let story = "mi"
 
-    /// The request body: `{"model"?, "today", "messages"}`. `model` is only sent when given (development).
+    /// The request body: `{"model"?, "today", "story", "messages"}`. `model` is only sent when given
+    /// (development); `story` always (`ChatWire.story`).
     public static func body(model: String?, today: String, messages: [ChatMessage]) throws -> Data {
         struct Body: Encodable {
             var model: String?
             var today: String
             var messages: [ChatMessage]
-            enum CodingKeys: String, CodingKey { case model, today, messages }
+            enum CodingKeys: String, CodingKey { case model, today, story, messages }
             func encode(to encoder: Encoder) throws {
                 var c = encoder.container(keyedBy: CodingKeys.self)
                 try c.encodeIfPresent(model, forKey: .model)
                 try c.encode(today, forKey: .today)
+                try c.encode(ChatWire.story, forKey: .story)
                 try c.encode(messages, forKey: .messages)
             }
         }

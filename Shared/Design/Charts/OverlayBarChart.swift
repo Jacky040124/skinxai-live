@@ -10,7 +10,8 @@ import SwiftUI
 ///   Both share the same gridlines.
 /// - Bands: a light labelled column behind a run of nights (an exam week).
 /// - Markers: a sticker with an icon on its night just above the date axis (a purchase), with a thin
-///   dashed guide up through the bars. Tap one → `onMarker`.
+///   dashed guide up through the bars. Markers that would touch (the same night, or nights close together)
+///   spread out side by side around their nights, in order. Tap one → `onMarker`.
 /// - Tap a night anywhere in its column: a cyan band highlights it.
 /// - More than `window` nights scroll sideways; the chart opens on the newest night (right edge). The
 ///   month of the first night on screen stays pinned at the left of the date axis.
@@ -290,7 +291,8 @@ struct OverlayBarChart: View {
             ForEach(Array(nights.enumerated()), id: \.element.id) { k, night in
                 labelsAndTap(night, k: k, m: m)
             }
-            ForEach(markers) { marker in markerView(marker, m: m) }
+            let dx = markerOffsets(m)
+            ForEach(markers) { marker in markerView(marker, dx: dx[marker.id] ?? 0, m: m) }
         }
     }
 
@@ -384,11 +386,39 @@ struct OverlayBarChart: View {
 
     private var markerY: CGFloat { laneTop + rowHeight / 2 }
 
-    /// Horizontal offset of a marker from its night's center (side by side when they share a night).
-    private func markerDX(_ marker: Marker) -> CGFloat {
-        let same = markers.filter { $0.night == marker.night }.sorted { $0.row < $1.row }
-        guard same.count > 1, let k = same.firstIndex(of: marker) else { return 0 }
-        return (CGFloat(k) - CGFloat(same.count - 1) / 2) * 27
+    /// Center-to-center distance of markers side by side (a 24 pt sticker and a gap).
+    private let markerPitch: CGFloat = 27
+
+    /// Each marker's horizontal offset from its night's center. Markers whose stickers would overlap form a
+    /// group, spread `markerPitch` apart (in night order, then `row`) around the middle of their nights;
+    /// groups that then touch merge, until none do.
+    private func markerOffsets(_ m: Metrics) -> [String: CGFloat] {
+        let placed = markers.compactMap { mk in index(of: mk.night).map { (marker: mk, x: m.center($0)) } }
+            .sorted { ($0.x, $0.marker.row) < ($1.x, $1.marker.row) }
+        var groups: [[(marker: Marker, x: CGFloat)]] = placed.map { [$0] }
+        func middle(_ g: [(marker: Marker, x: CGFloat)]) -> CGFloat { g.map(\.x).reduce(0, +) / CGFloat(g.count) }
+        func half(_ g: [(marker: Marker, x: CGFloat)]) -> CGFloat { CGFloat(g.count - 1) / 2 * markerPitch }
+        var merged = true
+        while merged {
+            merged = false
+            for k in groups.indices.dropLast() {
+                let a = groups[k], b = groups[k + 1]
+                if (middle(b) - half(b)) - (middle(a) + half(a)) < markerPitch {
+                    groups[k] = a + b
+                    groups.remove(at: k + 1)
+                    merged = true
+                    break
+                }
+            }
+        }
+        var out: [String: CGFloat] = [:]
+        for g in groups {
+            let mid = middle(g)
+            for (k, item) in g.enumerated() {
+                out[item.marker.id] = mid + (CGFloat(k) - CGFloat(g.count - 1) / 2) * markerPitch - item.x
+            }
+        }
+        return out
     }
 
     /// A thin dashed pink line from the marker up through the plot, on its night.
@@ -404,7 +434,7 @@ struct OverlayBarChart: View {
         }
     }
 
-    @ViewBuilder private func markerView(_ marker: Marker, m: Metrics) -> some View {
+    @ViewBuilder private func markerView(_ marker: Marker, dx: CGFloat, m: Metrics) -> some View {
         if let k = index(of: marker.night) {
             Button { onMarker(marker.id) } label: {
                 TwinIconView(emoji: marker.emoji, size: 17)
@@ -417,7 +447,7 @@ struct OverlayBarChart: View {
             .opacity(decorated ? 1 : 0)
             .animation(reduceMotion ? .easeOut(duration: 0.3) : Twin.Motion.bouncy.delay(0.1 + Double(marker.row) * 0.08), value: decorated)
             .frame(width: 0, height: 0)
-            .offset(x: m.center(k) + markerDX(marker), y: markerY)
+            .offset(x: m.center(k) + dx, y: markerY)
             .accessibilityLabel(marker.accessibility)
             .accessibilityAddTraits(.isButton)
         }

@@ -93,13 +93,16 @@ private func object(_ text: String) -> NSDictionary {
             // The cards land on the same nights, and Claude's words name that day's dates.
             let timeline = try #require(moved.messages.flatMap(\.toolCalls).first { $0.name == ChatTools.timeline })
             #expect(ChatTimeline(arguments: timeline.argumentsObject, now: moved.startedAt, calendar: cal).marker == StageStory.bodyWashNight)
+            // The recording names the body wash by its old name ("Ocean Breeze"); its words still find the order.
             let product = try #require(moved.messages.flatMap(\.toolCalls).first { $0.name == ChatTools.product })
             let card = ChatProduct(arguments: product.argumentsObject, now: moved.startedAt, calendar: cal)
             #expect(card.firstTime && card.title == StageStory.bodyWashItem)
+            #expect(card.ingredients.filter { !$0.flagged }.map(\.name).allSatisfy(StageStory.bodyWashIngredients.contains))
             let order = StageStory.bodyWashOrder(now: target, calendar: cal)
             #expect(card.ordered == "Ordered \(StageStory.weekday(order.date, short: true, calendar: cal)) \(StageStory.monthDay(order.date, calendar: cal))")
-            // He reorders the detergent every month: the latest one.
-            let detergent = StageStory.orders(now: target, calendar: cal).filter { $0.item.hasPrefix("Tide Free & Clear") }
+            // He reorders the detergent every month: the latest one. (The recording still calls it Tide, the brand
+            // before the MI scenario; the dates are the same.)
+            let detergent = StageStory.orders(now: target, calendar: cal).filter { $0.item.hasPrefix("Everclean Free & Clear") }
                 .max { $0.date < $1.date }!
             #expect(moved.messages.contains { $0.content.contains("reordered on \(StageStory.monthDay(detergent.date, calendar: cal))") })
         }

@@ -121,17 +121,21 @@ private struct RingSpinner: View {
 
 // MARK: - Timeline
 
-/// `show_timeline`: the 14 nights (hot ones orange) with Claude's pin on the change.
+/// `show_timeline`: the nights (hot ones orange) from a little before Claude's earliest marker to last night,
+/// with one labelled pin per marker. Pins that would collide stack in lanes above the bars.
 struct TimelineCardView: View {
     let card: ChatTimeline
     let fresh: Bool
     @State private var grown: Bool
     @State private var pinned: Bool
+    /// The chart's width, as last laid out (the lanes of pins depend on it).
+    @State private var width: CGFloat = 330
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let chartHeight: CGFloat = 92
-    private let pinSpace: CGFloat = 40
-    private let gap: CGFloat = 3
+    private let laneHeight: CGFloat = 23
+    /// Labels longer than this are cut with "…".
+    private static let maxLabel = 24
 
     init(card: ChatTimeline, fresh: Bool) {
         self.card = card
@@ -141,17 +145,24 @@ struct TimelineCardView: View {
     }
 
     private var top: CGFloat { CGFloat(max(44, (card.minutes.max() ?? 0) + 3)) }
+    /// Thinner gaps when there are many nights.
+    private var gap: CGFloat { card.nightCount > 40 ? 1 : (card.nightCount > 20 ? 2 : 3) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .center) {
-                Eyebrow(text: "Your nights · last \(card.minutes.count)")
+                Eyebrow(text: "Your nights · last \(card.nightCount)")
                 Spacer(minLength: 8)
                 CornerSticker(text: "FROM CLAUDE", claude: true, fill: Twin.Palette.pink)
             }
-            GeometryReader { geo in chart(width: geo.size.width) }
+            GeometryReader { geo in chart(width: geo.size.width, pins: pins(width: geo.size.width)) }
                 .frame(height: pinSpace + chartHeight)
                 .padding(.top, 6)
+                .background(GeometryReader { geo in
+                    Color.clear
+                        .onAppear { width = geo.size.width }
+                        .onChange(of: geo.size.width) { _, w in width = w }
+                })
             GeometryReader { geo in axis(width: geo.size.width) }
                 .frame(height: 14)
                 .padding(.top, 6)
@@ -176,36 +187,108 @@ struct TimelineCardView: View {
         .accessibilityLabel(accessibilityText)
     }
 
+    // MARK: Geometry
+
     private func barWidth(_ width: CGFloat) -> CGFloat {
-        let n = CGFloat(max(card.minutes.count, 1))
+        let n = CGFloat(max(card.nightCount, 1))
         return max(1, (width - gap * (n - 1)) / n)
     }
 
-    private func center(of night: Int, width: CGFloat) -> CGFloat {
+    private func center(of k: Int, width: CGFloat) -> CGFloat {
         let w = barWidth(width)
-        return CGFloat(night) * (w + gap) + w / 2
+        return CGFloat(k) * (w + gap) + w / 2
     }
 
     private func barHeight(_ minutes: Int) -> CGFloat {
         max(2, CGFloat(minutes) / top * chartHeight)
     }
 
+    /// A pin: its marker, its bar, its lane (0 = right above the bars) and where its label sits.
+    private struct Pin {
+        let marker: ChatTimeline.Marker
+        let index: Int
+        let x: CGFloat
+        let lane: Int
+        /// The label's planned edges (its real width may differ a little: it stays centered on them).
+        let left: CGFloat
+        let right: CGFloat
+        let text: String
+    }
+
+    private func labelText(_ label: String) -> String {
+        label.count > Self.maxLabel ? String(label.prefix(Self.maxLabel - 1)).trimmingCharacters(in: .whitespaces) + "…" : label
+    }
+
+    /// The pins, oldest first, each in the lowest lane where its label doesn't touch another label and its
+    /// stem doesn't cross one (a pin on the same night may share the stem). A label sits centered over its
+    /// stem, or reaches right or left from it; in the bottom lane, only where it leaves the stems of the pins
+    /// still to come clear.
+    private func pins(width: CGFloat) -> [Pin] {
+        let all = card.markers.compactMap { m in card.index(of: m.night).map { (marker: m, index: $0, x: center(of: $0, width: width)) } }
+        var placed: [Pin] = []
+        for (n, item) in all.enumerated() {
+            let text = labelText(item.marker.label)
+            // Space Grotesk 10 bold ≈ 5.9 pt a letter, the sticker's padding, the icon.
+            let w = min(width, CGFloat(text.count) * 5.9 + 14 + (item.marker.emoji == nil ? 0 : 16))
+            let x = item.x
+            let lefts = [x - w / 2, x - 10, x + 10 - w].map { min(max($0, 0), max(0, width - w)) }
+            let later = all.dropFirst(n + 1).filter { $0.marker.night != item.marker.night }.map(\.x)
+            func fits(_ left: CGFloat, lane: Int, strict: Bool) -> Bool {
+                let right = left + w
+                let free = placed.filter { $0.lane == lane }.allSatisfy { $0.right + 4 <= left || $0.left >= right + 4 }
+                let overStems = placed.filter { $0.lane > lane }.allSatisfy {
+                    $0.marker.night == item.marker.night || $0.x + 3 < left || $0.x - 3 > right
+                }
+                let stemClear = placed.filter { $0.lane < lane }.allSatisfy {
+                    $0.marker.night == item.marker.night || $0.right + 3 < x || $0.left - 3 > x
+                }
+                // In the bottom lane a label must leave later stems clear (nothing can go under it); higher
+                // up, a later pin can still take a lane below.
+                let leavesRoom = !strict || lane > 0 || later.allSatisfy { $0 + 3 < left || $0 - 3 > right }
+                return free && overStems && stemClear && leavesRoom
+            }
+            var spot: (lane: Int, left: CGFloat)?
+            search: for strict in [true, false] {
+                for lane in 0..<ChatTimeline.maxMarkers {
+                    if let left = lefts.first(where: { fits($0, lane: lane, strict: strict) }) {
+                        spot = (lane, left)
+                        break search
+                    }
+                }
+            }
+            let chosen = spot ?? ((placed.map(\.lane).max() ?? -1) + 1, lefts[0])
+            placed.append(Pin(marker: item.marker, index: item.index, x: x, lane: chosen.lane, left: chosen.left,
+                              right: chosen.left + w, text: text))
+        }
+        return placed
+    }
+
+    /// Room above the bars for the lanes of pins (at least one lane).
+    private var pinSpace: CGFloat {
+        let lanes = (pins(width: width).map(\.lane).max() ?? -1) + 1
+        return CGFloat(max(lanes, 1)) * laneHeight + 10
+    }
+
+    private func laneY(_ lane: Int) -> CGFloat { pinSpace - 10 - CGFloat(lane + 1) * laneHeight }
+
     @ViewBuilder
-    private func chart(width: CGFloat) -> some View {
+    private func chart(width: CGFloat, pins: [Pin]) -> some View {
         let w = barWidth(width)
         ZStack(alignment: .topLeading) {
             // Bars on a hairline baseline.
             HStack(alignment: .bottom, spacing: gap) {
                 ForEach(Array(card.minutes.enumerated()), id: \.offset) { i, minutes in
                     let hot = card.hot.indices.contains(i) && card.hot[i]
-                    let shape = UnevenRoundedRectangle(topLeadingRadius: 1.5, bottomLeadingRadius: 0,
-                                                       bottomTrailingRadius: 0, topTrailingRadius: 1.5, style: .continuous)
+                    let marked = pins.contains { $0.index == i }
+                    let shape = UnevenRoundedRectangle(topLeadingRadius: min(1.5, w / 2), bottomLeadingRadius: 0,
+                                                       bottomTrailingRadius: 0, topTrailingRadius: min(1.5, w / 2), style: .continuous)
                     shape
-                        .fill(hot ? Twin.Palette.orange : Twin.Palette.ink.opacity(0.15))
-                        .overlay { if hot { shape.strokeBorder(Twin.Palette.ink, lineWidth: 1) } }
+                        .fill(hot ? Twin.Palette.orange : Twin.Palette.ink.opacity(marked ? 0.4 : 0.15))
+                        .overlay { if hot && w >= 3 { shape.strokeBorder(Twin.Palette.ink, lineWidth: w >= 5 ? 1 : 0.5) } }
                         .frame(width: w, height: grown ? barHeight(minutes) : 0)
                         .animation(reduceMotion ? .easeOut(duration: 0.3)
-                                   : .spring(response: 0.6, dampingFraction: 0.7).delay(0.12 + Double(i) * 0.035), value: grown)
+                                   : .spring(response: 0.6, dampingFraction: 0.7).delay(0.12 + Double(i) * min(0.035, 0.7 / Double(card.nightCount))),
+                                   value: grown)
                 }
             }
             .frame(width: width, height: chartHeight, alignment: .bottomLeading)
@@ -215,21 +298,26 @@ struct TimelineCardView: View {
                 .frame(width: width, height: 1)
                 .offset(y: pinSpace + chartHeight - 1)
 
-            if let marker = card.marker {
-                let x = center(of: marker, width: width)
-                let barTop = pinSpace + chartHeight - barHeight(card.minutes[marker])
-                // A dotted stem from the pin down to the top of the night's bar.
+            // Dotted stems from each pin down to the top of its night's bar (behind the labels).
+            ForEach(Array(pins.enumerated()), id: \.offset) { k, pin in
+                let barTop = pinSpace + chartHeight - barHeight(card.minutes[pin.index])
+                let from = laneY(pin.lane) + 18
                 Path { p in
-                    p.move(to: CGPoint(x: x, y: 20))
-                    p.addLine(to: CGPoint(x: x, y: max(20, barTop - 3)))
+                    p.move(to: CGPoint(x: pin.x, y: from))
+                    p.addLine(to: CGPoint(x: pin.x, y: max(from, barTop - 3)))
                 }
                 .trim(from: 0, to: pinned ? 1 : 0)
-                .stroke(Twin.Palette.seam, style: StrokeStyle(lineWidth: 1.5, dash: [1.5, 3]))
-                CornerSticker(text: card.label, icon: card.emoji, fill: Twin.Palette.pink)
+                .stroke(Twin.Palette.ink.opacity(0.55), style: StrokeStyle(lineWidth: 1.2, dash: [1.5, 2.5]))
+                .animation(reduceMotion ? .easeOut(duration: 0.3) : Twin.Motion.bouncy.delay(0.75 + Double(k) * 0.12), value: pinned)
+            }
+            ForEach(Array(pins.enumerated()), id: \.offset) { k, pin in
+                CornerSticker(text: pin.text, icon: pin.marker.emoji, fill: Twin.Palette.pink)
                     .fixedSize()
-                    .alignmentGuide(.leading) { d in -min(max(x - d.width / 2, 0), max(0, width - d.width)) }
+                    .alignmentGuide(.leading) { d in -min(max(pin.left + (pin.right - pin.left - d.width) / 2, 0), max(0, width - d.width)) }
+                    .offset(y: laneY(pin.lane))
                     .scaleEffect(pinned || reduceMotion ? 1 : 0.6, anchor: .bottom)
                     .opacity(pinned ? 1 : 0)
+                    .animation(reduceMotion ? .easeOut(duration: 0.3) : Twin.Motion.bouncy.delay(0.75 + Double(k) * 0.12), value: pinned)
             }
         }
         .frame(width: width, height: pinSpace + chartHeight, alignment: .topLeading)
@@ -238,27 +326,37 @@ struct TimelineCardView: View {
     @ViewBuilder
     private func axis(width: CGFloat) -> some View {
         let font = Twin.Typeface.mono(10)
+        // Space Mono: 0.6 em a letter.
+        let startEnd = CGFloat(card.startLabel.count) * 6 + 8, lastStart = width - 60 - 8
+        let dates: [(x: CGFloat, text: String)] = {
+            var out: [(x: CGFloat, text: String)] = []
+            var right = startEnd
+            for marker in card.markers {
+                guard let k = card.index(of: marker.night), !out.contains(where: { $0.text == marker.dateLabel }) else { continue }
+                let x = center(of: k, width: width), half = CGFloat(marker.dateLabel.count) * 6 / 2
+                // Under its bar, when it doesn't run into the labels at the ends or the date before it.
+                guard x - half > right, x + half < lastStart else { continue }
+                out.append((x, marker.dateLabel))
+                right = x + half + 8
+            }
+            return out
+        }()
         ZStack(alignment: .topLeading) {
             Text(card.startLabel).font(font).foregroundStyle(Twin.Palette.inkHint)
             Text("last night").font(font).foregroundStyle(Twin.Palette.inkHint)
                 .frame(width: width, alignment: .trailing)
-            if let marker = card.marker, let label = card.markerLabel {
-                // Under its bar, when it doesn't run into the labels at the ends (Space Mono: 0.6 em a letter).
-                let x = center(of: marker, width: width)
-                let half = CGFloat(label.count) * 6 / 2
-                if x - half > CGFloat(card.startLabel.count) * 6 + 8, x + half < width - 60 - 8 {
-                    Text(label).font(Twin.Typeface.mono(10, bold: true)).foregroundStyle(Twin.Palette.ink)
-                        .fixedSize()
-                        .alignmentGuide(.leading) { d in -(x - d.width / 2) }
-                }
+            ForEach(Array(dates.enumerated()), id: \.offset) { _, date in
+                Text(date.text).font(Twin.Typeface.mono(10, bold: true)).foregroundStyle(Twin.Palette.ink)
+                    .fixedSize()
+                    .alignmentGuide(.leading) { d in -(date.x - d.width / 2) }
             }
         }
         .frame(width: width, alignment: .topLeading)
     }
 
     private var accessibilityText: String {
-        var parts = ["Your nights, last \(card.minutes.count). Last night \(card.minutes.last ?? 0) minutes."]
-        if let label = card.markerLabel { parts.append("Marked \(label): \(card.label).") }
+        var parts = ["Your nights, last \(card.nightCount). Last night \(card.minutes.last ?? 0) minutes."]
+        for marker in card.markers { parts.append("Marked \(marker.dateLabel): \(marker.label).") }
         if let note = card.note { parts.append(note) }
         return parts.joined(separator: " ")
     }
@@ -266,7 +364,7 @@ struct TimelineCardView: View {
 
 // MARK: - Product
 
-/// `show_product`: a plain pump bottle, the order and its ingredients with the common contact allergens lit.
+/// `show_product`: a plain pump bottle, the order and its ingredients (or material), the ones Claude flagged lit.
 struct ProductCardView: View {
     let card: ChatProduct
     let fresh: Bool
@@ -299,7 +397,7 @@ struct ProductCardView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 5)
                     if let ordered = card.ordered {
-                        Text(card.firstTime ? "\(ordered) · you had never bought one before" : ordered)
+                        Text(card.firstTime ? "\(ordered) · first time you bought it" : ordered)
                             .font(Twin.Typeface.sans(13))
                             .foregroundStyle(Twin.Palette.inkMuted)
                             .fixedSize(horizontal: false, vertical: true)
@@ -317,13 +415,19 @@ struct ProductCardView: View {
                 }
                 .padding(.top, 10)
             }
+            if let material = card.material {
+                (Text("Material: ").font(Twin.Typeface.sans(13, .bold)) + Text(material).font(Twin.Typeface.sans(13)))
+                    .foregroundStyle(Twin.Palette.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.top, 10)
+            }
             if card.hasFlags {
                 HStack(spacing: 6) {
                     RoundedRectangle(cornerRadius: 2, style: .continuous)
                         .fill(Twin.Palette.orange)
                         .overlay(RoundedRectangle(cornerRadius: 2, style: .continuous).strokeBorder(Twin.Palette.ink, lineWidth: Twin.Stroke.ink))
                         .frame(width: 10, height: 10)
-                    Text("common contact allergens")
+                    Text("flagged by Claude")
                         .font(Twin.Typeface.sans(12))
                         .foregroundStyle(Twin.Palette.inkMuted)
                 }

@@ -1,31 +1,32 @@
 import Foundation
 
-/// Douglas's longer history for the Trends tab: 60 nights before `StageStory`'s 14, so 74 nights that
-/// end last night. The last 14 are `StageStory`'s nights exactly (same minutes, humidity, temperature,
-/// sleep, exams, body wash, dry night). Claude's tools read the last 30 of them (`StageStory.runTool`).
+/// Douglas's longer history for the Trends tab and Claude's tools: 60 nights before `StageStory`'s 14, so 74
+/// nights that end last night. The last 14 are `StageStory`'s nights exactly (same minutes, humidity,
+/// temperature, sleep, midterms, dry night). Claude's tools read up to all 74 (`StageStory.runTool`).
 ///
 /// Nights are numbered like `StageStory`'s: 0 = the oldest of the 14 … 13 = last night; the earlier
 /// nights are −60 … −1 (night −60 started 74 days before today). `StageStory.nightDate(_:)` gives every
-/// night's date, negative ones included.
+/// night's date, negative ones included. With today = Sat Oct 24: night n is Oct 10 + n (−60 = Tue Aug 11).
 ///
-/// What the earlier nights show (each Trends card reads one of these honestly):
-/// - his usual is about 12 minutes a night, with ordinary night-to-night noise;
-/// - an earlier flare two weeks before this one (nights −4 … −1, Oct 6–9 when today is Oct 24: 19, 27,
-///   31 and 22 min). On the day before (night −5, Oct 5) he bought his first wool sweater and a
-///   scented laundry detergent sample (both are in `StageStory.orders`); he wore the sweater and
-///   washed with the sample on exactly those four nights and stopped both on the same day (night 0,
-///   Oct 10). The data can't tell the two apart: same nights, same numbers. Only asking can;
-/// - seven dry days (humidity under 35%, offshore wind) were calm, three of them in a heat wave;
-/// - an exam week in mid-September didn't raise his scratching;
-/// - late gym nights (sweat) are 2–3 minutes higher: a weak link;
-/// - other new clothes (a hoodie, a T-shirt pack, then the wool socks) were washed before wearing: no rise;
-/// - a short night of sleep doesn't make the next night worse;
-/// - no weekday pattern;
-/// - no body wash before night 10.
+/// The story (SCENARIO-MI.md; the app shows only the raw data, Claude has to find this itself): his usual is
+/// about 12 minutes a night with ordinary noise, and he had four short flares, each starting the night after
+/// a different new product arrived. All four products contain the preservative methylisothiazolinone (MI);
+/// nothing he tolerates does (`flares`):
+/// 1. nights −46 … −43 (Aug 25–28: 18, 24, 26, 17 min): the Summit Peak travel shampoo, bought Aug 24 for
+///    the family trip to Seattle (Aug 24–27). The travel size ran out and the flare ended;
+/// 2. nights −27 … −24 (Sep 13–16: 17, 22, 25, 19): the Lumen hand soap, bought Sep 12. It overlaps the
+///    mid-September exam week (−26 … −23) and a dry spell; the last exam night (−23) is back to 13. He
+///    stopped using the soap (only asking can tell);
+/// 3. nights −4 … −1 (Oct 6–9: 19, 27, 31, 22): the wool sweater and the FreshMeadow detergent trial size,
+///    both bought Oct 5. The trial size lasted four loads; he kept wearing the sweater (only asking can tell);
+/// 4. nights 10 … 13 (Oct 20–23, now): the Brightwell "fragrance-free, sensitive" body wash, bought Oct 19.
 ///
-/// Every factor is compared on the nights outside the flares it can't explain: the body wash on the
-/// nights without the sweater and the sample, those two on the nights without the body wash, the rest
-/// on the nights outside both flares (`typicalNights`).
+/// What fails as an explanation, honestly in the data: fragrance (not in #4; tolerated daily in his deodorant
+/// and his usual shampoo), sodium laureth sulfate and cocamidopropyl betaine (in his usual shampoo, hand soap
+/// and detergent), wool (the socks were fine, the sweater was worn after #3 ended), stress (the midterms
+/// and the last exam night were calm; HRV dips through the whole exam week), dry air (dry days elsewhere were
+/// calm), travel (#1 only). Also: late gym nights are 2–3 minutes higher (a weak link), other new things
+/// (sunscreen, deodorant, lotion, pillow, hoodie, T-shirts, socks) didn't move it, no weekday pattern.
 public enum StageHistory {
 
     // MARK: - Nights
@@ -44,18 +45,14 @@ public enum StageHistory {
         /// Hours asleep.
         public let sleepHours: Double
         public let wakeUps: Int
-        /// He used the new body wash that day (night 10 on).
-        public let bodyWash: Bool
-        /// An exam week.
+        /// An exam week (mid-September, the midterms).
         public let exams: Bool
+        /// Away on the family trip (calendar).
+        public let trip: Bool
         /// A late workout (sweat) that evening.
         public let gym: Bool
         /// The first nights with newly bought clothes (washed before wearing).
         public let newClothes: Bool
-        /// He wore the new wool sweater that evening (nights −4 … −1).
-        public let woolSweater: Bool
-        /// His clothes and sheets were washed with the scented detergent sample (nights −4 … −1).
-        public let sampleDetergent: Bool
 
         /// Humidity under 35%.
         public var dry: Bool { humidity < StageStory.dryBelowPercent }
@@ -80,20 +77,42 @@ public enum StageHistory {
         nights[min(max(i, firstNight), StageStory.lastNightIndex) - firstNight]
     }
 
-    /// The nights before the new body wash (−60 … 9).
-    public static var beforeBodyWash: [Night] { nights.filter { $0.id < StageStory.bodyWashNight } }
+    /// The night (−60 … 13) that started on the day of a "YYYY-MM-DD" date (e.g. Claude's marker date), if
+    /// it is one of the 74.
+    public static func night(iso text: String, now: Date = Date(), calendar: Calendar = .current) -> Int? {
+        let cal = StageStory.gregorian(calendar)
+        guard let date = StageStory.date(iso: text, calendar: cal) else { return nil }
+        let last = StageStory.nightDate(StageStory.lastNightIndex, now: now, calendar: cal)
+        guard let days = cal.dateComponents([.day], from: cal.startOfDay(for: last), to: cal.startOfDay(for: date)).day else { return nil }
+        let i = StageStory.lastNightIndex + days
+        return nightIDs.contains(i) ? i : nil
+    }
 
-    /// The nights outside both flares: no body wash, no sweater, no sample (66). His usual.
-    public static var typicalNights: [Night] { nights.filter { !$0.bodyWash && !$0.woolSweater && !$0.sampleDetergent } }
+    // MARK: - The four flares
 
-    /// The earlier flare: the nights with the wool sweater and the detergent sample (−4 … −1).
-    public static let earlierFlareNights: ClosedRange<Int> = -4...(-1)
-    /// The day he bought the wool sweater and the detergent sample: the day of night −5 (Oct 5). The
-    /// `StageStory` orders are on that day.
-    public static let earlierSuspectsBoughtNight = -5
-    /// The two new things of the earlier flare, as the orders name them.
-    public static let woolSweaterItem = "Northfield Lambswool Crewneck Sweater"
-    public static let sampleDetergentItem = "FreshMeadow Spring Bloom Detergent, trial size"
+    /// A flare and the new product(s) that arrived the day before it started.
+    public struct Flare: Sendable, Hashable {
+        /// Its nights.
+        public let nights: ClosedRange<Int>
+        /// The new products (order items), all ordered on the day of night `nights.lowerBound − 1`.
+        public let items: [String]
+        /// The night of the order day.
+        public var orderedNight: Int { nights.lowerBound - 1 }
+    }
+
+    /// The four flares, oldest first. Every one of their products lists methylisothiazolinone.
+    public static let flares: [Flare] = [
+        Flare(nights: -46...(-43), items: [StageStory.Product.summitShampoo.item]),
+        Flare(nights: -27...(-24), items: [StageStory.Product.lumenHandSoap.item]),
+        Flare(nights: -4...(-1), items: [StageStory.Product.northfieldSweater.item, StageStory.Product.freshMeadowDetergent.item]),
+        Flare(nights: StageStory.bodyWashNight...StageStory.lastNightIndex, items: [StageStory.bodyWashItem]),
+    ]
+
+    /// Is night `i` one of the four flares' nights?
+    public static func inFlare(_ i: Int) -> Bool { flares.contains { $0.nights.contains(i) } }
+
+    /// The nights outside the four flares (58). His usual.
+    public static var typicalNights: [Night] { nights.filter { !inFlare($0.id) } }
 
     /// The night after a short one (under `shortSleepBelow` hours the night before).
     public static func afterShortSleep(_ i: Int) -> Bool {
@@ -102,108 +121,39 @@ public enum StageHistory {
     /// Sleep under this many hours is a short night.
     public static let shortSleepBelow = 6.5
 
-    /// Clothes he bought for the first time, and the night he first wore them (the socks are
-    /// `StageStory`'s order on night 5, worn from night 6).
+    /// Clothes he bought for the first time (`StageStory.orders`), and the night he first wore them: each
+    /// was washed before wearing.
     public static let clothes: [(item: String, firstNight: Int)] = [
-        ("Hoodie, cotton", -43),
-        ("T-shirts, 3 pack", -19),
-        ("Darn Tough Merino Wool Socks, 3 pairs", 6),
+        (StageStory.Product.baylineHoodie.item, -33),
+        (StageStory.Product.baylineTShirts.item, -19),
+        (StageStory.Product.darnToughSocks.item, 6),
     ]
 
-    // MARK: - Trigger impact
+    // MARK: - Nights with and without
 
-    /// A possible trigger.
-    public enum Factor: String, CaseIterable, Sendable, Identifiable {
-        case bodyWash, woolSweater, sampleDetergent, dryAir, exams, gym, shortSleep, newClothes
-        public var id: String { rawValue }
-
-        /// The flare the factor could explain (its own nights are never left out of its comparison).
-        enum Flare { case bodyWash, earlier }
-        var flare: Flare? {
-            switch self {
-            case .bodyWash: return .bodyWash
-            case .woolSweater, .sampleDetergent: return .earlier
-            default: return nil
-            }
-        }
-
-        /// The nights this factor is compared on: every night, minus the flares it can't explain.
-        public func inPool(_ night: Night) -> Bool {
-            if night.bodyWash && flare != .bodyWash { return false }
-            if (night.woolSweater || night.sampleDetergent) && flare != .earlier { return false }
-            return true
-        }
-
-        /// Does it apply to night `night`?
-        public func applies(to night: Night) -> Bool {
-            switch self {
-            case .bodyWash: return night.bodyWash
-            case .woolSweater: return night.woolSweater
-            case .sampleDetergent: return night.sampleDetergent
-            case .dryAir: return night.dry
-            case .exams: return night.exams
-            case .gym: return night.gym
-            case .shortSleep: return StageHistory.afterShortSleep(night.id)
-            case .newClothes: return night.newClothes
-            }
-        }
-    }
-
-    /// How strong the association is. `possible`: a strong rise, but another factor was there on
-    /// exactly the same nights, so the data can't tell which one it was.
-    public enum Verdict: String, Sendable {
-        case strong, possible, weak, none
-    }
-
-    /// Average minutes on nights with a factor against nights without it.
-    public struct Impact: Sendable, Identifiable {
-        public let factor: Factor
-        public var id: String { factor.rawValue }
+    /// Average minutes on the nights with something against the nights without it, over all 74 nights.
+    public struct Comparison: Sendable, Hashable {
         public let withMinutes: Double
         public let withoutMinutes: Double
         public let withNights: Int
         public let withoutNights: Int
-        /// Another factor on exactly the same nights (the sweater and the sample), if any.
-        public let sameNightsAs: Factor?
         /// with − without, minutes.
         public var difference: Double { withMinutes - withoutMinutes }
-        /// Rounded difference, e.g. +16.
+        /// Rounded difference, e.g. +3.
         public var roundedDifference: Int { Int(difference.rounded()) }
-        /// 5+ minutes more: strong (possible when another factor shares exactly its nights). 1.5–5:
-        /// weak. Less (or lower): none.
-        public var verdict: Verdict {
-            if difference >= StageHistory.strongLinkMinutes { return sameNightsAs == nil ? .strong : .possible }
-            if difference >= StageHistory.weakLinkMinutes { return .weak }
-            return .none
-        }
     }
 
-    /// A difference at least this big (minutes) is a strong link.
-    public static let strongLinkMinutes = 5.0
-    /// At least this big (minutes) is a weak link.
-    public static let weakLinkMinutes = 1.5
-
-    /// The factor's impact over the 74 nights, compared on the nights outside the flares it can't
-    /// explain (`Factor.inPool`), so one flare's nights don't make another factor look worse than it is
-    /// (dry air "on its own").
-    public static func impact(_ factor: Factor) -> Impact {
-        let pool = nights.filter(factor.inPool)
-        let with = pool.filter(factor.applies)
-        let without = pool.filter { !factor.applies(to: $0) }
-        let ids = Set(with.map(\.id))
-        let twin = Factor.allCases.first { other in
-            other != factor && !ids.isEmpty && Set(nights.filter(other.inPool).filter(other.applies).map(\.id)) == ids
-        }
-        return Impact(factor: factor, withMinutes: mean(with.map(\.minutes)), withoutMinutes: mean(without.map(\.minutes)),
-                      withNights: with.count, withoutNights: without.count, sameNightsAs: twin)
+    /// The 74 nights split by `applies`.
+    public static func compare(_ applies: (Night) -> Bool) -> Comparison {
+        let with = nights.filter(applies)
+        let without = nights.filter { !applies($0) }
+        return Comparison(withMinutes: mean(with.map(\.minutes)), withoutMinutes: mean(without.map(\.minutes)),
+                          withNights: with.count, withoutNights: without.count)
     }
-
-    /// Every factor's impact, in `Factor` order.
-    public static var impacts: [Impact] { Factor.allCases.map(impact) }
 
     // MARK: - Weekdays
 
-    /// Average minutes per weekday, Monday first, over the nights outside both flares (66 nights).
+    /// Average minutes per weekday, Monday first, over the nights outside the four flares (58 nights).
     /// Night dates are relative to `now`, but the groups are the same whatever the day.
     public static func weekdayAverages(now: Date = Date(), calendar: Calendar = .current) -> [Double] {
         let cal = StageStory.gregorian(calendar)
@@ -215,7 +165,7 @@ public enum StageHistory {
         return groups.map(mean)
     }
 
-    /// Mean minutes a night outside both flares (≈ 12, his usual).
+    /// Mean minutes a night outside the four flares (≈ 12, his usual).
     public static var typicalAverage: Double { mean(typicalNights.map(\.minutes)) }
 
     // MARK: - Last night's sleep
@@ -280,30 +230,34 @@ public enum StageHistory {
 
     // MARK: - Data
 
-    // Nights −60 … −1 (Tue Aug 11 … Fri Oct 9 when today is Sat Oct 24). The last four are the earlier
-    // flare (Oct 6–9).
-    static let earlierMinutes: [Int] = [14, 12, 15, 10, 14, 14, 12, 15, 12, 10, 9, 14, 12, 10, 12, 10, 13, 12, 14, 11,
-                                        14, 13, 12, 13, 14, 11, 13, 10, 14, 10, 13, 11, 11, 10, 14, 13, 14, 9, 12, 15,
+    // Nights −60 … −1 (Tue Aug 11 … Fri Oct 9 when today is Sat Oct 24). Flares at −46 … −43, −27 … −24 and
+    // −4 … −1 (indices 14–17, 33–36, 56–59).
+    static let earlierMinutes: [Int] = [14, 12, 15, 10, 14, 14, 12, 15, 12, 10, 9, 14, 12, 10, 18, 24, 26, 17, 14, 14,
+                                        14, 13, 12, 13, 14, 11, 13, 10, 14, 10, 13, 11, 11, 17, 22, 25, 19, 13, 12, 15,
                                         12, 11, 12, 13, 10, 9, 12, 10, 16, 12, 10, 13, 11, 11, 14, 10, 19, 27, 31, 22]
-    static let earlierEpisodes: [Int] = [12, 9, 11, 9, 11, 12, 10, 12, 10, 8, 7, 11, 11, 7, 10, 8, 9, 9, 11, 10,
-                                         11, 10, 10, 10, 11, 10, 10, 7, 11, 9, 9, 10, 9, 8, 12, 10, 10, 7, 11, 12,
+    static let earlierEpisodes: [Int] = [12, 9, 11, 9, 11, 12, 10, 12, 10, 8, 7, 11, 11, 7, 13, 16, 18, 12, 11, 11,
+                                         11, 10, 10, 10, 11, 10, 10, 7, 11, 9, 9, 10, 9, 12, 15, 17, 14, 10, 11, 12,
                                          11, 10, 10, 10, 8, 8, 11, 8, 12, 10, 9, 10, 10, 9, 11, 7, 14, 18, 20, 15]
+    /// A dry spell −29 … −26 (Sep 11–14) around the hand soap; other dry days are calm.
     static let earlierHumidity: [Int] = [63, 68, 55, 62, 52, 68, 48, 68, 30, 66, 44, 46, 46, 31, 52, 71, 56, 66, 68, 60,
-                                         47, 45, 31, 30, 53, 59, 45, 58, 64, 48, 47, 32, 59, 53, 47, 71, 60, 69, 55, 52,
+                                         47, 45, 31, 30, 53, 59, 45, 58, 64, 48, 47, 32, 31, 29, 30, 71, 60, 69, 55, 52,
                                          64, 61, 53, 52, 28, 60, 53, 49, 63, 50, 68, 29, 49, 58, 51, 71, 61, 61, 70, 48]
     static let earlierHighF: [Int] = [71, 70, 74, 70, 69, 68, 69, 70, 77, 70, 72, 72, 71, 81, 67, 73, 76, 69, 70, 72,
                                       76, 71, 90, 91, 87, 67, 68, 75, 65, 76, 67, 76, 76, 72, 71, 70, 77, 77, 73, 77,
                                       67, 77, 78, 75, 81, 67, 76, 74, 73, 67, 75, 74, 69, 67, 67, 68, 71, 70, 64, 64]
-    static let earlierSleep: [Double] = [7.6, 7.5, 7.7, 6.7, 7.8, 5.5, 6.7, 7.9, 7.3, 7.9, 7.2, 7.1, 7.1, 7.3, 6.3, 6.7, 7.7, 7.4, 7.8, 7.8,
-                                         7.6, 7.8, 7.4, 7.4, 7.7, 7.6, 7.6, 5.8, 7.7, 7.4, 7.2, 7.2, 7.6, 5.8, 7.7, 6.9, 7.4, 7.6, 7.5, 7.9,
+    static let earlierSleep: [Double] = [7.6, 7.5, 7.7, 6.7, 7.8, 5.5, 6.7, 7.9, 7.3, 7.9, 7.2, 7.1, 7.1, 7.3, 6.9, 6.7, 6.6, 7.0, 7.8, 7.8,
+                                         7.6, 7.8, 7.4, 7.4, 7.7, 7.6, 7.6, 5.8, 7.7, 7.4, 7.2, 7.2, 7.6, 6.9, 6.6, 6.5, 6.8, 6.7, 7.5, 7.9,
                                          7.4, 7.0, 7.3, 7.1, 7.9, 6.9, 5.5, 7.6, 7.6, 7.4, 6.9, 7.8, 6.9, 7.2, 6.7, 7.7, 6.8, 6.6, 6.6, 6.9]
-    static let earlierWakeUps: [Int] = [0, 0, 1, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 0, 1, 0,
-                                        0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0, 0, 0,
+    static let earlierWakeUps: [Int] = [0, 0, 1, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 2, 1, 1, 0,
+                                        0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 1, 1, 2, 1, 0, 0, 0,
                                         0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1, 2, 2, 1]
-    /// An exam week in mid-September (Mon–Thu), and the midterms.
-    static let examNights: Set<Int> = Set(-26...(-23)).union(StageStory.examNights)
+    /// The mid-September exam week (Mon–Thu, Sep 14–17), and the midterms.
+    static let examWeek: ClosedRange<Int> = -26...(-23)
+    static let examNights: Set<Int> = Set(examWeek).union(StageStory.examNights)
+    /// The family trip to Seattle (Aug 24–27).
+    static let tripNights: ClosedRange<Int> = -47...(-44)
     /// Late workouts, spread over the weekdays.
-    static let gymNights: Set<Int> = [-58, -53, -49, -44, -40, -34, -30, -21, -17, -12, -6, -2, 4, 7]
+    static let gymNights: Set<Int> = [-58, -53, -49, -41, -40, -34, -30, -21, -17, -12, -6, -2, 4, 7]
     /// The first three nights in each new piece of clothing.
     static var clothesNights: Set<Int> {
         Set(clothes.flatMap { $0.firstNight...($0.firstNight + 2) })
@@ -311,22 +265,19 @@ public enum StageHistory {
 
     private static func makeNight(_ i: Int) -> Night {
         let clothes = clothesNights
-        let earlier = earlierFlareNights.contains(i)
         if i >= 0 {
             return Night(id: i, minutes: StageStory.nights[i], episodes: StageStory.episodes[i],
                          humidity: StageStory.humidity[i], highF: StageStory.highF[i],
                          sleepHours: StageStory.sleepHours[i], wakeUps: StageStory.wakeUps[i],
-                         bodyWash: i >= StageStory.bodyWashNight, exams: examNights.contains(i),
-                         gym: gymNights.contains(i), newClothes: clothes.contains(i),
-                     woolSweater: earlier, sampleDetergent: earlier)
+                         exams: examNights.contains(i), trip: tripNights.contains(i),
+                         gym: gymNights.contains(i), newClothes: clothes.contains(i))
         }
         let k = i + earlierCount
         return Night(id: i, minutes: earlierMinutes[k], episodes: earlierEpisodes[k],
                      humidity: earlierHumidity[k], highF: earlierHighF[k],
                      sleepHours: earlierSleep[k], wakeUps: earlierWakeUps[k],
-                     bodyWash: false, exams: examNights.contains(i),
-                     gym: gymNights.contains(i), newClothes: clothes.contains(i),
-                     woolSweater: earlier, sampleDetergent: earlier)
+                     exams: examNights.contains(i), trip: tripNights.contains(i),
+                     gym: gymNights.contains(i), newClothes: clothes.contains(i))
     }
 
     private static func mean(_ values: [Int]) -> Double {

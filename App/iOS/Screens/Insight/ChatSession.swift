@@ -120,6 +120,12 @@ final class ChatSession: ObservableObject {
         autoPlay = defaults.integer(forKey: "chatAuto") > 0 || defaults.bool(forKey: "chatAuto")
         autoSuggestion = defaults.integer(forKey: "chatAuto") == 2 ? 1 : 0
         items = opening()
+        #if DEBUG
+        if let cards = defaults.string(forKey: "chatCards") {
+            let all = Self.sampleCards(now: Date())
+            items += (cards == "timeline" ? Array(all.prefix(1)) : all).map { ChatItem(id: newID(), kind: $0, born: .distantPast) }
+        }
+        #endif
         replayObserver = NotificationCenter.default.addObserver(forName: .twinReplayChat, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.replay() }
         }
@@ -505,6 +511,25 @@ final class ChatSession: ObservableObject {
         scrollTick += 1
     }
 
+    #if DEBUG
+    /// `-chatCards 1` (debug, screenshots): cards drawn from sample arguments under the greeting: a timeline
+    /// with a marker on each flare's new product, the shampoo and the sweater (`-chatCards timeline`: the
+    /// timeline only). No conversation.
+    static func sampleCards(now: Date) -> [ChatItem.Kind] {
+        let day = { (night: Int) in StageStory.iso(StageStory.nightDate(night, now: now)) }
+        let markers: [[String: Any]] = [
+            ["date": day(-47), "label": "Summit Peak shampoo"], ["date": day(-28), "label": "Lumen hand soap"],
+            ["date": day(-5), "label": "FreshMeadow detergent"], ["date": day(-5), "label": "Northfield sweater"],
+            ["date": day(9), "label": "Brightwell body wash"],
+        ]
+        return [
+            .timeline(ChatTimeline(arguments: ["markers": markers, "note": "Each rise began the night after one of these arrived."], now: now)),
+            .product(ChatProduct(arguments: ["name": "Summit Peak shampoo", "flagged_ingredients": ["Methylisothiazolinone"]], now: now)),
+            .product(ChatProduct(arguments: ["name": "Northfield sweater"], now: now)),
+        ]
+    }
+    #endif
+
     // MARK: - The thread
 
     private func opening() -> [ChatItem] {
@@ -520,7 +545,7 @@ final class ChatSession: ObservableObject {
     private static func sameCard(_ a: ChatItem.Kind, _ b: ChatItem.Kind) -> Bool {
         switch (a, b) {
         case (.conclusion, .conclusion): true
-        case let (.timeline(x), .timeline(y)): x.marker == y.marker
+        case let (.timeline(x), .timeline(y)): x.markers.map(\.night) == y.markers.map(\.night)
         case let (.product(x), .product(y)): x.title == y.title
         default: false
         }

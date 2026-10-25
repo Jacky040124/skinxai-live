@@ -9,10 +9,11 @@ import Foundation
 /// Gregorian calendar in the calendar's time zone (the phone's by default). Text helpers write English,
 /// the app's language, whatever the phone's region is.
 ///
-/// What happened: he ordered a body wash for the first time the day before night 10 and has used it
-/// since; his scratching climbed from that night on. Midterm exams on nights 1–3 didn't move it, the
-/// only dry night (13) came after the rise began, and his laundry detergent is the same fragrance-free
-/// one he has ordered every month for two years.
+/// What happened: he ordered a body wash for the first time the day before night 10 (a "fragrance-free,
+/// sensitive skin" one) and has used it since; his scratching climbed from that night on. Midterm exams on
+/// nights 1–3 didn't move it, the only dry night (13) came after the rise began, and his laundry detergent is
+/// the same fragrance-free one he has ordered every month for two years. It is his fourth flare: the three
+/// before it, and what they have in common, are in `StageHistory` (the 60 nights before these 14).
 public enum StageStory {
 
     // MARK: - Nights (index 0 = oldest … 13 = last night)
@@ -227,62 +228,103 @@ public enum StageStory {
 
     // MARK: - Orders (Amazon)
 
+    /// Something he can order: its name, category and what its label says. Skin-contact products have
+    /// an ingredient list (liquids, creams) or a material (clothing, the pillow); the rest have neither.
+    public struct Product: Sendable, Hashable {
+        public let item: String
+        public let category: String
+        /// The ingredients, in label order.
+        public let ingredients: [String]?
+        /// What it is made of ("100% lambswool").
+        public let material: String?
+
+        public init(item: String, category: String, ingredients: [String]? = nil, material: String? = nil) {
+            self.item = item
+            self.category = category
+            self.ingredients = ingredients
+            self.material = material
+        }
+
+        /// It touches his skin: it has an ingredient list or a material.
+        public var skinContact: Bool { ingredients != nil || material != nil }
+    }
+
     /// One online order.
     public struct Order: Sendable, Hashable {
         /// Noon on the order day.
         public let date: Date
+        /// The night that started on the order day (−60 … 13).
+        public let night: Int
         public let item: String
         public let category: String
         /// He had bought this before (a repeat purchase).
         public let boughtBefore: Bool
         public let note: String?
-        /// The ingredient list, when the order has one (the body wash).
+        /// The ingredient list, when the product has one.
         public let ingredients: [String]?
+        /// The material, for clothing and the pillow.
+        public let material: String?
+
+        /// It touches his skin: it has an ingredient list or a material.
+        public var skinContact: Bool { ingredients != nil || material != nil }
     }
 
     /// The body wash's item name.
-    public static let bodyWashItem = "Brightwell Ocean Breeze Body Wash, 18 fl oz"
-    /// The body wash's ingredients, in label order.
-    public static let bodyWashIngredients: [String] = ["Water", "Sodium Laureth Sulfate", "Cocamidopropyl Betaine",
-        "Fragrance (Parfum)", "Glycerin", "Sodium Chloride", "Methylisothiazolinone", "Citric Acid"]
+    public static var bodyWashItem: String { Product.brightwellBodyWash.item }
+    /// The body wash's ingredients, in label order (no fragrance).
+    public static var bodyWashIngredients: [String] { Product.brightwellBodyWash.ingredients ?? [] }
 
-    /// His 19 orders of the last ~11 weeks, oldest first: repeat purchases, one personal-care item he
-    /// had never bought before (the body wash), and the two new things of the earlier flare (a wool
-    /// sweater and a scented detergent sample, on the day of night −5; see `StageHistory`).
+    /// His 29 orders of the last ~11 weeks (nights −60 … 12), oldest first: repeat purchases he has used for
+    /// years, the new products of the four flares (see `StageHistory.flares`) and new things that changed
+    /// nothing (sunscreen, deodorant, lotion, a pillow, a hoodie, T-shirts, socks).
     public static func orders(now: Date = Date(), calendar: Calendar = .current) -> [Order] {
         let cal = gregorian(calendar)
-        func o(_ night: Int, _ days: Int, _ item: String, _ category: String, before: Bool, note: String? = nil) -> Order {
-            order(night, days, item, category, before: before, note: note, ingredients: nil, now: now, cal)
+        func o(_ night: Int, _ product: Product, before: Bool, note: String? = nil) -> Order {
+            order(night, product, before: before, note: note, now: now, cal)
         }
-        let detergent = "Tide Free & Clear Liquid Detergent, 92 loads", monthly = "fragrance-free; same product every month for 2 years"
+        func o(_ night: Int, _ item: String, _ category: String, before: Bool, note: String? = nil) -> Order {
+            o(night, Product(item: item, category: category), before: before, note: note)
+        }
+        typealias P = Product
+        let monthly = "fragrance-free; same product every month for 2 years", washed = "washed before wearing"
+        let coffee = "Peet's Major Dickason's Coffee Beans, 2 lb", bars = "RXBAR Protein Bars, 12 count"
         return [
-            o(0, -60, detergent, "household", before: true, note: monthly),
-            o(0, -52, "Peet's Major Dickason's Coffee Beans, 2 lb", "grocery", before: true),
-            o(0, -45, "CeraVe Moisturizing Cream, 16 oz", "personal care", before: true, note: "fragrance-free; repeat purchase, uses daily"),
-            o(0, -40, "Five Star Spiral Notebooks, 5 pack", "school", before: true),
-            o(0, -33, "Colgate Total Toothpaste, 2 pack", "personal care", before: true),
-            o(0, -30, detergent, "household", before: true, note: monthly),
-            o(0, -24, "Anker USB-C Charging Cable, 6 ft", "electronics", before: false),
-            o(0, -20, "RXBAR Protein Bars, 12 count", "grocery", before: true),
-            o(0, -15, "Method Free + Clear Hand Soap Refill", "household", before: true, note: "unscented"),
-            o(0, -8, "Duracell AAA Batteries, 8 pack", "school", before: true),
-            o(0, -5, StageHistory.woolSweaterItem, "clothing", before: false, note: "first wool sweater"),
-            o(0, -5, StageHistory.sampleDetergentItem, "household", before: false, note: "trial size"),
-            o(2, 0, "Peet's Major Dickason's Coffee Beans, 2 lb", "grocery", before: true),
-            o(3, 0, detergent, "household", before: true, note: monthly),
-            o(5, 0, "Darn Tough Merino Wool Socks, 3 pairs", "clothing", before: false, note: "washed before wearing"),
-            o(7, 0, "Nissin Top Ramen, 24 pack", "grocery", before: true),
+            o(-60, P.evercleanDetergent, before: true, note: monthly),
+            o(-58, P.riverstoneShampoo, before: true, note: "repeat purchase, every ~6 weeks"),
+            o(-56, P.coastlineSunscreen, before: false, note: "for sunny days"),
+            o(-52, coffee, "grocery", before: true),
+            o(-47, P.summitShampoo, before: false, note: "travel size"),
+            o(-45, P.dermacalmCream, before: true, note: "fragrance-free; repeat purchase, uses daily"),
+            o(-40, "Five Star Spiral Notebooks, 5 pack", "school", before: true),
+            o(-38, P.alderPineDeodorant, before: false, note: "uses daily"),
+            o(-35, P.baylineHoodie, before: false, note: washed),
+            o(-33, "Colgate Total Toothpaste, 2 pack", "personal care", before: true),
+            o(-30, P.evercleanDetergent, before: true, note: monthly),
+            o(-28, P.lumenHandSoap, before: false),
+            o(-24, "Anker USB-C Charging Cable, 6 ft", "electronics", before: false),
+            o(-21, P.baylineTShirts, before: false, note: washed),
+            o(-20, bars, "grocery", before: true),
+            o(-18, P.harborOatLotion, before: false, note: "uses daily"),
+            o(-16, P.riverstoneShampoo, before: true, note: "repeat purchase, every ~6 weeks"),
+            o(-15, P.willowHandSoap, before: true, note: "unscented; repeat purchase"),
+            o(-9, P.cloudrestPillow, before: false),
+            o(-8, "Duracell AAA Batteries, 8 pack", "school", before: true),
+            o(-5, P.northfieldSweater, before: false, note: "first wool sweater"),
+            o(-5, P.freshMeadowDetergent, before: false, note: "trial size"),
+            o(2, coffee, "grocery", before: true),
+            o(3, P.evercleanDetergent, before: true, note: monthly),
+            o(5, P.darnToughSocks, before: false, note: washed),
+            o(7, "Nissin Top Ramen, 24 pack", "grocery", before: true),
             bodyWashOrder(now: now, calendar: cal),
-            o(11, 0, "Philips LED Desk Lamp Bulb", "household", before: true),
-            o(12, 0, "RXBAR Protein Bars, 12 count", "grocery", before: true),
+            o(11, "Philips LED Desk Lamp Bulb", "household", before: true),
+            o(12, bars, "grocery", before: true),
         ]
     }
 
     /// The body wash: ordered the day before night 10, the first body wash he ever ordered.
     public static func bodyWashOrder(now: Date = Date(), calendar: Calendar = .current) -> Order {
-        order(bodyWashNight, -1, bodyWashItem, "personal care", before: false,
-              note: "first time ordering any body wash; delivered next day", ingredients: bodyWashIngredients,
-              now: now, gregorian(calendar))
+        order(bodyWashNight - 1, Product.brightwellBodyWash, before: false,
+              note: "first time ordering any body wash; delivered next day", now: now, gregorian(calendar))
     }
 
     // MARK: - Calendar
@@ -297,12 +339,17 @@ public enum StageStory {
         public let note: String?
     }
 
-    /// His calendar: midterms (nights 1–3), the dentist, a project deadline, and the hackathon tomorrow.
+    /// His calendar, oldest first: the family trip (nights −47 … −44), the mid-September exam week
+    /// (−26 … −23), the midterms (nights 1–3), the dentist, a project deadline, and the hackathon tomorrow.
     public static func calendarEvents(now: Date = Date(), calendar: Calendar = .current) -> [Event] {
         let cal = gregorian(calendar)
         let night = { (i: Int) in nightDate(i, now: now, calendar: cal) }
         let tomorrow = noon(cal.date(byAdding: .day, value: 1, to: now) ?? now, cal)
         return [
+            Event(date: night(StageHistory.tripNights.lowerBound), endDate: night(StageHistory.tripNights.upperBound),
+                  title: "Trip to Seattle (family)", note: nil),
+            Event(date: night(StageHistory.examWeek.lowerBound), endDate: night(StageHistory.examWeek.upperBound),
+                  title: "Exam week (CS 61B, Math 54 quizzes)", note: nil),
             Event(date: night(examNights.lowerBound), endDate: night(examNights.upperBound),
                   title: "Midterm exams (CS 61B, Math 54)", note: "stressful week"),
             Event(date: night(6), endDate: nil, title: "Dentist", note: nil),
@@ -318,8 +365,10 @@ public enum StageStory {
     public static let dataTools: [String] = ["scratch_history", "order_history", "weather_history", "calendar_events", "sleep_history"]
 
     /// Runs a data tool with the model's arguments (`nights` or `days`, clamped like story.js: missing,
-    /// 0 or not a number means the default). Scratching, weather and sleep go back up to 30 nights (14 by
-    /// default); nights before the story's 14 come from `StageHistory`. The result has exactly the keys and shapes of story.js's tools,
+    /// 0 or not a number means the default). Scratching, weather and sleep go back up to 74 nights (14 by
+    /// default); nights before the story's 14 come from `StageHistory`. Orders go back up to 120 days (all by
+    /// default), calendar events too (events that end in the window, and the ones still ahead). The keys and
+    /// shapes are story.js's, plus `material` on clothing orders,
     /// with dates as "YYYY-MM-DD" in the calendar's time zone. An unknown name returns
     /// `["error": "There is no tool called <name>."]`.
     public static func runTool(name: String, arguments: [String: Any] = [:], now: Date = Date(),
@@ -335,17 +384,22 @@ public enum StageStory {
         toolResult(name, arguments(fromJSON: argumentsJSON), now: now, calendar: calendar).text
     }
 
-    /// How far back the scratching, weather and sleep tools go: 30 nights.
-    public static let toolMaxNights = 30
+    /// How far back the scratching, weather and sleep tools go: 74 nights (all of `StageHistory`).
+    public static let toolMaxNights = 74
+    /// How far back the order and calendar tools go: 120 days.
+    public static let toolMaxDays = 120
 
     // MARK: - Internals
 
     /// Heart-rate variability on night `i`, ms (lower = more stress): `hrvMs` for the last 14 nights;
-    /// before them his usual with small deterministic night-to-night noise, a dip on the nights of the
-    /// earlier flare (poor sleep) and after short nights. Trends draws the same numbers.
+    /// before them his usual with small deterministic night-to-night noise, a dip on the flare nights (poor
+    /// sleep), a 6–8 ms dip through the mid-September exam week (stress; its last night too, when his
+    /// scratching was back to normal) and after short nights. Trends draws the same numbers.
     public static func hrv(_ i: Int) -> Int {
         if i >= 0 { return hrvMs[min(i, hrvMs.count - 1)] }
-        let flareDip: [Int: Int] = [-4: 4, -3: 7, -2: 8, -1: 5]
+        let flareDip: [Int: Int] = [-46: 3, -45: 6, -44: 7, -43: 4,              // flare 1
+                                    -27: 3, -26: 7, -25: 8, -24: 7, -23: 6,      // flare 2 and the exam week
+                                    -4: 4, -3: 7, -2: 8, -1: 5]                  // flare 3
         let noise = ((i * 37 + 1_000_003) % 7) - 3
         let short = StageHistory.night(i).sleepHours < StageHistory.shortSleepBelow ? 3 : 0
         return usualHrvMs + noise - (flareDip[i] ?? 0) - short
@@ -375,9 +429,7 @@ public enum StageStory {
                             ("nights", .array(list)),
                             ("last_night_worst_hours", .string(LastNight.worst))])
         case "order_history":
-            let days = clampCount(args["days"], max: 120)
-            // The last `days` days, today included.
-            let since = cal.date(byAdding: .day, value: 1 - days, to: cal.startOfDay(for: now)) ?? now
+            let since = windowStart(args["days"], now: now, cal)
             let list = orders(now: now, calendar: cal).filter { $0.date >= since }.map { $0.json(cal) }
             return .object([("source", .string("Amazon order history")), ("orders", .array(list))])
         case "weather_history":
@@ -387,7 +439,9 @@ public enum StageStory {
             }
             return .object([("location", .string(location)), ("days", .array(list))])
         case "calendar_events":
-            return .object([("events", .array(calendarEvents(now: now, calendar: cal).map { $0.json(cal) }))])
+            let since = windowStart(args["days"], now: now, cal)
+            let list = calendarEvents(now: now, calendar: cal).filter { ($0.endDate ?? $0.date) >= since }.map { $0.json(cal) }
+            return .object([("events", .array(list))])
         case "sleep_history":
             let from = nights.count - clampCount(args["nights"], max: toolMaxNights, default: nights.count)
             let list = (from..<nights.count).map { i -> StageJSON in
@@ -398,6 +452,12 @@ public enum StageStory {
         default:
             return .object([("error", .string("There is no tool called \(name)."))])
         }
+    }
+
+    /// The start of the last `days` days, today included (up to `toolMaxDays`; all of them by default).
+    private static func windowStart(_ days: Any?, now: Date, _ cal: Calendar) -> Date {
+        let days = clampCount(days, max: toolMaxDays)
+        return cal.date(byAdding: .day, value: 1 - days, to: cal.startOfDay(for: now)) ?? now
     }
 
     /// story.js's `clampN`: `Math.max(1, Math.min(max, Math.round(+n || dflt)))` (`dflt` = max unless given).
@@ -467,11 +527,10 @@ public enum StageStory {
         return cal.date(from: c) ?? date
     }
 
-    private static func order(_ night: Int, _ days: Int, _ item: String, _ category: String, before: Bool,
-                              note: String?, ingredients: [String]?, now: Date, _ cal: Calendar) -> Order {
-        let base = nightDate(night, now: now, calendar: cal)
-        let day = cal.date(byAdding: .day, value: days, to: base) ?? base
-        return Order(date: noon(day, cal), item: item, category: category, boughtBefore: before, note: note, ingredients: ingredients)
+    /// An order on the day night `night` started.
+    private static func order(_ night: Int, _ product: Product, before: Bool, note: String?, now: Date, _ cal: Calendar) -> Order {
+        Order(date: nightDate(night, now: now, calendar: cal), night: night, item: product.item, category: product.category,
+              boughtBefore: before, note: note, ingredients: product.ingredients, material: product.material)
     }
 
     private static func mean<C: Collection>(_ values: C) -> Double where C.Element == Int {
@@ -488,10 +547,67 @@ public enum StageStory {
                                      "September", "October", "November", "December"]
 }
 
+// MARK: - Products
+
+extension StageStory.Product {
+    // The four flares' new products. Every one lists methylisothiazolinone (MI); nothing he tolerates does.
+
+    public static let summitShampoo = Self(item: "Summit Peak Mint Shampoo, travel size 3 fl oz", category: "personal care",
+        ingredients: ["Water", "Sodium Laureth Sulfate", "Cocamidopropyl Betaine", "Fragrance (Parfum)", "Menthol",
+                      "Sodium Chloride", "Methylchloroisothiazolinone", "Methylisothiazolinone", "Citric Acid"])
+    public static let lumenHandSoap = Self(item: "Lumen Citrus Foaming Hand Soap", category: "household",
+        ingredients: ["Water", "Sodium Laureth Sulfate", "Glycerin", "Fragrance (Parfum)", "Limonene",
+                      "Methylisothiazolinone", "Tetrasodium EDTA"])
+    public static let freshMeadowDetergent = Self(item: "FreshMeadow Spring Bloom Detergent, trial size", category: "household",
+        ingredients: ["Water", "Sodium Laureth Sulfate", "Alcohol Ethoxylate", "Sodium Citrate", "Fragrance",
+                      "Methylisothiazolinone", "Colorant"])
+    public static let northfieldSweater = Self(item: "Northfield Lambswool Crewneck Sweater", category: "clothing",
+        material: "100% lambswool")
+    /// "Fragrance-free, for sensitive skin": he picked it to be safe. No fragrance.
+    public static let brightwellBodyWash = Self(item: "Brightwell Sensitive Fragrance-Free Body Wash, 18 fl oz",
+        category: "personal care",
+        ingredients: ["Water", "Sodium Laureth Sulfate", "Cocamidopropyl Betaine", "Glycerin", "Sodium Chloride",
+                      "Methylisothiazolinone", "Citric Acid"])
+
+    // New products that changed nothing.
+
+    public static let coastlineSunscreen = Self(item: "Coastline Mineral Sunscreen SPF 30", category: "personal care",
+        ingredients: ["Zinc Oxide", "Water", "Caprylic/Capric Triglyceride", "Glycerin", "Phenoxyethanol", "Tocopherol"])
+    /// Fragrance and limonene, tolerated daily.
+    public static let alderPineDeodorant = Self(item: "Alder & Pine Cedar Deodorant", category: "personal care",
+        ingredients: ["Propylene Glycol", "Water", "Sodium Stearate", "Fragrance (Parfum)", "Linalool", "Limonene",
+                      "Sodium Benzoate"])
+    public static let harborOatLotion = Self(item: "Harbor Oat Daily Lotion", category: "personal care",
+        ingredients: ["Water", "Glycerin", "Colloidal Oatmeal", "Cetearyl Alcohol", "Dimethicone", "Phenoxyethanol",
+                      "Sodium Benzoate"])
+    public static let cloudrestPillow = Self(item: "Cloudrest Memory Foam Pillow", category: "household",
+        material: "polyurethane foam, polyester cover")
+    public static let baylineHoodie = Self(item: "Bayline Cotton Pullover Hoodie", category: "clothing",
+        material: "80% cotton, 20% polyester")
+    public static let baylineTShirts = Self(item: "Bayline Crew T-Shirts, 3 pack", category: "clothing",
+        material: "100% cotton")
+    public static let darnToughSocks = Self(item: "Darn Tough Merino Wool Socks, 3 pairs", category: "clothing",
+        material: "54% merino wool, 43% nylon, 3% spandex")
+
+    // Repeat purchases he has used for years (no MI).
+
+    public static let evercleanDetergent = Self(item: "Everclean Free & Clear Liquid Detergent, 92 loads", category: "household",
+        ingredients: ["Water", "Sodium Laureth Sulfate", "Alcohol Ethoxylate", "Sodium Citrate", "Sodium Benzoate", "Enzymes"])
+    /// Sodium laureth sulfate, cocamidopropyl betaine and fragrance, tolerated daily.
+    public static let riverstoneShampoo = Self(item: "Riverstone Daily Shampoo, 16 fl oz", category: "personal care",
+        ingredients: ["Water", "Sodium Laureth Sulfate", "Cocamidopropyl Betaine", "Glycerin", "Fragrance (Parfum)",
+                      "Sodium Benzoate", "Citric Acid"])
+    public static let dermacalmCream = Self(item: "Dermacalm Ceramide Cream, 16 oz", category: "personal care",
+        ingredients: ["Water", "Glycerin", "Ceramide NP", "Cetearyl Alcohol", "Petrolatum", "Phenoxyethanol"])
+    public static let willowHandSoap = Self(item: "Willow Unscented Hand Soap Refill", category: "household",
+        ingredients: ["Water", "Sodium Laureth Sulfate", "Glycerin", "Cocamidopropyl Betaine", "Sodium Benzoate", "Citric Acid"])
+}
+
 // MARK: - Tool JSON
 
 extension StageStory.Order {
-    /// story.js's order object: date, item, category, bought_before, then note and ingredients when present.
+    /// story.js's order object: date, item, category, bought_before, then note, ingredients and material when
+    /// present.
     func json(_ cal: Calendar) -> StageJSON {
         var fields: [(String, StageJSON)] = [("date", .string(StageStory.iso(date, calendar: cal))),
                                              ("item", .string(item)),
@@ -499,6 +615,7 @@ extension StageStory.Order {
                                              ("bought_before", .bool(boughtBefore))]
         if let note { fields.append(("note", .string(note))) }
         if let ingredients { fields.append(("ingredients", .array(ingredients.map { .string($0) }))) }
+        if let material { fields.append(("material", .string(material))) }
         return .object(fields)
     }
 }

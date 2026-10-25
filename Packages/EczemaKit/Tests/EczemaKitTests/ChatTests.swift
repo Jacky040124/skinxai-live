@@ -22,6 +22,7 @@ private func object(_ data: Data) -> [String: Any] {
         let body = object(try ChatWire.body(model: nil, today: "Saturday, October 24, 2026", messages: messages))
         #expect(body["model"] == nil)
         #expect(body["today"] as? String == "Saturday, October 24, 2026")
+        #expect(body["story"] as? String == "mi")
         let sent = try #require(body["messages"] as? [[String: Any]])
         #expect(sent.count == 3)
         #expect(sent[0]["role"] as? String == "user" && sent[0]["tool_calls"] == nil && sent[0]["tool_call_id"] == nil)
@@ -31,6 +32,16 @@ private func object(_ data: Data) -> [String: Any] {
         #expect(function["name"] as? String == "scratch_history" && function["arguments"] as? String == #"{"nights":14}"#)
         #expect(sent[2]["role"] as? String == "tool" && sent[2]["tool_call_id"] as? String == "c1")
         #expect(sent[2]["content"] as? String == #"{"usual_minutes_per_night":12}"#)
+    }
+
+    /// The server picks the MI scenario's prompt from `story`: every request names it, a development one too.
+    @Test func everyRequestNamesTheStory() throws {
+        #expect(ChatWire.story == "mi")
+        for model in [nil, "deepseek/deepseek-v4.1-flash", " "] {
+            let body = object(try ChatWire.body(model: model, today: "x", messages: [.user("hi")]))
+            #expect(body["story"] as? String == "mi")
+            #expect(Set(body.keys).subtracting(["model"]) == ["today", "story", "messages"])
+        }
     }
 
     @Test func modelOnlyWhenGiven() throws {
@@ -163,6 +174,7 @@ final class ChatStub: URLProtocol {
         let body = try #require(ChatStub.bodies.first)
         #expect(body["model"] == nil, "the app never names a model unless asked to for development")
         #expect(body["today"] as? String == "Saturday, October 24, 2026")
+        #expect(body["story"] as? String == "mi")
         #expect((body["messages"] as? [[String: Any]])?.first?["content"] as? String == "hi")
     }
 
@@ -237,7 +249,7 @@ final class ChatStub: URLProtocol {
     @Test func summariesComeFromTheResults() {
         #expect(summary("scratch_history", #"{"nights":14}"#) == "Up 3 nights in a row · last night 41 min (usual 12)")
         #expect(summary("scratch_history", #"{"nights":1}"#) == "Last night 41 min · usual 12")
-        #expect(summary("order_history", #"{"days":120}"#) == "19 orders · 1 personal-care item you never bought before")
+        #expect(summary("order_history", #"{"days":120}"#) == "29 orders · 5 personal-care items you never bought before")
         #expect(summary("weather_history", #"{"days":14}"#) == "Humidity 46–55% most days · 29% last night")
         #expect(summary("calendar_events") == "Midterm exams Oct 11–13 · stressful week")
         #expect(summary("sleep_history", #"{"nights":7}"#) == "5.1 h last night · woke up 2×")
@@ -263,11 +275,51 @@ final class ChatStub: URLProtocol {
         #expect(t.note == "Scratching rose from that night on.")
         #expect(t.startLabel == "Oct 10" && t.markerLabel == "Oct 20")
         #expect(t.minutes == StageStory.nights && t.hot.filter { $0 }.count == 3 && t.hot.last == true)
+        #expect(t.firstNight == 0 && t.markers.count == 1 && t.index(of: 10) == 10)
+    }
+
+    @Test func timelineWithSeveralMarkers() throws {
+        let markers: [Any] = [
+            ["date": "2026-10-19", "label": "Brightwell body wash"],
+            ["date": "2026-08-24", "label": "Summit Peak shampoo"],
+            ["date": "2026-09-12", "label": "Lumen hand soap"],
+            ["date": "2026-10-05", "label": "FreshMeadow detergent"],
+            ["date": "2026-10-05", "label": "Lambswool sweater"],
+            ["date": "2026-07-01", "label": "Too early"],
+            ["label": "No date"],
+            "not a marker",
+        ]
+        let t = ChatTimeline(arguments: ["markers": markers, "note": "Four flares."], now: now, calendar: cal)
+        // Oldest first, one per item; same-night ones keep Claude's order; dates outside the 74 nights dropped.
+        #expect(t.markers.map(\.night) == [-47, -28, -5, -5, 9])
+        #expect(t.markers.map(\.label) == ["Summit Peak shampoo", "Lumen hand soap", "FreshMeadow detergent", "Lambswool sweater",
+                                           "Brightwell body wash"])
+        #expect(t.markers.map(\.dateLabel) == ["Aug 24", "Sep 12", "Oct 5", "Oct 5", "Oct 19"])
+        #expect(t.markers.map(\.emoji) == ["🧴", "✋", "🧺", "🧶", "🧴"])
+        // From 3 nights before the earliest marker to last night.
+        #expect(t.firstNight == -50 && t.nightCount == 64 && t.startLabel == "Aug 21")
+        #expect(t.minutes == (-50...13).map { StageHistory.night($0).minutes })
+        #expect(t.hot.count == 64 && t.hot.last == true)
+        #expect(t.index(of: -47) == 3 && t.index(of: 13) == 63 && t.index(of: -51) == nil)
+        // The one-marker fields read the first (oldest) marker.
+        #expect(t.marker == -47 && t.label == "Summit Peak shampoo" && t.markerLabel == "Aug 24")
+        #expect(t.note == "Four flares.")
+        // marker_date still works next to markers, and duplicates go.
+        let both = ChatTimeline(arguments: ["marker_date": "2026-10-20", "marker_label": "Body wash",
+                                            "markers": [["date": "2026-10-20", "label": "Body wash"], ["date": "2026-08-11", "label": "First night"]]],
+                                now: now, calendar: cal)
+        #expect(both.markers.map(\.night) == [-60, 10] && both.firstNight == -60 && both.nightCount == 74)
+        // At most six markers.
+        let many = (1...9).map { ["date": "2026-09-0\($0)", "label": "M\($0)"] }
+        #expect(ChatTimeline(arguments: ["markers": many], now: now, calendar: cal).markers.count == ChatTimeline.maxMarkers)
     }
 
     @Test func timelineSurvivesOddArguments() {
-        let t = ChatTimeline(arguments: ["marker_date": "2026-09-01", "marker_label": 7], now: now, calendar: cal)
+        let t = ChatTimeline(arguments: ["marker_date": "2026-07-01", "marker_label": 7], now: now, calendar: cal)
         #expect(t.marker == nil && t.markerLabel == nil && t.label == "Change" && t.note == nil)
+        #expect(t.firstNight == 0 && t.minutes == StageStory.nights)
+        let unlabeled = ChatTimeline(arguments: ["marker_date": "2026-09-01", "marker_label": 7], now: now, calendar: cal)
+        #expect(unlabeled.marker == -39 && unlabeled.label == "Change" && unlabeled.firstNight == -42)
         let order = ChatTimeline(arguments: ["marker_date": "2026-10-19T00:00:00Z", "marker_label": "Ordered body wash"], now: now, calendar: cal)
         #expect(order.marker == StageStory.bodyWashNight - 1)
     }
@@ -275,26 +327,74 @@ final class ChatStub: URLProtocol {
     @Test func productMatchesTheOrder() {
         let p = ChatProduct(arguments: ["name": "Body wash", "purchase_date": "2026-10-19",
                                         "flagged_ingredients": ["fragrance", "Methylisothiazolinone (MIT)"]], now: now, calendar: cal)
-        #expect(p.title == "Brightwell Ocean Breeze Body Wash, 18 fl oz")
+        #expect(p.title == "Brightwell Sensitive Fragrance-Free Body Wash, 18 fl oz")
         #expect(p.firstTime)
         #expect(p.ordered == "Ordered Mon Oct 19")
-        #expect(p.ingredients.map(\.name) == StageStory.bodyWashIngredients)
-        #expect(p.ingredients.filter(\.flagged).map(\.name) == ["Fragrance (Parfum)", "Methylisothiazolinone"])
-        #expect(p.hasFlags)
+        // The label's list, then what Claude flagged that isn't on it.
+        #expect(p.ingredients.map(\.name) == StageStory.bodyWashIngredients + ["fragrance"])
+        #expect(p.ingredients.filter(\.flagged).map(\.name) == ["Methylisothiazolinone", "fragrance"])
+        #expect(p.hasFlags && p.material == nil)
+        // Nothing flagged unless Claude flags it.
+        let plain = ChatProduct(arguments: ["name": "Body wash"], now: now, calendar: cal)
+        #expect(!plain.hasFlags && plain.ingredients.map(\.name) == StageStory.bodyWashIngredients)
     }
 
     @Test func productByNameAndUnknownFlags() {
         let p = ChatProduct(arguments: ["name": "body wash", "flagged_ingredients": ["Limonene", " "]], now: now, calendar: cal)
-        #expect(p.title == "Brightwell Ocean Breeze Body Wash, 18 fl oz" && p.firstTime && p.ordered == "Ordered Mon Oct 19")
+        #expect(p.title == StageStory.bodyWashItem && p.firstTime && p.ordered == "Ordered Mon Oct 19")
         #expect(p.ingredients.last == ChatProduct.Ingredient(name: "Limonene", flagged: true))
         let other = ChatProduct(arguments: ["name": "Scented candle"], now: now, calendar: cal)
         #expect(other.title == "Scented candle" && !other.firstTime && other.ordered == nil && other.ingredients.isEmpty)
         // The brand, the full name or part of it: the order's full item name.
-        for name in ["Brightwell body wash", "Brightwell Ocean Breeze Body Wash", "Ocean Breeze body wash"] {
+        for name in ["Brightwell body wash", "Brightwell Sensitive Fragrance-Free Body Wash", "Fragrance-free body wash",
+                     "the new body wash", "Brightwell", "Ocean Breeze body wash"] {
             #expect(ChatProduct(arguments: ["name": name], now: now, calendar: cal).title == StageStory.bodyWashItem)
         }
         let socks = ChatProduct(arguments: ["name": "Wool socks"], now: now, calendar: cal)
         #expect(socks.title == "Darn Tough Merino Wool Socks, 3 pairs" && socks.firstTime)
+        #expect(socks.material == "54% merino wool, 43% nylon, 3% spandex" && socks.ingredients.isEmpty)
+    }
+
+    @Test func productFindsEveryNewProductByNameWords() {
+        func title(_ name: String, _ date: String? = nil) -> String {
+            var args: [String: Any] = ["name": name]
+            if let date { args["purchase_date"] = date }
+            return ChatProduct(arguments: args, now: now, calendar: cal).title
+        }
+        typealias P = StageStory.Product
+        #expect(title("Summit Peak shampoo") == P.summitShampoo.item)
+        #expect(title("Mint shampoo") == P.summitShampoo.item)
+        #expect(title("travel shampoo") == P.summitShampoo.item)
+        #expect(title("Shampoo") == P.summitShampoo.item, "the new one before the one he always buys")
+        #expect(title("Riverstone shampoo") == P.riverstoneShampoo.item)
+        #expect(title("Shampoo", "2026-09-24") == P.riverstoneShampoo.item)
+        #expect(title("Lumen hand soap") == P.lumenHandSoap.item)
+        #expect(title("Citrus foaming hand soap") == P.lumenHandSoap.item)
+        #expect(title("hand soap") == P.lumenHandSoap.item)
+        #expect(title("Willow hand soap") == P.willowHandSoap.item)
+        #expect(title("FreshMeadow detergent") == P.freshMeadowDetergent.item)
+        #expect(title("detergent trial size") == P.freshMeadowDetergent.item)
+        #expect(title("Spring Bloom detergent sample") == P.freshMeadowDetergent.item)
+        #expect(title("Everclean detergent") == P.evercleanDetergent.item)
+        #expect(title("Wool sweater") == P.northfieldSweater.item)
+        #expect(title("Northfield sweater") == P.northfieldSweater.item)
+        #expect(title("Mineral sunscreen") == P.coastlineSunscreen.item)
+        #expect(title("Cedar deodorant") == P.alderPineDeodorant.item)
+        #expect(title("Oat lotion") == P.harborOatLotion.item)
+        #expect(title("Memory foam pillow") == P.cloudrestPillow.item)
+        #expect(title("Ceramide cream") == P.dermacalmCream.item)
+        #expect(title("Hoodie") == P.baylineHoodie.item)
+        // By date when the name names nothing: the day's one skin-contact order (a personal-care one first).
+        let byDate = ChatProduct(arguments: ["name": "That new thing", "purchase_date": "2026-08-24"], now: now, calendar: cal)
+        #expect(byDate.title == "That new thing" && byDate.ingredients.map(\.name) == P.summitShampoo.ingredients)
+        let twoThatDay = ChatProduct(arguments: ["name": "That new thing", "purchase_date": "2026-10-05"], now: now, calendar: cal)
+        #expect(twoThatDay.ingredients.isEmpty && twoThatDay.material == nil && twoThatDay.ordered == "Ordered Mon Oct 5")
+        // The sweater: its material, no ingredients.
+        let sweater = ChatProduct(arguments: ["name": "Lambswool sweater"], now: now, calendar: cal)
+        #expect(sweater.material == "100% lambswool" && sweater.ingredients.isEmpty && sweater.firstTime)
+        #expect(sweater.ordered == "Ordered Mon Oct 5")
+        // Repeat purchases aren't "first time".
+        #expect(!ChatProduct(arguments: ["name": "Everclean Free & Clear detergent"], now: now, calendar: cal).firstTime)
     }
 
     @Test func question() {

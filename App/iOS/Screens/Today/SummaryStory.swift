@@ -137,15 +137,20 @@ struct SummaryStory {
     /// The first night of the rise (the first flare night in the streak): 11.
     var riseNight: Int { last - max(streak, 1) + 1 }
 
-    /// What changed shortly before (or during) the rise: the new Brightwell body wash, dry air; the midterms last,
-    /// greyed, because they came well before it.
+    /// New things bought this many days before the rise (or during it) are listed.
+    static let purchaseLead = 4
+
+    /// What changed shortly before (or during) the rise, as plain facts: the new skin-contact things he bought
+    /// (the Brightwell body wash), dry air; the midterms last, greyed, because they came well before it.
     var triggers: [Trigger] {
         guard status == .flare else { return [] }
         var list: [Trigger] = []
-        let wash = StageStory.bodyWashNight
-        if wash <= last {
-            list.append(Trigger(id: "wash", emoji: "🧴", fill: Twin.Palette.pink, title: "Brightwell Ocean Breeze Body Wash",
-                                detail: "Bought \(dayText(wash - 1))", when: relative(wash - 1), earlier: false))
+        let shift = StageStory.lastNightIndex - last
+        for e in TrendsEvent.purchases {
+            let night = e.start - shift   // on this page's nights (`last` is always yesterday)
+            guard (riseNight - Self.purchaseLead)...last ~= night else { continue }
+            list.append(Trigger(id: e.id, emoji: e.emoji, fill: Twin.Palette.pink, title: e.name,
+                                detail: "Bought \(dayText(night))", when: relative(night), earlier: false))
         }
         let dry = StageStory.dryAirNight
         if dry <= last {
@@ -190,7 +195,7 @@ struct SummaryStory {
         let accessibility: String
     }
 
-    /// Your usual sleep: the median of the nights before the new Brightwell body wash.
+    /// Your usual sleep: the median of the story's nights before the new body wash.
     static var usualSleep: Double {
         let before = StageStory.sleepHours.prefix(StageStory.bodyWashNight).sorted()
         guard !before.isEmpty else { return 7 }

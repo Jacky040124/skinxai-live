@@ -1,10 +1,10 @@
 import SwiftUI
 import EczemaKit
 
-/// What the event sheet says about one event: the item, its purchase date, the ingredient (or material)
-/// list with the common contact allergens lit, and how scratching went in the 4 nights after the
-/// purchase against his usual. Only what the app can read: the order (date, item, ingredients), not
-/// when he used it. Exams and late workouts (calendar, Apple Health) compare nights with and without.
+/// What the event sheet says about one event, only what the app can read, without any judgement: a new
+/// product's order (date, item, new or a repeat, its note), its ingredient list or material as printed, and
+/// how scratching went in the 4 nights after the order date against his usual. Exams, the trip and late
+/// workouts (calendar, Apple Health): the nights with them against the nights without, over all 74.
 struct TrendsEventDetail {
     struct Fact: Identifiable {
         var id: String { label }
@@ -16,25 +16,21 @@ struct TrendsEventDetail {
     let title: String
     /// "PERSONAL CARE · AMAZON ORDER"
     let category: String
-    let firstTime: Bool
+    /// A purchase: new (true) or a repeat (false); nil for the rest.
+    let firstTime: Bool?
     let facts: [Fact]
     /// "Ingredients", "Material"
     let listTitle: String
-    let ingredients: [(name: String, flagged: Bool)]
-    let impact: StageHistory.Impact
-    /// A bought item: the nights after its order date against his usual (instead of `impact`).
+    /// The label's list, in order (or the material).
+    let ingredients: [String]
+    /// Nights with the event against the nights without (not a purchase).
+    let comparison: StageHistory.Comparison
+    /// A purchase: the nights after its order date against his usual (instead of `comparison`).
     let purchase: TrendsPurchase?
     /// "4 NIGHTS · OCT 6–9"
     let afterText: String
-    /// "Bought the same day as the FreshMeadow Spring Bloom Detergent (Oct 5)…"
+    /// "Also bought that day: FreshMeadow Spring Bloom Detergent."
     let note: String?
-
-    /// Contact allergens lit in the lists.
-    static let irritants: Set<String> = ["Fragrance (Parfum)", "Methylisothiazolinone", "Fragrance", "Wool, 100%"]
-
-    /// The scented sample's label (trial size).
-    static let detergentIngredients = ["Water", "Sodium Laureth Sulfate", "Alcohol Ethoxylate", "Sodium Citrate",
-                                       "Fragrance", "Protease (enzyme)", "Optical brightener"]
 
     init(_ e: TrendsEvent, now: Date = Date()) {
         let cal = TrendsStory.calendar
@@ -46,72 +42,66 @@ struct TrendsEventDetail {
             return e.start == e.end ? StageStory.monthDay(a, calendar: cal) : StageStory.monthDayRange(a, b, calendar: cal)
         }()
         let nights = e.end - e.start + 1
-        let orders = StageStory.orders(now: now, calendar: cal)
-        let p = TrendsPurchase(e.kind)
-        func order(_ item: String) -> StageStory.Order? { orders.first { $0.item == item } }
-        func ordered(_ o: StageStory.Order?) -> String {
-            o.map { "\(StageStory.weekday($0.date, short: true, calendar: cal)) \(StageStory.monthDay($0.date, calendar: cal))" } ?? "—"
-        }
+        let p = TrendsPurchase(e)
         event = e
-        impact = StageHistory.impact(e.factor)
         purchase = p
         afterText = p.map { p in
             let a = StageStory.nightDate(p.nights.lowerBound, now: now, calendar: cal)
             let b = StageStory.nightDate(p.nights.upperBound, now: now, calendar: cal)
-            return "\(p.nights.count) NIGHTS · \(StageStory.monthDayRange(a, b, calendar: cal).uppercased())"
+            let dates = p.nights.count == 1 ? StageStory.monthDay(a, calendar: cal) : StageStory.monthDayRange(a, b, calendar: cal)
+            return "\(p.nights.count) NIGHT\(p.nights.count == 1 ? "" : "S") · \(dates.uppercased())"
         } ?? ""
-        let twin = p?.sameDay.first.flatMap { k in TrendsEvent.all.first { $0.kind == k } }
-        note = twin.map {
-            "Bought the same day as the \($0.name) (\(span)): same nights after."
+        note = p.flatMap { p in
+            p.sameDay.isEmpty ? nil : "Also bought that day: \(p.sameDay.map(\.name).joined(separator: ", "))."
         }
         switch e.kind {
-        case .bodywash:
-            let o = StageStory.bodyWashOrder(now: now, calendar: cal)
+        case .purchase:
+            let o = StageStory.orders(now: now, calendar: cal).first { $0.item == e.item && $0.night == e.start }
             title = e.name
-            category = "\(o.category) · Amazon order"
-            firstTime = !o.boughtBefore
-            facts = [.init(label: "Bought", value: ordered(o)),
-                     .init(label: "Item", value: o.item)]
-            listTitle = "Ingredients"
-            ingredients = (o.ingredients ?? StageStory.bodyWashIngredients).map { ($0, Self.irritants.contains($0)) }
-        case .sweater:
-            let o = order(StageHistory.woolSweaterItem)
-            title = e.name
-            category = "\(o?.category ?? "clothing") · Amazon order"
-            firstTime = !(o?.boughtBefore ?? false)
-            facts = [.init(label: "Bought", value: ordered(o)),
-                     .init(label: "Item", value: o?.item ?? StageHistory.woolSweaterItem),
-                     .init(label: "Note", value: "Your first wool sweater")]
-            listTitle = "Material"
-            ingredients = [("Wool, 100%", true)]
-        case .detergent:
-            let o = order(StageHistory.sampleDetergentItem)
-            title = e.name
-            category = "\(o?.category ?? "household") · Amazon order"
-            firstTime = !(o?.boughtBefore ?? false)
-            facts = [.init(label: "Bought", value: ordered(o)),
-                     .init(label: "Item", value: o?.item ?? StageHistory.sampleDetergentItem),
-                     .init(label: "Note", value: "Scented sample")]
-            listTitle = "Ingredients"
-            ingredients = Self.detergentIngredients.map { ($0, Self.irritants.contains($0)) }
+            category = "\(o?.category ?? "order") · Amazon order"
+            firstTime = o.map { !$0.boughtBefore }
+            var facts: [Fact] = [.init(label: "Bought", value: day(e.start)),
+                                 .init(label: "Item", value: o?.item ?? e.item ?? e.name)]
+            if let n = o?.note { facts.append(.init(label: "Note", value: n.prefix(1).uppercased() + n.dropFirst())) }
+            self.facts = facts
+            if let material = o?.material {
+                listTitle = "Material"
+                ingredients = [material]
+            } else {
+                listTitle = "Ingredients"
+                ingredients = o?.ingredients ?? []
+            }
+            comparison = StageHistory.compare { _ in false }
         case .exams:
             let midterms = StageStory.examNights == e.start...e.end
             title = midterms ? "Midterm exams" : "Exam week"
             category = "Calendar"
-            firstTime = false
+            firstTime = nil
             facts = [.init(label: "When", value: span),
                      .init(label: "Length", value: "\(nights) days"),
-                     .init(label: "Note", value: midterms ? "CS 61B, Math 54 · stressful week" : "Quizzes and a paper")]
+                     .init(label: "Note", value: midterms ? "CS 61B, Math 54 · stressful week" : "CS 61B, Math 54 quizzes")]
             listTitle = ""
             ingredients = []
+            comparison = StageHistory.compare(\.exams)
+        case .trip:
+            title = "Trip to Seattle"
+            category = "Calendar"
+            firstTime = nil
+            facts = [.init(label: "When", value: span),
+                     .init(label: "Length", value: "\(nights) days"),
+                     .init(label: "Note", value: "Family")]
+            listTitle = ""
+            ingredients = []
+            comparison = StageHistory.compare(\.trip)
         case .gym:
             title = "Late workout"
             category = "Apple Health · workout"
-            firstTime = false
+            firstTime = nil
             facts = [.init(label: "When", value: "\(day(e.start)), evening"),
                      .init(label: "All time", value: "\(StageHistory.nights.filter(\.gym).count) late workouts in \(StageHistory.count) nights")]
             listTitle = ""
             ingredients = []
+            comparison = StageHistory.compare(\.gym)
         }
     }
 }
@@ -123,7 +113,7 @@ struct TrendsEventSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var lit = false
+    @State private var grown = false
 
     var body: some View {
         ScrollView {
@@ -134,7 +124,7 @@ struct TrendsEventSheet: View {
                     ingredients.riseIn(0.19, distance: reduceMotion ? 0 : 12)
                 }
                 Group {
-                    if let p = detail.purchase { afterPurchase(p) } else { impact }
+                    if let p = detail.purchase { afterPurchase(p) } else { withAndWithout }
                 }
                 .riseIn(0.26, distance: reduceMotion ? 0 : 12)
                 ask.riseIn(0.33, distance: reduceMotion ? 0 : 12)
@@ -149,7 +139,7 @@ struct TrendsEventSheet: View {
         .presentationDragIndicator(.visible)
         .presentationCornerRadius(Twin.Radius.dialog)
         .presentationBackground(Twin.Palette.paper)
-        .onAppear { lit = true }
+        .onAppear { grown = true }
     }
 
     // MARK: Sections
@@ -165,10 +155,16 @@ struct TrendsEventSheet: View {
                     .font(Twin.Typeface.title)
                     .foregroundStyle(Twin.Palette.ink)
                     .fixedSize(horizontal: false, vertical: true)
-                if detail.firstTime {
-                    Sticker(text: "First time", icon: "sparkles", fill: Twin.Palette.yellow)
-                        .padding(.top, 2)
-                        .modifier(TodayStamp(delay: 0.35))
+                if let first = detail.firstTime {
+                    Group {
+                        if first {
+                            Sticker(text: "First time", icon: "sparkles", fill: Twin.Palette.yellow)
+                        } else {
+                            Sticker(text: "Bought before", icon: "arrow.triangle.2.circlepath", fill: Twin.Palette.paper)
+                        }
+                    }
+                    .padding(.top, 2)
+                    .modifier(TodayStamp(delay: 0.35))
                 }
             }
             Spacer(minLength: 8)
@@ -209,55 +205,42 @@ struct TrendsEventSheet: View {
         .twinCard(fill: Twin.Palette.cream, padding: 0)
     }
 
+    /// The label's ingredients (or the material) as printed, all alike.
     private var ingredients: some View {
-        let flagged = detail.ingredients.filter(\.flagged).count
-        return VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 10) {
             HStack {
                 Eyebrow(text: detail.listTitle)
                 Spacer()
-                Text("\(detail.ingredients.count) LISTED")
-                    .font(Twin.Typeface.meta)
-                    .foregroundStyle(Twin.Palette.inkHint)
-            }
-            TrendsFlow(spacing: 5, lineSpacing: 5) {
-                ForEach(Array(detail.ingredients.enumerated()), id: \.offset) { k, item in
-                    chip(item.name, flagged: item.flagged && lit)
-                        .animation(reduceMotion ? .easeOut(duration: 0.2)
-                                   : Twin.Motion.bouncy.delay(0.5 + Double(detail.ingredients.prefix(k).filter(\.flagged).count) * 0.22),
-                                   value: lit)
+                if detail.ingredients.count > 1 {
+                    Text("\(detail.ingredients.count) LISTED")
+                        .font(Twin.Typeface.meta)
+                        .foregroundStyle(Twin.Palette.inkHint)
                 }
             }
-            if flagged > 0 {
-                HStack(spacing: 6) {
-                    RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(Twin.Palette.orange)
-                        .overlay(RoundedRectangle(cornerRadius: 2, style: .continuous).strokeBorder(Twin.Palette.ink, lineWidth: Twin.Stroke.ink))
-                        .frame(width: 10, height: 10)
-                    Text(flagged == 1 ? "a common contact allergen" : "\(flagged) common contact allergens")
-                        .font(Twin.Typeface.sans(12))
-                        .foregroundStyle(Twin.Palette.inkMuted)
+            TrendsFlow(spacing: 5, lineSpacing: 5) {
+                ForEach(Array(detail.ingredients.enumerated()), id: \.offset) { _, name in
+                    chip(name)
                 }
             }
         }
         .twinCard()
+        .accessibilityElement(children: .combine)
     }
 
-    private func chip(_ name: String, flagged: Bool) -> some View {
+    private func chip(_ name: String) -> some View {
         let shape = RoundedRectangle(cornerRadius: Twin.Radius.chip, style: .continuous)
         return Text(name)
-            .font(Twin.Typeface.sans(13, flagged ? .bold : .regular))
-            .foregroundStyle(flagged ? Twin.Palette.ink : Twin.Palette.inkMuted)
+            .font(Twin.Typeface.sans(13))
+            .foregroundStyle(Twin.Palette.ink)
             .padding(.horizontal, 7)
             .padding(.vertical, 4)
-            .background(flagged ? Twin.Palette.orange : Color.clear, in: shape)
-            .overlay(shape.strokeBorder(flagged ? Twin.Palette.ink : Twin.Palette.hairline,
-                                        lineWidth: flagged ? Twin.Stroke.ink : Twin.Stroke.hairline))
+            .overlay(shape.strokeBorder(Twin.Palette.hairline, lineWidth: Twin.Stroke.hairline))
     }
 
-    private var impact: some View {
-        let i = detail.impact
-        let scale = max(30, max(i.withMinutes, i.withoutMinutes).rounded(.up))
-        let strongish = i.verdict == .strong || i.verdict == .possible
+    /// Exams, the trip, late workouts: the nights with it against the nights without.
+    private var withAndWithout: some View {
+        let c = detail.comparison
+        let scale = max(30, max(c.withMinutes, c.withoutMinutes).rounded(.up))
         return VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
                 Eyebrow(text: "Scratching")
@@ -266,27 +249,23 @@ struct TrendsEventSheet: View {
                     .font(Twin.Typeface.meta)
                     .foregroundStyle(Twin.Palette.inkHint)
             }
-            HStack(alignment: .center, spacing: 10) {
-                HStack(alignment: .lastTextBaseline, spacing: 3) {
-                    Text(signed(i.roundedDifference))
-                        .font(Twin.Typeface.sans(40, .bold))
-                        .tracking(-1.5)
-                        .monospacedDigit()
-                    Text("min")
-                        .font(Twin.Typeface.sans(15, .medium))
-                        .foregroundStyle(Twin.Palette.inkMuted)
-                }
-                .foregroundStyle(Twin.Palette.ink)
-                Spacer(minLength: 6)
+            HStack(alignment: .lastTextBaseline, spacing: 3) {
+                Text(signed(c.roundedDifference))
+                    .font(Twin.Typeface.sans(40, .bold))
+                    .tracking(-1.5)
+                    .monospacedDigit()
+                Text("min")
+                    .font(Twin.Typeface.sans(15, .medium))
+                    .foregroundStyle(Twin.Palette.inkMuted)
             }
+            .foregroundStyle(Twin.Palette.ink)
             VStack(spacing: 6) {
-                bar("With it", nights: "\(i.withNights) NIGHTS", value: i.withMinutes, scale: scale,
-                    fill: strongish ? Twin.Palette.orange : (i.verdict == .weak ? Twin.Palette.orangeSoft : Twin.Palette.ink.opacity(0.32)),
-                    edged: i.verdict != .none, delay: 0.4)
-                bar("Without", nights: "\(i.withoutNights) NIGHTS", value: i.withoutMinutes, scale: scale,
+                bar("With it", nights: "\(c.withNights) NIGHTS", value: c.withMinutes, scale: scale,
+                    fill: Twin.Palette.ink.opacity(0.32), edged: false, delay: 0.4)
+                bar("Without", nights: "\(c.withoutNights) NIGHTS", value: c.withoutMinutes, scale: scale,
                     fill: Twin.Palette.ink.opacity(0.15), edged: false, delay: 0.5)
             }
-            Text("Average minutes per night, on the nights outside the other flares.")
+            Text("Average minutes per night, over all \(StageHistory.count) nights.")
                 .font(Twin.Typeface.mono(10))
                 .foregroundStyle(Twin.Palette.inkHint)
                 .fixedSize(horizontal: false, vertical: true)
@@ -299,7 +278,6 @@ struct TrendsEventSheet: View {
     private func afterPurchase(_ p: TrendsPurchase) -> some View {
         let scale = max(30, max(p.afterMinutes, Double(p.usual)).rounded(.up))
         let after = Int(p.afterMinutes.rounded())
-        let strongish = p.verdict == .strong || p.verdict == .possible
         return VStack(alignment: .leading, spacing: 12) {
             HStack(alignment: .firstTextBaseline) {
                 Eyebrow(text: "After buying it")
@@ -327,14 +305,14 @@ struct TrendsEventSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
             VStack(spacing: 6) {
                 bar("After", nights: detail.afterText, value: p.afterMinutes, scale: scale,
-                    fill: strongish ? Twin.Palette.orange : (p.verdict == .weak ? Twin.Palette.orangeSoft : Twin.Palette.ink.opacity(0.32)),
-                    edged: p.verdict != .none, delay: 0.4, labelWidth: 112)
+                    fill: p.overFlareLine ? Twin.Palette.orange : Twin.Palette.ink.opacity(0.32),
+                    edged: p.overFlareLine, delay: 0.4, labelWidth: 112)
                 bar("Usual", nights: "YOUR NORMAL", value: Double(p.usual), scale: scale,
                     fill: Twin.Palette.ink.opacity(0.15), edged: false, delay: 0.5, labelWidth: 112)
             }
             if let note = detail.note {
                 HStack(alignment: .top, spacing: 8) {
-                    Image(systemName: "arrow.up.arrow.down")
+                    Image(systemName: "bag")
                         .font(.system(size: 11, weight: .bold))
                         .padding(.top, 2)
                     Text(note)
@@ -344,9 +322,9 @@ struct TrendsEventSheet: View {
                 .foregroundStyle(Twin.Palette.ink)
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Twin.Palette.orangeSoft, in: RoundedRectangle(cornerRadius: Twin.Radius.chip, style: .continuous))
+                .background(Twin.Palette.cream, in: RoundedRectangle(cornerRadius: Twin.Radius.chip, style: .continuous))
                 .overlay(RoundedRectangle(cornerRadius: Twin.Radius.chip, style: .continuous)
-                    .strokeBorder(Twin.Palette.ink, style: StrokeStyle(lineWidth: 1, dash: [3, 2])))
+                    .strokeBorder(Twin.Palette.hairline, lineWidth: Twin.Stroke.hairline))
             }
             Text("Average of the \(p.nights.count) nights after the order date.")
                 .font(Twin.Typeface.mono(10))
@@ -377,8 +355,8 @@ struct TrendsEventSheet: View {
                     shape.fill(fill)
                         .overlay { if edged { shape.strokeBorder(Twin.Palette.ink, lineWidth: 1) } }
                         .frame(width: max(3, CGFloat(value / scale) * (g.size.width - 34)))
-                        .scaleEffect(x: lit || reduceMotion ? 1 : 0.001, y: 1, anchor: .leading)
-                        .animation(reduceMotion ? nil : Twin.Motion.spring.delay(delay), value: lit)
+                        .scaleEffect(x: grown || reduceMotion ? 1 : 0.001, y: 1, anchor: .leading)
+                        .animation(reduceMotion ? nil : Twin.Motion.spring.delay(delay), value: grown)
                     Text("\(Int(value.rounded()))")
                         .font(Twin.Typeface.mono(12, bold: true))
                         .foregroundStyle(Twin.Palette.ink)
