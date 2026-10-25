@@ -48,7 +48,7 @@ private func object(_ text: String) -> NSDictionary {
             "May I ask where it itches?",
             "the 3rd night in a row",
             "Up 3 nights in a row · last night 41 min (usual 12)",
-            "Body wash, 18 fl oz",
+            "Brightwell Ocean Breeze Body Wash, 18 fl oz",
             "Midterm exams (CS 61B, Math 54)",
             "Oct 2026",
             "Go back to your old body wash for 5 nights.",
@@ -99,7 +99,7 @@ private func object(_ text: String) -> NSDictionary {
             let order = StageStory.bodyWashOrder(now: target, calendar: cal)
             #expect(card.ordered == "Ordered \(StageStory.weekday(order.date, short: true, calendar: cal)) \(StageStory.monthDay(order.date, calendar: cal))")
             // He reorders the detergent every month: the latest one.
-            let detergent = StageStory.orders(now: target, calendar: cal).filter { $0.item.hasPrefix("Laundry detergent") }
+            let detergent = StageStory.orders(now: target, calendar: cal).filter { $0.item.hasPrefix("Tide Free & Clear") }
                 .max { $0.date < $1.date }!
             #expect(moved.messages.contains { $0.content.contains("reordered on \(StageStory.monthDay(detergent.date, calendar: cal))") })
         }

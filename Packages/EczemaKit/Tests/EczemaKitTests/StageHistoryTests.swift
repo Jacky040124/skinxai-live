@@ -56,7 +56,7 @@ import Testing
         #expect(StageHistory.clothes.count == 3 && earlier.filter(\.newClothes).count == 6)
         // The socks are StageStory's order on night 5, worn from night 6.
         #expect(StageHistory.clothes.last?.firstNight == 6)
-        #expect(StageStory.orders(now: now, calendar: cal).contains { $0.item.hasPrefix("Wool socks") })
+        #expect(StageStory.orders(now: now, calendar: cal).contains { $0.item.hasPrefix("Darn Tough Merino Wool Socks") })
     }
 
     @Test func theEarlierFlare() {

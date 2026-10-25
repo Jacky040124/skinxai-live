@@ -63,12 +63,25 @@ struct TrendsEvent: Identifiable, Hashable {
     /// A new thing he bought (pink on the timeline).
     var isProduct: Bool { [.bodywash, .sweater, .detergent].contains(kind) }
 
-    /// "New body wash", "Wool sweater", "Exams", "Late gym".
+    /// The product's name (a bought item; without the size): "Brightwell Ocean Breeze Body Wash",
+    /// "Northfield Lambswool Crewneck Sweater", "FreshMeadow Spring Bloom Detergent"; else "Exams", "Late gym".
+    var name: String {
+        switch kind {
+        case .bodywash: return "Brightwell Ocean Breeze Body Wash"
+        case .sweater: return "Northfield Lambswool Crewneck Sweater"
+        case .detergent: return "FreshMeadow Spring Bloom Detergent"
+        case .exams: return "Exams"
+        case .gym: return "Late gym"
+        }
+    }
+
+    /// Where space is tight (the strip's chips): "Brightwell Body Wash", "Northfield Lambswool Sweater",
+    /// "FreshMeadow Detergent Sample", "Exams", "Late gym".
     var shortName: String {
         switch kind {
-        case .bodywash: return "New body wash"
-        case .sweater: return "Wool sweater"
-        case .detergent: return "Detergent sample"
+        case .bodywash: return "Brightwell Body Wash"
+        case .sweater: return "Northfield Lambswool Sweater"
+        case .detergent: return "FreshMeadow Detergent Sample"
         case .exams: return "Exams"
         case .gym: return "Late gym"
         }
@@ -288,7 +301,7 @@ enum TrendsStory {
     static func markers(_ range: TrendsRange) -> [OverlayBarChart.Marker] {
         TrendsEvent.all.filter { $0.isProduct && range.shows($0.start) }.map { e in
             .init(id: e.id, night: e.start, row: e.kind == .detergent ? 1 : 0, emoji: e.emoji,
-                  fill: Twin.Palette.pink, accessibility: "\(e.shortName), bought \(dayText(night: e.start)). Opens details.")
+                  fill: Twin.Palette.pink, accessibility: "\(e.name), bought \(dayText(night: e.start)). Opens details.")
         }
     }
 
@@ -323,7 +336,8 @@ enum TrendsStory {
         dayText(StageStory.nightDate(i, now: now, calendar: calendar))
     }
 
-    /// "Tuesday, Oct 20: 17 minutes. Slept 6.9 hours, humidity 49%, high 66°F, HRV 51 ms. New body wash."
+    /// "Monday, Oct 19: 11 minutes. Slept 7.0 hours, humidity 50%, high 65°F, HRV 52 ms. Bought Brightwell Ocean
+    /// Breeze Body Wash."
     private static func accessibility(_ i: Int, date: Date) -> String {
         let n = night(i)
         var text = "\(StageStory.weekday(date, calendar: calendar)), \(StageStory.monthDay(date, calendar: calendar)): "
@@ -331,7 +345,7 @@ enum TrendsStory {
         if i == StageStory.lastNightIndex { text = "Last night, " + text }
         text += n.flare ? ", above your usual." : "."
         text += String(format: " Slept %.1f hours, humidity %d%%, high %d°F, HRV %d ms.", n.sleepHours, n.humidity, n.highF, hrv(i))
-        for e in TrendsEvent.on(i) { text += " \(e.shortName)." }
+        for e in TrendsEvent.on(i) { text += e.isProduct ? " Bought \(e.name)." : " \(e.name)." }
         return text
     }
 }

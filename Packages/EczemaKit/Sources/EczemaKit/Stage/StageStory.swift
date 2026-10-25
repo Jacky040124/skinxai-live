@@ -241,7 +241,7 @@ public enum StageStory {
     }
 
     /// The body wash's item name.
-    public static let bodyWashItem = "Body wash, 18 fl oz"
+    public static let bodyWashItem = "Brightwell Ocean Breeze Body Wash, 18 fl oz"
     /// The body wash's ingredients, in label order.
     public static let bodyWashIngredients: [String] = ["Water", "Sodium Laureth Sulfate", "Cocamidopropyl Betaine",
         "Fragrance (Parfum)", "Glycerin", "Sodium Chloride", "Methylisothiazolinone", "Citric Acid"]
@@ -254,27 +254,27 @@ public enum StageStory {
         func o(_ night: Int, _ days: Int, _ item: String, _ category: String, before: Bool, note: String? = nil) -> Order {
             order(night, days, item, category, before: before, note: note, ingredients: nil, now: now, cal)
         }
-        let detergent = "Laundry detergent, fragrance-free, 92 loads", monthly = "same product every month for 2 years"
+        let detergent = "Tide Free & Clear Liquid Detergent, 92 loads", monthly = "fragrance-free; same product every month for 2 years"
         return [
             o(0, -60, detergent, "household", before: true, note: monthly),
-            o(0, -52, "Coffee beans, 2 lb", "grocery", before: true),
-            o(0, -45, "Ceramide moisturizing cream, fragrance-free", "personal care", before: true, note: "repeat purchase, uses daily"),
-            o(0, -40, "Spiral notebooks, 5 pack", "school", before: true),
-            o(0, -33, "Toothpaste, 2 pack", "personal care", before: true),
+            o(0, -52, "Peet's Major Dickason's Coffee Beans, 2 lb", "grocery", before: true),
+            o(0, -45, "CeraVe Moisturizing Cream, 16 oz", "personal care", before: true, note: "fragrance-free; repeat purchase, uses daily"),
+            o(0, -40, "Five Star Spiral Notebooks, 5 pack", "school", before: true),
+            o(0, -33, "Colgate Total Toothpaste, 2 pack", "personal care", before: true),
             o(0, -30, detergent, "household", before: true, note: monthly),
-            o(0, -24, "USB-C charging cable", "electronics", before: false),
-            o(0, -20, "Protein bars, 12 count", "grocery", before: true),
-            o(0, -15, "Unscented hand soap refill", "household", before: true),
-            o(0, -8, "Graphing calculator batteries", "school", before: true),
+            o(0, -24, "Anker USB-C Charging Cable, 6 ft", "electronics", before: false),
+            o(0, -20, "RXBAR Protein Bars, 12 count", "grocery", before: true),
+            o(0, -15, "Method Free + Clear Hand Soap Refill", "household", before: true, note: "unscented"),
+            o(0, -8, "Duracell AAA Batteries, 8 pack", "school", before: true),
             o(0, -5, StageHistory.woolSweaterItem, "clothing", before: false, note: "first wool sweater"),
             o(0, -5, StageHistory.sampleDetergentItem, "household", before: false, note: "trial size"),
-            o(2, 0, "Coffee beans, 2 lb", "grocery", before: true),
+            o(2, 0, "Peet's Major Dickason's Coffee Beans, 2 lb", "grocery", before: true),
             o(3, 0, detergent, "household", before: true, note: monthly),
-            o(5, 0, "Wool socks, 3 pairs", "clothing", before: false, note: "washed before wearing"),
-            o(7, 0, "Instant ramen, 24 pack", "grocery", before: true),
+            o(5, 0, "Darn Tough Merino Wool Socks, 3 pairs", "clothing", before: false, note: "washed before wearing"),
+            o(7, 0, "Nissin Top Ramen, 24 pack", "grocery", before: true),
             bodyWashOrder(now: now, calendar: cal),
-            o(11, 0, "Desk lamp bulb", "household", before: true),
-            o(12, 0, "Protein bars, 12 count", "grocery", before: true),
+            o(11, 0, "Philips LED Desk Lamp Bulb", "household", before: true),
+            o(12, 0, "RXBAR Protein Bars, 12 count", "grocery", before: true),
         ]
     }
 

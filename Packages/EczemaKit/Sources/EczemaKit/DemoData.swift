@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Story (day 1 = 13 days ago, day 14 = today):
 /// - Days 1–6 calm, about 11 minutes of scratching a day.
-/// - Day 5: he starts a new scented body wash.
+/// - Day 5: he starts a new scented body wash (Brightwell Ocean Breeze Body Wash).
 /// - Day 6: indoor air turns dry (humidity under 30%) and stays dry.
 /// - Day 7 on: flare. Scratching roughly triples, mostly at night (2–4 a.m.), sleep drops, HRV drops.
 /// - Days 11–12: exam stress and short sleep (they come after the flare started).
@@ -86,7 +86,7 @@ public enum DemoData {
 
             var exposures: [Exposure] = []
             if usingWash {
-                exposures.append(Exposure(kind: .newProduct, title: "New scented body wash", day: date, automatic: false,
+                exposures.append(Exposure(kind: .newProduct, title: "Brightwell Ocean Breeze Body Wash", day: date, automatic: false,
                                           note: i == bodyWashDay ? "Started today" : nil))
             }
             if dry { exposures.append(Exposure(kind: .dryAir, title: "Dry air", day: date, automatic: true)) }
@@ -137,9 +137,9 @@ public enum DemoData {
         let df = DateFormatter(); df.dateFormat = "MMM d"
         return CaseFile(
             number: 3, createdAt: created, windowStart: windowStart, windowEnd: created, patternFound: true,
-            summary: "Your scratching nearly tripled from \(df.string(from: flareDay)). The most likely cause is the new scented body wash you started two days before. I'm fairly sure, not fully: the air also turned very dry that same week, so a short test will tell them apart.",
+            summary: "Your scratching nearly tripled from \(df.string(from: flareDay)). The most likely cause is the new Brightwell Ocean Breeze Body Wash you started two days before. I'm fairly sure, not fully: the air also turned very dry that same week, so a short test will tell them apart.",
             suspects: [
-                Suspect(kind: .newProduct, title: "New scented body wash", confidence: .medium, lag: "about 2 days",
+                Suspect(kind: .newProduct, title: "Brightwell Ocean Breeze Body Wash", confidence: .medium, lag: "about 2 days",
                         evidence: "Scratching rose about 2 days after you started it and stayed high every day you used it. That delay fits how skin reacts to a new product (48–72 hours).",
                         startedOn: washDay, flareOn: flareDay),
                 Suspect(kind: .dryAir, title: "Dry air", confidence: .lowMedium, lag: "0–1 day",
@@ -149,8 +149,8 @@ public enum DemoData {
                         evidence: "Exams came after the flare had already started. Short sleep probably made it worse, not started it.",
                         startedOn: examDay, flareOn: nil),
             ],
-            cannotSeparate: ["The body wash and the dry air started one day apart, so this log can't fully separate them yet."],
-            nextExperiment: ExperimentPlan(title: "Pause the body wash",
+            cannotSeparate: ["The Brightwell body wash and the dry air started one day apart, so this log can't fully separate them yet."],
+            nextExperiment: ExperimentPlan(title: "Pause the Brightwell body wash",
                                            instruction: "Go back to your old wash for 10 days. Keep food, gym and room humidity the same.",
                                            trigger: .newProduct, lengthDays: 10),
             redFlags: [],
