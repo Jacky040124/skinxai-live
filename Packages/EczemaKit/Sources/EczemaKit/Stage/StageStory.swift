@@ -307,6 +307,7 @@ public enum StageStory {
             o(-18, P.harborOatLotion, before: false, note: "uses daily"),
             o(-16, P.riverstoneShampoo, before: true, note: "repeat purchase, every ~6 weeks"),
             o(-15, P.willowHandSoap, before: true, note: "unscented; repeat purchase"),
+            o(-13, P.brightwellLotion, before: false),
             o(-9, P.cloudrestPillow, before: false),
             o(-8, "Duracell AAA Batteries, 8 pack", "school", before: true),
             o(-5, P.northfieldSweater, before: false, note: "first wool sweater"),
@@ -570,6 +571,12 @@ extension StageStory.Product {
                       "Methylisothiazolinone", "Citric Acid"])
 
     // New products that changed nothing.
+
+    /// Has MI too, but no flare followed: he never opened it (only asking can tell). The one exception
+    /// Claude has to ask about.
+    public static let brightwellLotion = Self(item: "Brightwell Daily Moisturizing Lotion, 12 fl oz", category: "personal care",
+        ingredients: ["Water", "Glycerin", "Cetearyl Alcohol", "Dimethicone", "Fragrance (Parfum)",
+                      "Methylisothiazolinone", "Carbomer"])
 
     public static let coastlineSunscreen = Self(item: "Coastline Mineral Sunscreen SPF 30", category: "personal care",
         ingredients: ["Zinc Oxide", "Water", "Caprylic/Capric Triglyceride", "Glycerin", "Phenoxyethanol", "Tocopherol"])

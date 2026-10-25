@@ -55,6 +55,7 @@ struct TrendsEvent: Identifiable, Hashable {
             P.lumenHandSoap.item: ("handsoap", "✋", "Lumen Hand Soap"),
             P.baylineTShirts.item: ("tshirts", "👕", "Bayline T-Shirts"),
             P.harborOatLotion.item: ("lotion", "🧴", "Harbor Oat Lotion"),
+            P.brightwellLotion.item: ("brightwelllotion", "🧴", "Brightwell Lotion"),
             P.cloudrestPillow.item: ("pillow", "🛏", "Cloudrest Pillow"),
             P.northfieldSweater.item: ("sweater", "🧶", "Northfield Sweater"),
             P.freshMeadowDetergent.item: ("detergent", "🧺", "FreshMeadow Detergent"),

@@ -16,7 +16,9 @@ import Testing
 
     @Test func miIsInExactlyTheFourFlareProducts() {
         let withMI = orders.filter(Self.hasMI).map(\.item)
+        // The four flare products, and the one exception: the Brightwell lotion (Sep 27), never opened, no flare.
         #expect(withMI == [StageStory.Product.summitShampoo.item, StageStory.Product.lumenHandSoap.item,
+                           StageStory.Product.brightwellLotion.item,
                            StageStory.Product.freshMeadowDetergent.item, StageStory.bodyWashItem])
         // Each flare has one product with MI among its new things.
         for flare in StageHistory.flares {
@@ -25,7 +27,7 @@ import Testing
         // Nothing tolerated has it (nor its sister preservative): the repeat purchases and every new thing
         // that didn't come before a flare.
         let flareItems = Set(StageHistory.flares.flatMap(\.items))
-        for o in orders where !flareItems.contains(o.item) {
+        for o in orders where !flareItems.contains(o.item) && o.item != StageStory.Product.brightwellLotion.item {
             #expect(!(o.ingredients ?? []).contains { $0.lowercased().contains("isothiazolinone") }, "\(o.item)")
         }
         #expect(orders.filter { $0.boughtBefore && $0.ingredients != nil }.allSatisfy { !Self.hasMI($0) })
@@ -90,7 +92,7 @@ import Testing
         #expect(scratch.compactMap { $0["scratch_minutes"] as? Int } == StageHistory.nights.map(\.minutes))
         let sleep = try #require(StageStory.runTool(name: "sleep_history", arguments: ["nights": 74], now: now, calendar: cal)["nights"] as? [[String: Any]])
         #expect(sleep.compactMap { $0["hrv_ms"] as? Int } == StageHistory.nightIDs.map(StageStory.hrv))
-        #expect(count("order_history", "orders", ["days": 120]) == 29)
+        #expect(count("order_history", "orders", ["days": 120]) == 30)
     }
 
     /// With `ET_TOOLS_DUMP=<path>` in the environment, writes every data tool's full output for today =
