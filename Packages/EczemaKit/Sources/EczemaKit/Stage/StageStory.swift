@@ -340,6 +340,17 @@ public enum StageStory {
 
     // MARK: - Internals
 
+    /// Heart-rate variability on night `i`, ms (lower = more stress): `hrvMs` for the last 14 nights;
+    /// before them his usual with small deterministic night-to-night noise, a dip on the nights of the
+    /// earlier flare (poor sleep) and after short nights. Trends draws the same numbers.
+    public static func hrv(_ i: Int) -> Int {
+        if i >= 0 { return hrvMs[min(i, hrvMs.count - 1)] }
+        let flareDip: [Int: Int] = [-4: 4, -3: 7, -2: 8, -1: 5]
+        let noise = ((i * 37 + 1_000_003) % 7) - 3
+        let short = StageHistory.night(i).sleepHours < StageHistory.shortSleepBelow ? 3 : 0
+        return usualHrvMs + noise - (flareDip[i] ?? 0) - short
+    }
+
     /// Night `i`'s numbers for the tools: the story's own for 0 … 13, `StageHistory`'s before.
     private static func toolNight(_ i: Int) -> (minutes: Int, episodes: Int, humidity: Int, highF: Int, sleep: Double, wakes: Int) {
         if i >= 0 { return (nights[i], episodes[i], humidity[i], highF[i], sleepHours[i], wakeUps[i]) }
@@ -380,9 +391,10 @@ public enum StageStory {
         case "sleep_history":
             let from = nights.count - clampCount(args["nights"], max: toolMaxNights, default: nights.count)
             let list = (from..<nights.count).map { i -> StageJSON in
-                .object([("night_of", .string(day(i))), ("hours_asleep", .double(toolNight(i).sleep)), ("wake_ups", .int(toolNight(i).wakes))])
+                .object([("night_of", .string(day(i))), ("hours_asleep", .double(toolNight(i).sleep)), ("wake_ups", .int(toolNight(i).wakes)),
+                         ("hrv_ms", .int(hrv(i)))])
             }
-            return .object([("source", .string("Apple Health")), ("nights", .array(list))])
+            return .object([("source", .string("Apple Health")), ("usual_hrv_ms", .int(usualHrvMs)), ("nights", .array(list))])
         default:
             return .object([("error", .string("There is no tool called \(name)."))])
         }

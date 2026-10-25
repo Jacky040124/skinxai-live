@@ -244,13 +244,7 @@ enum TrendsStory {
     /// Heart-rate variability on night `i`, ms: `StageStory.hrvMs` for the last 14 nights; before them a
     /// steady value around his usual with small deterministic night-to-night noise, a dip on the nights
     /// of the earlier flare (poor sleep) and after short nights.
-    static func hrv(_ i: Int) -> Int {
-        if i >= 0 { return StageStory.hrvMs[min(i, StageStory.hrvMs.count - 1)] }
-        let flareDip: [Int: Int] = [-4: 4, -3: 7, -2: 8, -1: 5]
-        let noise = ((i * 37 + 1_000_003) % 7) - 3
-        let short = StageHistory.night(i).sleepHours < StageHistory.shortSleepBelow ? 3 : 0
-        return StageStory.usualHrvMs + noise - (flareDip[i] ?? 0) - short
-    }
+    static func hrv(_ i: Int) -> Int { StageStory.hrv(i) }
 
     /// The exam weeks, oldest first (mid-September and the midterms).
     static var examRuns: [ClosedRange<Int>] {
