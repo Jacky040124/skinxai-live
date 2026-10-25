@@ -24,6 +24,7 @@ export default {
     if (["/api/live", "/api/events", "/api/status", "/api/label", "/api/recording", "/api/recordings"].includes(url.pathname)) return room.fetch(request);
     if (url.pathname === "/api/analyze" && request.method === "POST") return analyze(request, env);
     if (url.pathname === "/api/chat" && request.method === "POST") return chat(request, env);
+    if (url.pathname === "/api/orders" && request.method === "GET") return nessieOrders(url, env);
     return env.ASSETS.fetch(request);
   },
 };
@@ -310,3 +311,31 @@ async function chatTurn(key, model, today, mi, messages, signal) {
   }
   return { role: "assistant", content, tool_calls: endAtQuestion(calls) };
 }
+
+// ---------- Capital One Nessie: order history for Claude's order_history tool ----------
+// GET /api/orders?days=N reads the demo person's purchases from Nessie (NESSIE_KEY and NESSIE_ACCOUNT_ID are
+// Worker secrets, never sent to the phone) and joins each purchase with our product catalog for ingredients,
+// which Nessie doesn't have. Same JSON shape as the app's bundled order_history tool.
+import nessieCatalog from "./nessie-products.json";
+
+async function nessieOrders(url, env) {
+  if (!env.NESSIE_KEY || !env.NESSIE_ACCOUNT_ID) return json({ error: "nessie not configured" }, 503);
+  const days = Math.min(Math.max(parseInt(url.searchParams.get("days") || "120", 10) || 120, 1), 120);
+  const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+  const r = await fetch(`https://prod-api.nessieisreal.com/accounts/${env.NESSIE_ACCOUNT_ID}/purchases?key=${env.NESSIE_KEY}`);
+  if (!r.ok) return json({ error: `nessie ${r.status}` }, 502);
+  const rows = (await r.json()).sort((a, b) => a.purchase_date.localeCompare(b.purchase_date));
+  const seen = new Set(), orders = [];
+  for (const p of rows) {
+    const item = p.description || "";
+    if (p.purchase_date < since) { seen.add(item); continue; }
+    const product = nessieCatalog.products[item] || {};
+    const o = { date: p.purchase_date, item, category: product.category || "unknown", bought_before: seen.has(item), amount: p.amount };
+    if (product.ingredients) o.ingredients = product.ingredients;
+    if (product.material) o.material = product.material;
+    orders.push(o);
+    seen.add(item);
+  }
+  return json({ source: "Capital One Nessie (purchases) + SkinXAI product catalog (ingredients)", orders });
+}
+
