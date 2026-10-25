@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - What it can read (onboarding's permissions page)
 
-/// What Eczema Twin can read, as cards on the yellow frame. In this build every source is
+/// What SkinXAI can read, as cards on the yellow frame. In this build every source is
 /// connected, so each row shows its granted state; nothing here asks the system for permission.
 struct PermissionCards: View {
     struct Source: Identifiable {
@@ -108,7 +108,7 @@ struct BrandMark: View {
                     .offset(x: 4.5)
             }
             .frame(width: 24, height: 16)
-            Text("Eczema Twin")
+            Text("SkinXAI")
                 .font(Twin.Typeface.sans(17, .bold))
                 .tracking(-0.3)
                 .foregroundStyle(Twin.Palette.ink)

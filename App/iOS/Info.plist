@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Eczema Twin</string>
+	<string>SkinXAI</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -19,13 +19,13 @@
 	<key>CFBundleShortVersionString</key>
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
-	<string>19</string>
+	<string>20</string>
 	<key>NSHealthShareUsageDescription</key>
-	<string>Eczema Twin reads your sleep and heart data to understand your flares.</string>
+	<string>SkinXAI reads your sleep and heart data to understand your flares.</string>
 	<key>NSHealthUpdateUsageDescription</key>
-	<string>Eczema Twin saves nothing to Health.</string>
+	<string>SkinXAI saves nothing to Health.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Eczema Twin uses your location for local humidity, air quality and pollen.</string>
+	<string>SkinXAI uses your location for local humidity, air quality and pollen.</string>
 	<key>UIAppFonts</key>
 	<array>
 		<string>SpaceGrotesk.ttf</string>

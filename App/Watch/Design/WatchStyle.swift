@@ -29,17 +29,17 @@ struct WatchPressStyle: ButtonStyle {
     }
 }
 
-/// The app's name on the system clock's line: the big screen's two-circle mark and "Twin".
+/// The app's name on the system clock's line: the big screen's two-circle mark and "SkinXAI".
 struct WatchTitle: View {
     var body: some View {
         HStack(spacing: 6) {
             TwinMark(size: 12)
-            Text("Twin")
+            Text("SkinXAI")
                 .font(WatchFont.sans(17, .bold))
                 .foregroundStyle(Twin.Palette.yellow)
         }
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Eczema Twin")
+        .accessibilityLabel("SkinXAI")
         .accessibilityAddTraits(.isHeader)
     }
 }

@@ -40,17 +40,17 @@ targets:
     info:
       path: App/iOS/Info.plist
       properties:
-        CFBundleDisplayName: Eczema Twin
-        CFBundleVersion: "19"
+        CFBundleDisplayName: SkinXAI
+        CFBundleVersion: "20"
         UILaunchScreen: {}
         # Wins over UILaunchScreen: the app's first frame (App/iOS/Shell/LaunchScreen.storyboard).
         UILaunchStoryboardName: LaunchScreen
         # Portrait everywhere; the live monitor turns the phone to landscape (OrientationLock in the app).
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         UIAppFonts: [SpaceGrotesk.ttf, SpaceMono-Regular.ttf, SpaceMono-Bold.ttf]
-        NSHealthShareUsageDescription: Eczema Twin reads your sleep and heart data to understand your flares.
-        NSHealthUpdateUsageDescription: Eczema Twin saves nothing to Health.
-        NSLocationWhenInUseUsageDescription: Eczema Twin uses your location for local humidity, air quality and pollen.
+        NSHealthShareUsageDescription: SkinXAI reads your sleep and heart data to understand your flares.
+        NSHealthUpdateUsageDescription: SkinXAI saves nothing to Health.
+        NSLocationWhenInUseUsageDescription: SkinXAI uses your location for local humidity, air quality and pollen.
   EczemaTwinWatch:
     type: application
     platform: watchOS
@@ -73,14 +73,14 @@ targets:
     info:
       path: App/Watch/Info.plist
       properties:
-        CFBundleDisplayName: Eczema Twin
-        CFBundleVersion: "19"
+        CFBundleDisplayName: SkinXAI
+        CFBundleVersion: "20"
         WKApplication: true
         WKCompanionAppBundleIdentifier: com.jackyzhong.eczematwin2
         WKBackgroundModes: [workout-processing, physical-therapy]
         TwinLiveHost: $(TWIN_LIVE_HOST)
         TwinLiveKey: $(TWIN_LIVE_KEY)
         UIAppFonts: [SpaceGrotesk.ttf, SpaceMono-Regular.ttf, SpaceMono-Bold.ttf]
-        NSMotionUsageDescription: Eczema Twin reads wrist motion to detect scratching.
-        NSHealthShareUsageDescription: Eczema Twin keeps a workout session so it can detect scratching in the background.
-        NSHealthUpdateUsageDescription: Eczema Twin keeps a workout session so it can detect scratching in the background.
+        NSMotionUsageDescription: SkinXAI reads wrist motion to detect scratching.
+        NSHealthShareUsageDescription: SkinXAI keeps a workout session so it can detect scratching in the background.
+        NSHealthUpdateUsageDescription: SkinXAI keeps a workout session so it can detect scratching in the background.

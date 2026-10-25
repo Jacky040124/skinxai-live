@@ -156,11 +156,16 @@ struct PermissionsScreen: View {
         .background(Twin.Palette.paper)
     }
 
-    /// "Eczema Twin 1.0 (10)", from the bundle. Also the hidden gesture's target.
+    /// "SkinXAI 1.0 (10)", from the bundle. Also the hidden gesture's target.
     private var version: some View {
-        Text(Self.versionLine)
-            .font(Twin.Typeface.mono(11))
-            .foregroundStyle(Twin.Palette.inkHint)
+        VStack(spacing: 4) {
+            Text("Making skin great again.")
+                .font(Twin.Typeface.sans(13, .semibold))
+                .foregroundStyle(Twin.Palette.inkMuted)
+            Text(Self.versionLine)
+                .font(Twin.Typeface.mono(11))
+                .foregroundStyle(Twin.Palette.inkHint)
+        }
             .frame(maxWidth: .infinity)
             .padding(.top, 16)
             .padding(.bottom, 4)
@@ -231,7 +236,7 @@ struct PermissionsScreen: View {
         let info = Bundle.main.infoDictionary
         let version = info?["CFBundleShortVersionString"] as? String ?? "1.0"
         let build = info?["CFBundleVersion"] as? String ?? ""
-        return build.isEmpty ? "Eczema Twin \(version)" : "Eczema Twin \(version) (\(build))"
+        return build.isEmpty ? "SkinXAI \(version)" : "SkinXAI \(version) (\(build))"
     }
 
     /// `-showDemoCard 1` (Debug builds only): the hidden controls show from the start (screenshots).

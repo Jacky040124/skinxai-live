@@ -74,6 +74,6 @@ struct UserAvatar: View {
         }
         .buttonStyle(PressableStyle())
         .accessibilityLabel(Self.name)
-        .accessibilityHint("Shows what Eczema Twin can read")
+        .accessibilityHint("Shows what SkinXAI can read")
     }
 }
