@@ -24,7 +24,7 @@ public enum StageStory {
     /// Hours asleep per night (Apple Health).
     public static let sleepHours: [Double] = [7.4, 7.1, 6.2, 6.0, 6.4, 7.5, 7.3, 7.2, 7.6, 7.0, 6.9, 6.4, 5.6, 5.1]
     /// Times he woke up per night.
-    public static let wakeUps: [Int] = [0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 2, 3, 4]
+    public static let wakeUps: [Int] = [0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 2, 2]
     /// Outdoor humidity on the day each night started, percent.
     public static let humidity: [Int] = [52, 49, 55, 51, 47, 50, 53, 48, 51, 50, 49, 47, 46, 29]
     /// High temperature on that day, °F.
@@ -102,7 +102,7 @@ public enum StageStory {
         public static var episodes: Int { StageStory.episodes[StageStory.lastNightIndex] }
         /// Intense episodes among them: 7.
         public static let intense = 7
-        /// Times he woke up: 4.
+        /// Times he woke up: 2.
         public static var wakeUps: Int { StageStory.wakeUps[StageStory.lastNightIndex] }
         /// Hours asleep: 5.1.
         public static var sleepHours: Double { StageStory.sleepHours[StageStory.lastNightIndex] }
@@ -246,8 +246,9 @@ public enum StageStory {
     public static let bodyWashIngredients: [String] = ["Water", "Sodium Laureth Sulfate", "Cocamidopropyl Betaine",
         "Fragrance (Parfum)", "Glycerin", "Sodium Chloride", "Methylisothiazolinone", "Citric Acid"]
 
-    /// His 17 orders of the last ~11 weeks, oldest first: repeat purchases and one personal-care item he
-    /// had never bought before (the body wash).
+    /// His 19 orders of the last ~11 weeks, oldest first: repeat purchases, one personal-care item he
+    /// had never bought before (the body wash), and the two new things of the earlier flare (a wool
+    /// sweater and a scented detergent sample, on the day of night −5; see `StageHistory`).
     public static func orders(now: Date = Date(), calendar: Calendar = .current) -> [Order] {
         let cal = gregorian(calendar)
         func o(_ night: Int, _ days: Int, _ item: String, _ category: String, before: Bool, note: String? = nil) -> Order {
@@ -265,6 +266,8 @@ public enum StageStory {
             o(0, -20, "Protein bars, 12 count", "grocery", before: true),
             o(0, -15, "Unscented hand soap refill", "household", before: true),
             o(0, -8, "Graphing calculator batteries", "school", before: true),
+            o(0, -5, StageHistory.woolSweaterItem, "clothing", before: false, note: "first wool sweater"),
+            o(0, -5, StageHistory.sampleDetergentItem, "household", before: false, note: "trial size"),
             o(2, 0, "Coffee beans, 2 lb", "grocery", before: true),
             o(3, 0, detergent, "household", before: true, note: monthly),
             o(5, 0, "Wool socks, 3 pairs", "clothing", before: false, note: "washed before wearing"),
@@ -315,7 +318,8 @@ public enum StageStory {
     public static let dataTools: [String] = ["scratch_history", "order_history", "weather_history", "calendar_events", "sleep_history"]
 
     /// Runs a data tool with the model's arguments (`nights` or `days`, clamped like story.js: missing,
-    /// 0 or not a number means all). The result has exactly the keys and shapes of story.js's tools,
+    /// 0 or not a number means the default). Scratching, weather and sleep go back up to 30 nights (14 by
+    /// default); nights before the story's 14 come from `StageHistory`. The result has exactly the keys and shapes of story.js's tools,
     /// with dates as "YYYY-MM-DD" in the calendar's time zone. An unknown name returns
     /// `["error": "There is no tool called <name>."]`.
     public static func runTool(name: String, arguments: [String: Any] = [:], now: Date = Date(),
@@ -331,19 +335,29 @@ public enum StageStory {
         toolResult(name, arguments(fromJSON: argumentsJSON), now: now, calendar: calendar).text
     }
 
+    /// How far back the scratching, weather and sleep tools go: 30 nights.
+    public static let toolMaxNights = 30
+
     // MARK: - Internals
+
+    /// Night `i`'s numbers for the tools: the story's own for 0 … 13, `StageHistory`'s before.
+    private static func toolNight(_ i: Int) -> (minutes: Int, episodes: Int, humidity: Int, highF: Int, sleep: Double, wakes: Int) {
+        if i >= 0 { return (nights[i], episodes[i], humidity[i], highF[i], sleepHours[i], wakeUps[i]) }
+        let n = StageHistory.night(i)
+        return (n.minutes, n.episodes, n.humidity, n.highF, n.sleepHours, n.wakeUps)
+    }
 
     static func toolResult(_ name: String, _ args: [String: Any], now: Date, calendar: Calendar) -> StageJSON {
         let cal = gregorian(calendar)
         let day = { (i: Int) in iso(nightDate(i, now: now, calendar: cal), calendar: cal) }
         switch name {
         case "scratch_history":
-            let from = nights.count - clampCount(args["nights"], max: nights.count)
+            let from = nights.count - clampCount(args["nights"], max: toolMaxNights, default: nights.count)
             let list = (from..<nights.count).map { i -> StageJSON in
                 .object([("night_of", .string(day(i))),
                          ("weekday", .string(weekday(nightDate(i, now: now, calendar: cal), calendar: cal))),
-                         ("scratch_minutes", .int(nights[i])),
-                         ("scratch_episodes", .int(episodes[i]))])
+                         ("scratch_minutes", .int(toolNight(i).minutes)),
+                         ("scratch_episodes", .int(toolNight(i).episodes))])
             }
             return .object([("usual_minutes_per_night", .int(usual)),
                             ("measured_by", .string("Apple Watch, every night")),
@@ -356,17 +370,17 @@ public enum StageStory {
             let list = orders(now: now, calendar: cal).filter { $0.date >= since }.map { $0.json(cal) }
             return .object([("source", .string("Amazon order history")), ("orders", .array(list))])
         case "weather_history":
-            let from = nights.count - clampCount(args["days"], max: nights.count)
+            let from = nights.count - clampCount(args["days"], max: toolMaxNights, default: nights.count)
             let list = (from..<nights.count).map { i -> StageJSON in
-                .object([("date", .string(day(i))), ("humidity_percent", .int(humidity[i])), ("high_f", .int(highF[i]))])
+                .object([("date", .string(day(i))), ("humidity_percent", .int(toolNight(i).humidity)), ("high_f", .int(toolNight(i).highF))])
             }
             return .object([("location", .string(location)), ("days", .array(list))])
         case "calendar_events":
             return .object([("events", .array(calendarEvents(now: now, calendar: cal).map { $0.json(cal) }))])
         case "sleep_history":
-            let from = nights.count - clampCount(args["nights"], max: nights.count)
+            let from = nights.count - clampCount(args["nights"], max: toolMaxNights, default: nights.count)
             let list = (from..<nights.count).map { i -> StageJSON in
-                .object([("night_of", .string(day(i))), ("hours_asleep", .double(sleepHours[i])), ("wake_ups", .int(wakeUps[i]))])
+                .object([("night_of", .string(day(i))), ("hours_asleep", .double(toolNight(i).sleep)), ("wake_ups", .int(toolNight(i).wakes))])
             }
             return .object([("source", .string("Apple Health")), ("nights", .array(list))])
         default:
@@ -374,10 +388,10 @@ public enum StageStory {
         }
     }
 
-    /// story.js's `clampN`: `Math.max(1, Math.min(max, Math.round(+n || max)))`.
-    static func clampCount(_ value: Any?, max: Int) -> Int {
+    /// story.js's `clampN`: `Math.max(1, Math.min(max, Math.round(+n || dflt)))` (`dflt` = max unless given).
+    static func clampCount(_ value: Any?, max: Int, default fallback: Int? = nil) -> Int {
         let x = jsNumber(value)
-        let n = x.isNaN || x == 0 ? Double(max) : x
+        let n = x.isNaN || x == 0 ? Double(fallback ?? max) : x
         let rounded = (n + 0.5).rounded(.down)   // Math.round
         return Int(Swift.max(1, Swift.min(Double(max), rounded)))
     }

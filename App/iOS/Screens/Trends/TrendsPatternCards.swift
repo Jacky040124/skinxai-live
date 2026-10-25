@@ -1,9 +1,9 @@
 import SwiftUI
 import EczemaKit
 
-// The pattern cards under "What changed": each one is an eyebrow, one plain-English takeaway that
+// The pattern cards under the nights chart: each one is an eyebrow, one plain-English takeaway that
 // says what the data shows (linked or not), and the chart. All numbers come from `StageHistory`
-// (74 nights: 60 calm ones before `StageStory`'s 14).
+// (74 nights: 60 before `StageStory`'s 14).
 
 // MARK: - Card frame
 
@@ -69,17 +69,6 @@ extension View {
     func onFirstSight(_ action: @escaping () -> Void) -> some View { modifier(TrendsOnFirstSight(action: action)) }
 }
 
-/// A dot for legends: orange with an ink edge (body-wash nights) or grey.
-private struct LegendDot: View {
-    var hot: Bool
-    var body: some View {
-        Circle()
-            .fill(hot ? Twin.Palette.orange : Twin.Palette.ink.opacity(0.28))
-            .overlay { if hot { Circle().strokeBorder(Twin.Palette.ink, lineWidth: 1) } }
-            .frame(width: 9, height: 9)
-    }
-}
-
 /// "- - - your usual · 12 min" for legends.
 private struct UsualKey: View {
     var body: some View {
@@ -92,186 +81,9 @@ private struct UsualKey: View {
     }
 }
 
-// MARK: - 1. Weather vs scratching
+// MARK: - 4. Weekday pattern
 
-/// One dot per night: humidity (or the day's high) across, minutes of scratching up. Body-wash nights
-/// are orange. Dry days (and hot days) get a soft band, so you can see they were calm.
-struct TrendsWeatherCard: View {
-    enum Measure: String, CaseIterable, Hashable {
-        case humidity, temperature
-        var title: String { self == .humidity ? "Humidity" : "Temperature" }
-    }
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var measure: Measure = TrendsLaunch.weather ?? .humidity
-    @State private var shown = false
-
-    private let plotHeight: CGFloat = 196
-    private let yAxisWidth: CGFloat = 24
-    private let yTop = 45.0
-    private var nights: [StageHistory.Night] { StageHistory.nights }
-
-    private var domain: ClosedRange<Double> { measure == .humidity ? 20...80 : 55...95 }
-    private var ticks: [Double] { measure == .humidity ? [20, 35, 50, 65, 80] : [55, 65, 75, 85, 95] }
-    /// The soft band: dry (under 35%) or hot (85 °F and up).
-    private var band: ClosedRange<Double> { measure == .humidity ? 20...Double(StageStory.dryBelowPercent) : 85...95 }
-    private func value(_ n: StageHistory.Night) -> Double { Double(measure == .humidity ? n.humidity : n.highF) }
-
-    /// Dry (or hot) days without the body wash: all calm.
-    private var calmInBand: (count: Int, allCalm: Bool) {
-        let list = nights.filter { !$0.bodyWash && band.contains(value($0)) }
-        return (list.count, list.allSatisfy { $0.minutes <= StageStory.usual + 2 })
-    }
-
-    private var takeaway: (String, String) {
-        let c = calmInBand
-        let tail = nights.filter(\.flare).allSatisfy(\.bodyWash) ? " Every high night was a body-wash night." : ""
-        switch measure {
-        case .humidity:
-            return ("No link to humidity.",
-                    (c.allCalm ? "All \(c.count) dry days before the body wash were calm." : "Dry days were mixed.") + tail)
-        case .temperature:
-            return ("No link to temperature.",
-                    (c.allCalm ? "The \(c.count) hottest days (85°F+) were calm." : "Hot days were mixed.") + tail)
-        }
-    }
-
-    var body: some View {
-        let t = takeaway
-        TrendsTakeawayCard(eyebrow: "Weather vs scratching", meta: "\(nights.count) NIGHTS", lead: t.0, rest: t.1) {
-            VStack(alignment: .leading, spacing: 12) {
-                ChartRangePicker(options: Measure.allCases, selection: $measure.animation(Twin.Motion.spring), title: \.title)
-                plot
-                legend
-            }
-        }
-        .animation(.easeOut(duration: 0.25), value: measure)
-        .onFirstSight {
-            withAnimation(reduceMotion ? .easeOut(duration: 0.35) : .linear(duration: 0.01)) { shown = true }
-        }
-    }
-
-    private var plot: some View {
-        VStack(spacing: 4) {
-            GeometryReader { g in
-                let w = g.size.width - yAxisWidth
-                let x = { (v: Double) in yAxisWidth + CGFloat((v - domain.lowerBound) / (domain.upperBound - domain.lowerBound)) * w }
-                let y = { (m: Double) in plotHeight - CGFloat(m / yTop) * plotHeight }
-                ZStack(alignment: .topLeading) {
-                    // Dry / hot band.
-                    Rectangle()
-                        .fill(Twin.Palette.orangeSoft.opacity(0.75))
-                        .frame(width: x(band.upperBound) - x(band.lowerBound), height: plotHeight)
-                        .offset(x: x(band.lowerBound))
-                    Text(measure == .humidity ? "DRY" : "HOT")
-                        .font(Twin.Typeface.mono(9, bold: true))
-                        .tracking(0.45)
-                        .foregroundStyle(Twin.Palette.orangeStrong)
-                        .offset(x: x(band.lowerBound) + 5, y: 5)
-                    // Grid: 24 and 36 faint, the usual dashed, the baseline.
-                    ForEach([24.0, 36.0], id: \.self) { m in
-                        Rectangle().fill(Twin.Palette.hairline.opacity(0.6))
-                            .frame(width: w, height: 1).offset(x: yAxisWidth, y: y(m))
-                    }
-                    ChartHLine()
-                        .stroke(Twin.Palette.seam, style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
-                        .frame(width: w, height: 2)
-                        .offset(x: yAxisWidth, y: y(Double(StageStory.usual)) - 1)
-                    Rectangle().fill(Twin.Palette.hairline).frame(width: w, height: 1).offset(x: yAxisWidth, y: plotHeight)
-                    ForEach([0.0, 12, 24, 36], id: \.self) { m in
-                        Text("\(Int(m))")
-                            .font(Twin.Typeface.mono(9))
-                            .foregroundStyle(Twin.Palette.inkHint)
-                            .frame(width: yAxisWidth - 6, alignment: .trailing)
-                            .offset(y: y(m) - 6)
-                    }
-                    // Calm nights first, body-wash nights on top.
-                    ForEach(nights.filter { !$0.bodyWash } + nights.filter(\.bodyWash)) { n in
-                        dot(n, at: CGPoint(x: x(value(n)) + jitter(n), y: y(Double(n.minutes))))
-                    }
-                    lastNightLabel(x: x(value(StageHistory.night(StageStory.lastNightIndex))),
-                                   y: y(Double(StageStory.LastNight.minutes)))
-                }
-            }
-            .frame(height: plotHeight)
-            // X axis.
-            GeometryReader { g in
-                let w = g.size.width - yAxisWidth
-                ZStack(alignment: .topLeading) {
-                    ForEach(ticks, id: \.self) { v in
-                        Text(measure == .humidity ? "\(Int(v))%" : "\(Int(v))°")
-                            .font(Twin.Typeface.mono(9))
-                            .foregroundStyle(Twin.Palette.inkHint)
-                            .fixedSize()
-                            .frame(width: 40)
-                            .offset(x: yAxisWidth + CGFloat((v - domain.lowerBound) / (domain.upperBound - domain.lowerBound)) * w - 20)
-                    }
-                }
-            }
-            .frame(height: 12)
-            HStack {
-                Text("MIN / NIGHT ↑")
-                Spacer()
-                Text(measure == .humidity ? "HUMIDITY THAT DAY →" : "HIGH THAT DAY, °F →")
-            }
-            .font(Twin.Typeface.mono(9, bold: true))
-            .tracking(0.45)
-            .foregroundStyle(Twin.Palette.inkHint)
-            .padding(.top, 2)
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(accessibilityText)
-    }
-
-    private func dot(_ n: StageHistory.Night, at p: CGPoint) -> some View {
-        let size: CGFloat = n.bodyWash ? 12 : 9
-        let k = n.id - StageHistory.firstNight
-        return Circle()
-            .fill(n.bodyWash ? Twin.Palette.orange : Twin.Palette.ink.opacity(0.28))
-            .overlay { if n.bodyWash { Circle().strokeBorder(Twin.Palette.ink, lineWidth: 1.5) } }
-            .frame(width: size, height: size)
-            .scaleEffect(shown || reduceMotion ? 1 : 0.01)
-            .opacity(shown ? 1 : 0)
-            .animation(reduceMotion ? nil : Twin.Motion.bouncy.delay(0.1 + Double(k) * 0.012), value: shown)
-            .offset(x: p.x - size / 2, y: p.y - size / 2)
-    }
-
-    private func lastNightLabel(x: CGFloat, y: CGFloat) -> some View {
-        Text("LAST NIGHT · \(StageStory.LastNight.minutes)")
-            .font(Twin.Typeface.mono(9, bold: true))
-            .tracking(0.3)
-            .foregroundStyle(Twin.Palette.ink)
-            .fixedSize()
-            .offset(x: x + 10, y: y - 6)
-            .opacity(shown ? 1 : 0)
-            .animation(.easeOut(duration: 0.3).delay(1.2), value: shown)
-    }
-
-    /// A small fixed sideways nudge so nights with the same numbers don't hide each other.
-    private func jitter(_ n: StageHistory.Night) -> CGFloat { CGFloat((abs(n.id) * 37) % 7 - 3) * 0.7 }
-
-    private var legend: some View {
-        HStack(spacing: 14) {
-            HStack(spacing: 5) { LegendDot(hot: true); Text("body-wash nights") }
-            HStack(spacing: 5) { LegendDot(hot: false); Text("other nights") }
-            UsualKey()
-        }
-        .font(Twin.Typeface.mono(10))
-        .foregroundStyle(Twin.Palette.inkHint)
-        .lineLimit(1)
-        .minimumScaleFactor(0.75)
-        .accessibilityHidden(true)
-    }
-
-    private var accessibilityText: String {
-        let t = takeaway
-        return "Scratching against \(measure == .humidity ? "humidity" : "temperature"), one dot per night. \(t.0) \(t.1)"
-    }
-}
-
-// MARK: - 5. Weekday pattern
-
-/// Average minutes per weekday before the body wash, with your usual and a ±2 min band.
+/// Average minutes per weekday outside both flares, with your usual and a ±2 min band.
 struct TrendsWeekdayCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var grown = false
@@ -286,7 +98,7 @@ struct TrendsWeekdayCard: View {
         let usual = Double(StageStory.usual)
         let spread = averages.map { abs($0 - usual) }.max() ?? 0
         let flat = spread <= 2
-        TrendsTakeawayCard(eyebrow: "By weekday", meta: "\(StageHistory.beforeBodyWash.count) NIGHTS BEFORE THE WASH",
+        TrendsTakeawayCard(eyebrow: "By weekday", meta: "\(StageHistory.typicalNights.count) NIGHTS · FLARES LEFT OUT",
                            lead: flat ? "No weekday pattern." : "Some days run higher.",
                            rest: flat ? "Every day is within 2 min of your usual." : "Weekends differ from weekdays.") {
             VStack(spacing: 6) {

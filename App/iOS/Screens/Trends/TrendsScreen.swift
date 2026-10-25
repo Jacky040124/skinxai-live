@@ -4,12 +4,12 @@ import EczemaKit
 /// Trends — "what changed?" (STAGE-SPEC §3). Every number comes from `StageStory` and its longer
 /// history `StageHistory` (74 nights).
 ///
-/// Range picker (7 nights · All time), this week's average with the week-over-week sticker, the
-/// per-night chart (flare nights orange, dashed usual line, markers on two rows with dotted stems, a
-/// humidity row with the dry days in orange, tap a night → cyan outline + detail strip; more than 14
-/// nights scroll sideways), "What changed" (tap a row → that night on the chart), then five pattern
-/// cards, each with a one-line takeaway: weather vs scratching, the calendar, last night's sleep with
-/// scratching, trigger impact, and the weekday pattern.
+/// Range picker (7 nights · All time), this week's average with the week-over-week sticker, one
+/// sentence about the weather, the per-night chart (flare nights orange, dashed usual line, markers on
+/// two rows with dotted stems, humidity and temperature as thin line tracks under the bars, tap a night
+/// → cyan outline + detail strip; more than 21 nights scroll sideways, so All time opens on both
+/// flares), then four pattern cards, each with a one-line takeaway: the calendar, last night's sleep
+/// with scratching, trigger impact, and the weekday pattern.
 struct TrendsScreen: View {
     @EnvironmentObject var app: AppState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -33,23 +33,15 @@ struct TrendsScreen: View {
                     }
                     section(1) { mainCard(now) }
                         .id("trends-chart")
-                    section(2) {
-                        TrendsChangesCard(changes: TrendsStory.changes(now: now)) { change in
-                            select(change.night)
-                            withAnimation(Twin.Motion.slide) { proxy.scrollTo("trends-chart", anchor: .top) }
-                        }
-                    }
                     // Patterns over the longer history: what is linked, and what isn't. Each chart
                     // grows when it scrolls into sight.
-                    section(3) { TrendsWeatherCard() }
-                        .id("trends-weather")
-                    section(4) { TrendsCalendarCard() }
+                    section(2) { TrendsCalendarCard() }
                         .id("trends-calendar")
-                    section(5) { TrendsSleepCard() }
+                    section(3) { TrendsSleepCard() }
                         .id("trends-sleep")
-                    section(6) { TrendsTriggersCard { app.select(.insight) } }
+                    section(4) { TrendsTriggersCard { app.select(.insight) } }
                         .id("trends-triggers")
-                    section(7) { TrendsWeekdayCard() }
+                    section(5) { TrendsWeekdayCard() }
                         .id("trends-weekday")
                     // The end marker rides on the last card (a stack child would add 12 pt of spacing
                     // under it): the card ends the prototype's 26 pt above the tab bar.
@@ -131,11 +123,17 @@ struct TrendsScreen: View {
             .padding(.top, 6)
             TrendsWeekSticker(percent: StageStory.weekChangePercent)
                 .padding(.top, 8)
-            NightsChart(bars: TrendsStory.bars(now: now), shown: range.nights,
+            weatherTakeaway
+                .padding(.top, 14)
+            NightsChart(bars: TrendsStory.bars(now: now), shown: range.nights, window: 21,
                         usual: Double(StageStory.usual),
                         scaleTop: TrendsStory.scaleTop, markers: TrendsStory.markers,
-                        selection: $selected, focus: focus, plotHeight: 170, markerBand: 64,
-                        dryLegend: "DRY · UNDER \(StageStory.dryBelowPercent)%", delay: 0.25)
+                        selection: $selected, focus: focus, plotHeight: 170, markerBand: 64, gap: 3,
+                        humidityTrack: .init(domain: 20...80, threshold: Double(StageStory.dryBelowPercent),
+                                             key: "DRY UNDER \(StageStory.dryBelowPercent)%"),
+                        temperatureTrack: .init(domain: 55...95, threshold: Double(TrendsStory.hotFromF),
+                                                key: "HOT \(TrendsStory.hotFromF)°F+"),
+                        delay: 0.25)
             legend
                 .padding(.top, 10)
                 .riseIn(1.0, distance: 0)
@@ -143,6 +141,17 @@ struct TrendsScreen: View {
                 .padding(.top, 12)
         }
         .twinCard()
+    }
+
+    /// "Weather stayed normal while scratching rose; the dry day came after." (for the nights shown)
+    private var weatherTakeaway: some View {
+        let t = TrendsStory.weatherTakeaway(shown: range.nights)
+        return (Text(t.lead + " ").font(Twin.Typeface.sans(15, .bold)).foregroundColor(Twin.Palette.ink)
+                + Text(t.rest).font(Twin.Typeface.sans(15)).foregroundColor(Twin.Palette.inkMuted))
+            .fixedSize(horizontal: false, vertical: true)
+            .id(t.lead + t.rest)
+            .transition(.opacity)
+            .animation(.easeOut(duration: 0.25), value: range)
     }
 
     /// "■ above usual   - - - your usual · 12 min"

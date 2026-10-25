@@ -56,7 +56,7 @@ public enum ChatTools {
         let args = ChatWire.object(fromJSON: argumentsJSON)
         switch name {
         case "scratch_history":
-            let n = StageStory.clampCount(args["nights"], max: StageStory.nightCount)
+            let n = StageStory.clampCount(args["nights"], max: StageStory.toolMaxNights, default: StageStory.nightCount)
             return Row(icon: "⌚", title: "Scratch history · \(count(n, "night"))")
         case "order_history":
             return Row(icon: "📦", title: "Amazon orders · \(count(StageStory.clampCount(args["days"], max: 120), "day"))")

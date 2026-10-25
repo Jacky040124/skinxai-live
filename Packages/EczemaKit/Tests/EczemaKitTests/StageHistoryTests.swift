@@ -39,10 +39,14 @@ import Testing
     @Test func earlierNightsTellHonestStories() {
         let earlier = StageHistory.nights.prefix(60)
         #expect(!earlier.contains { $0.bodyWash })
-        #expect(!earlier.contains { $0.flare })
+        // The only earlier flare: the sweater-and-sample nights, Oct 6–9.
+        #expect(earlier.filter(\.flare).map(\.id) == Array(StageHistory.earlierFlareNights))
+        #expect(earlier.filter(\.flare).map(\.minutes) == [19, 27, 31, 22])
         // Usual ~12 with noise.
-        #expect(abs(StageHistory.averageBeforeBodyWash - 12) < 0.5)
-        #expect(earlier.map(\.minutes).min()! >= 8 && earlier.map(\.minutes).max()! <= 16)
+        let typical = StageHistory.typicalNights
+        #expect(typical.count == 66)
+        #expect(abs(StageHistory.typicalAverage - 12) < 0.5)
+        #expect(typical.map(\.minutes).min()! >= 8 && typical.map(\.minutes).max()! <= 16)
         // Several calm dry days.
         let dry = earlier.filter(\.dry)
         #expect(dry.count >= 5)
@@ -55,19 +59,39 @@ import Testing
         #expect(StageStory.orders(now: now, calendar: cal).contains { $0.item.hasPrefix("Wool socks") })
     }
 
+    @Test func theEarlierFlare() {
+        // Bought Oct 5, both used on exactly Oct 6–9, both stopped Oct 10.
+        let iso = { (i: Int) in StageStory.iso(StageStory.nightDate(i, now: now, calendar: cal), calendar: cal) }
+        #expect(iso(StageHistory.earlierSuspectsBoughtNight) == "2026-10-05")
+        #expect(StageHistory.earlierFlareNights.map(iso) == ["2026-10-06", "2026-10-07", "2026-10-08", "2026-10-09"])
+        #expect(StageHistory.nights.filter(\.woolSweater).map(\.id) == Array(StageHistory.earlierFlareNights))
+        #expect(StageHistory.nights.filter(\.sampleDetergent).map(\.id) == Array(StageHistory.earlierFlareNights))
+        #expect(!StageHistory.night(0).woolSweater && !StageHistory.night(0).sampleDetergent)
+        // Normal weather on those nights.
+        #expect(StageHistory.earlierFlareNights.map(StageHistory.night).allSatisfy { !$0.dry && $0.highF < 85 })
+    }
+
     @Test func verdicts() {
         let v = Dictionary(uniqueKeysWithValues: StageHistory.impacts.map { ($0.factor, $0) })
         #expect(v[.bodyWash]!.verdict == .strong)
-        #expect(v[.bodyWash]!.withNights == 4 && v[.bodyWash]!.withoutNights == 70)
+        #expect(v[.bodyWash]!.withNights == 4 && v[.bodyWash]!.withoutNights == 66)
         #expect(v[.bodyWash]!.roundedDifference == 16)
+        #expect(v[.bodyWash]!.sameNightsAs == nil)
+        // The sweater and the sample: the same nights, the same numbers; the data can't separate them.
+        let sweater = v[.woolSweater]!, sample = v[.sampleDetergent]!
+        #expect(sweater.verdict == .possible && sample.verdict == .possible)
+        #expect(sweater.sameNightsAs == .sampleDetergent && sample.sameNightsAs == .woolSweater)
+        #expect(sweater.withMinutes == sample.withMinutes && sweater.withoutMinutes == sample.withoutMinutes)
+        #expect(sweater.withNights == 4 && sweater.withoutNights == 66)
+        #expect(sweater.roundedDifference == 13)
         #expect(v[.gym]!.verdict == .weak)
         #expect((2...4).contains(v[.gym]!.roundedDifference))
         for f in [StageHistory.Factor.dryAir, .exams, .shortSleep, .newClothes] {
             #expect(v[f]!.verdict == .none, "\(f)")
             #expect(abs(v[f]!.difference) < 1, "\(f)")
         }
-        // Dry air "on its own": the dry nights without the body wash.
-        #expect(v[.dryAir]!.withNights == 7 && v[.dryAir]!.withoutNights == 63)
+        // Dry air "on its own": the dry nights outside both flares.
+        #expect(v[.dryAir]!.withNights == 7 && v[.dryAir]!.withoutNights == 59)
         #expect(v[.exams]!.withNights == 7)
         #expect(v[.newClothes]!.withNights == 9)
     }
@@ -83,12 +107,12 @@ import Testing
     }
 
     @Test func weatherIsNotLinked() {
-        // Before the body wash, humidity and temperature don't move the minutes.
-        let before = StageHistory.beforeBodyWash
+        // Outside the flares, humidity and temperature don't move the minutes.
+        let before = StageHistory.typicalNights
         #expect(abs(correlation(before.map { Double($0.humidity) }, before.map { Double($0.minutes) })) < 0.2)
         #expect(abs(correlation(before.map { Double($0.highF) }, before.map { Double($0.minutes) })) < 0.2)
-        // Every night above 1.5× usual is a body-wash night.
-        #expect(StageHistory.nights.filter { $0.flare }.allSatisfy { $0.bodyWash })
+        // Every night above 1.5× usual is a body-wash night or a sweater-and-sample night.
+        #expect(StageHistory.nights.filter { $0.flare }.allSatisfy { $0.bodyWash || $0.woolSweater })
     }
 
     @Test func lastNightSleep() {
@@ -100,7 +124,7 @@ import Testing
         #expect(S.segments.allSatisfy { $0.minutes > 0 })
         #expect(S.minutesAsleep == Int((StageStory.LastNight.sleepHours * 60).rounded()))
         #expect(S.wakeUps.count == StageStory.LastNight.wakeUps)
-        #expect(S.wakeUpsAfterScratching == 4)
+        #expect(S.wakeUps.count == 2 && S.wakeUpsAfterScratching == 2)
         #expect(S.length == 7 * 60 + 48)   // 11:04 PM → 6:52 AM
     }
 
