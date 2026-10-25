@@ -78,6 +78,32 @@ private func object(_ text: String) -> NSDictionary {
         #expect(t.latencies.count == t.messages.filter { $0.role == .assistant }.count)
     }
 
+    /// The demo cache follows the recording while the question and the answers match, and lets go when they don't.
+    @Test func cacheFollowsTheRecordingOnly() throws {
+        let t = try #require(ChatArchive.bundled)
+        let ask = t.messages[0].content
+        #expect(t.cachedReply(after: [.user(ask)]) == t.messages[1])
+        #expect(t.cachedReply(after: [.user(ask.uppercased() + "  ")]) == t.messages[1])
+        #expect(t.cachedReply(after: [.user("How did I sleep this week?")]) == nil)
+        #expect(t.cachedReply(after: []) == nil)
+        // Every assistant reply comes back when the conversation is the recording up to it.
+        for (i, m) in t.messages.enumerated() where m.role == .assistant && i > 0 {
+            #expect(t.cachedReply(after: Array(t.messages[..<i])) == m)
+        }
+        // A different answer to Claude's question goes live.
+        let qi = try #require(t.messages.firstIndex { $0.role == .tool && ($0.content.contains("\"answer\"")) })
+        var other = Array(t.messages[...qi])
+        other[qi] = .tool(other[qi].toolCallID ?? "", ChatTools.answerResult("Yes, regularly"))
+        #expect(t.cachedReply(after: other) == nil)
+        // Data results may differ (another day): still cached.
+        if let di = t.messages.firstIndex(where: { $0.role == .tool && !$0.content.contains("\"answer\"") && !$0.content.contains("shown") }) {
+            var moved = Array(t.messages[...di]); moved[di] = .tool(moved[di].toolCallID ?? "", "{}")
+            #expect(t.cachedReply(after: moved) == t.messages[di + 1] || t.messages[di + 1].role != .assistant)
+        }
+        // The end of the recording: nothing more.
+        #expect(t.cachedReply(after: t.messages) == nil)
+    }
+
     /// Moved to another day, the saved tool results are exactly what the story's tools say on that day: the
     /// replay's dates match Today and Trends.
     @Test func movedToAnotherDayItMatchesTheStoryOfThatDay() throws {

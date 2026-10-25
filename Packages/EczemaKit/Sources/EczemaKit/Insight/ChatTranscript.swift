@@ -112,6 +112,34 @@ public struct ChatTranscript: Codable, Hashable, Sendable {
         return results
     }
 
+    /// The demo cache: when the conversation so far is this recording's beginning (the same question, the same
+    /// answers to Claude's questions), the recorded next reply; nil as soon as it differs, so a different question
+    /// or answer goes to live Claude. Data-tool results aren't compared (the app recomputes them for the day).
+    public func cachedReply(after conversation: [ChatMessage]) -> ChatMessage? {
+        guard !conversation.isEmpty, conversation.count < messages.count,
+              messages[conversation.count].role == .assistant else { return nil }
+        var names: [String: String] = [:]
+        for m in messages { for call in m.toolCalls { names[call.id] = call.name } }
+        func same(_ a: String, _ b: String) -> Bool {
+            let norm = { (s: String) in s.lowercased().filter { $0.isLetter || $0.isNumber } }
+            return norm(a) == norm(b)
+        }
+        for (have, want) in zip(conversation, messages) {
+            guard have.role == want.role else { return nil }
+            switch have.role {
+            case .user:
+                guard same(have.content, want.content) else { return nil }
+            case .assistant:
+                guard have.toolCalls.map(\.id) == want.toolCalls.map(\.id) else { return nil }
+            case .tool:
+                guard have.toolCallID == want.toolCallID else { return nil }
+                if let id = want.toolCallID, ChatTools.kind(of: names[id] ?? "") == .question,
+                   !same(have.content, want.content) { return nil }
+            }
+        }
+        return messages[conversation.count]
+    }
+
     /// Claude showed everything a full answer has: the timeline, the product, at least one question, and a
     /// conclusion with at least two things it ruled out.
     public var isComplete: Bool {

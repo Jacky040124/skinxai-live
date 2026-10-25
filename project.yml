@@ -41,7 +41,7 @@ targets:
       path: App/iOS/Info.plist
       properties:
         CFBundleDisplayName: SkinXAI
-        CFBundleVersion: "21"
+        CFBundleVersion: "22"
         UILaunchScreen: {}
         # Wins over UILaunchScreen: the app's first frame (App/iOS/Shell/LaunchScreen.storyboard).
         UILaunchStoryboardName: LaunchScreen
@@ -74,7 +74,7 @@ targets:
       path: App/Watch/Info.plist
       properties:
         CFBundleDisplayName: SkinXAI
-        CFBundleVersion: "21"
+        CFBundleVersion: "22"
         WKApplication: true
         WKCompanionAppBundleIdentifier: com.jackyzhong.eczematwin2
         WKBackgroundModes: [workout-processing, physical-therapy]

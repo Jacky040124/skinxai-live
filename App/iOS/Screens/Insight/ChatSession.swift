@@ -55,6 +55,7 @@ struct ChatToolRow: Identifiable, Equatable {
 /// Hidden development launch arguments (no effect unless passed):
 ///   -chatModel <id>   ask the server for this model ("deepseek/deepseek-v4.1-flash"); never sent otherwise
 ///   -chatAuto 1       sends the first suggestion (2: the second), taps the first answer of every question and "Go ahead"
+///   -chatLive 1       never answers from the demo cache (the bundled recording); always asks live Claude
 ///   -chatReplay 1     posts .twinReplayChat when Insight first shows (replays the last saved conversation)
 ///   -chatEndpoint <url>  talks to another /api/chat (to see the failed-request row)
 ///   -chatDraft <text>    starts with this text in the box and the keyboard up
@@ -238,7 +239,18 @@ final class ChatSession: ObservableObject {
         for _ in 0..<ChatRules.maxRounds {
             let started = Date()
             let conversation = messages, today = StageStory.todayLong(), client = client
-            async let asked = client.replyWithRetry(to: conversation, today: today)
+            // Demo cache: while the conversation follows the bundled real-Claude recording, its next reply comes
+            // after about 2 seconds; anything else goes to live Claude. -chatLive 1 turns the cache off.
+            let cached = UserDefaults.standard.bool(forKey: "chatLive") ? nil
+                : ChatArchive.bundled?.moved(toDayOf: Date()).cachedReply(after: conversation)
+            let cacheModel = ChatArchive.bundled?.model
+            async let asked: ChatReply = {
+                if let cached {
+                    try? await Task.sleep(nanoseconds: UInt64(Double.random(in: 1.7...2.3) * 1_000_000_000))
+                    return ChatReply(model: cacheModel, message: cached)
+                }
+                return try await client.replyWithRetry(to: conversation, today: today)
+            }()
             if lead > 0 {
                 await Self.pause(lead)
                 lead = 0
