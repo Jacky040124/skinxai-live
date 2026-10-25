@@ -188,6 +188,31 @@ Whatever he kept using after the flare ended without scratching is ruled out; wh
 Never start this process on your own: only when he asks.
 Only use facts returned by the tools. If an answer points somewhere else, take it seriously and say in one sentence what would tell the two apart.`;
 
+// The "mi" story (app build 18+ sends story: "mi"): four short flares over 74 nights, each after a
+// different new product; the shared cause is hidden in the ingredient lists. Claude must find it.
+const CHAT_SYSTEM_MI = (today) => `You are Claude, connected to Eczema Twin: an app that measures how much a person scratches in their sleep with their Apple Watch. You are talking with Douglas, a 21-year-old student with eczema, inside the Eczema Twin app. Today is ${today}.
+The app has three pages. Summary shows whether last night was normal and lists possible triggers. Trends shows his nights as charts. You are Insight: you find what is really behind his flares, using all of his data, by elimination.
+
+How you write (strict):
+- Each reply is ONE short sentence (at most 15 words), or one short sentence plus a short list (at most 4 items, each a few words).
+- Say only what he needs right now. No background lectures, no repeating what a card already shows, no markdown headings.
+- Use exact product names from order_history.
+- Never give a diagnosis; you look for patterns in his data and suggest how to confirm them.
+Every reply starts with that short text before any tool call. Until you have called show_conclusion, every reply must also call a tool: if you say you will check or ask something, do it with a tool call in that same reply.
+
+What you may ask: ONLY what his data can't tell you. The tools give you his scratching, purchases (dates, ingredients, materials, new or repeat), weather, calendar, sleep and HRV (his stress level). Never ask about stress, exams, sleep, weather, travel dates or what he bought. Good questions are about use, which the data can't see: whether he stopped using a product, whether he still uses or wears something, where the itch was.
+Ask ONE question per turn with ask_user (never two in the same turn), a few words long, with 2-3 short answer options.
+
+When he asks why his eczema is bad (or about any flare):
+1. Gather ALL the data first: scratch_history with 74 nights, order_history with 120 days, weather_history with 74 days, calendar_events with 120 days, sleep_history with 74 nights (all in one turn).
+2. Find every flare in the whole history, not only the current one, and what was new in the 1-3 days before each.
+3. Test the obvious explanations against ALL flares and all calm nights: a single product, a product type, fragrance, wool, stress (HRV, exams), dry air, travel. An explanation survives only if it is present before every flare and absent (or tolerated) on calm stretches; things he uses every day without flaring are tolerated. Compare ingredient lists across the flare products and the products he tolerates, and treat chemical name variants of the same substance as one.
+4. Call show_timeline once with markers for each flare's new product so he sees the pattern.
+5. Ask at most 2 short questions, one per turn, for what the data can't tell (for example whether he kept using or wearing an item after a flare ended). After each answer, one short sentence on what it rules in or out.
+6. Call show_product for the most suspicious item if it helps, then show_conclusion exactly once: the most likely cause (it may be an ingredient rather than a product), your confidence, what you ruled out with a reason of a few words each, and a next step (what to avoid, and how to confirm it, e.g. a patch test with a dermatologist while the watch keeps measuring). Then one short closing sentence.
+Never start this process on your own: only when he asks.
+Only use facts returned by the tools. If an answer points somewhere else, take it seriously and say in one sentence what would tell the two apart.`;
+
 const CHAT_TOOLS = [
   { name: "scratch_history", description: "Minutes of scratching measured by the Apple Watch for each of the last nights, plus his usual level.", parameters: { type: "object", properties: { nights: { type: "integer", description: "How many nights, up to 30" } }, required: ["nights"] } },
   { name: "order_history", description: "His online orders (Amazon): exact product name, category, purchase date, whether he bought it before, and ingredients or material when listed.", parameters: { type: "object", properties: { days: { type: "integer" } }, required: ["days"] } },
@@ -200,11 +225,30 @@ const CHAT_TOOLS = [
   { name: "show_conclusion", description: "Show the conclusion as a card in the conversation. Call it once.", parameters: { type: "object", properties: { cause: { type: "string", description: "The most likely cause in at most 8 words, with the product name, e.g. 'Brightwell Ocean Breeze Body Wash'" }, confidence: { type: "string", enum: ["low", "medium", "high"] }, ruled_out: { type: "array", minItems: 2, description: "Each explanation you ruled out (e.g. the detergent, stress via HRV, the dry air), with a reason of a few words", items: { type: "object", properties: { item: { type: "string" }, reason: { type: "string" } }, required: ["item", "reason"] } }, next_step: { type: "string" } }, required: ["cause", "confidence", "ruled_out", "next_step"] } },
 ].map((f) => ({ type: "function", function: f }));
 
+const CHAT_TOOLS_MI = CHAT_TOOLS.map((t) => {
+  const f = JSON.parse(JSON.stringify(t.function));
+  if (f.name === "scratch_history") f.parameters.properties.nights.description = "How many nights, up to 74";
+  if (["weather_history", "sleep_history", "calendar_events", "order_history"].includes(f.name)) {
+    const k = Object.keys(f.parameters.properties)[0];
+    f.parameters.properties[k].description = f.name === "order_history" || f.name === "calendar_events" ? "How many days, up to 120" : "How many, up to 74";
+  }
+  if (f.name === "show_timeline") {
+    f.description = "Show his nightly scratching chart as a card in the conversation, with one or more changes marked on it.";
+    f.parameters = { type: "object", properties: {
+      markers: { type: "array", minItems: 1, description: "Each change to mark", items: { type: "object", properties: {
+        date: { type: "string", description: "YYYY-MM-DD" }, label: { type: "string", description: "Short label, e.g. the product name" } }, required: ["date", "label"] } },
+      note: { type: "string", description: "One short sentence (at most 12 words)" } }, required: ["markers"] };
+  }
+  if (f.name === "show_conclusion") f.parameters.properties.cause.description = "The most likely cause in at most 8 words (a product or an ingredient)";
+  return { type: "function", function: f };
+});
+
 async function chat(request, env) {
   if (!env.OPENROUTER_KEY) return json({ error: "no key" }, 503);
   let body = {};
   try { body = await request.json(); } catch { return json({ error: "bad json" }, 400); }
   const model = CHAT_MODELS.includes(body.model) ? body.model : CHAT_MODELS[0];
+  const mi = body.story === "mi";
   const today = /^[A-Za-z]+, [A-Za-z]+ \d{1,2}, \d{4}$/.test(body.today || "") ? body.today : new Date().toDateString();
   const raw = Array.isArray(body.messages) ? body.messages.slice(-80) : [];
   let size = 0;
@@ -228,8 +272,8 @@ async function chat(request, env) {
     const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST", signal: controller.signal,
       headers: { authorization: `Bearer ${env.OPENROUTER_KEY}`, "content-type": "application/json" },
-      body: JSON.stringify({ model, temperature: 0.3, max_tokens: 2500, tools: CHAT_TOOLS, tool_choice: "auto",
-        messages: [{ role: "system", content: CHAT_SYSTEM(today) }, ...messages] }),
+      body: JSON.stringify({ model, temperature: 0.3, max_tokens: 2500, tools: mi ? CHAT_TOOLS_MI : CHAT_TOOLS, tool_choice: "auto",
+        messages: [{ role: "system", content: mi ? CHAT_SYSTEM_MI(today) : CHAT_SYSTEM(today) }, ...messages] }),
     });
     const j = await r.json();
     const msg = j.choices && j.choices[0] && j.choices[0].message;
