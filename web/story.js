@@ -25,6 +25,15 @@
     temp: [81, 67, 76, 74, 73, 67, 75, 74, 69, 67, 67, 68, 71, 70, 64, 64],
   };
   const MAX_NIGHTS = 30;                                                   // how far back the tools go (14 by default)
+  // HRV (ms; lower = more stress): the last 14 nights as measured; before them his usual 52 with small
+  // night-to-night noise, a dip on the earlier flare's nights and after short nights (as the app's Trends).
+  const HRV = [53, 51, 52, 54, 50, 52, 53, 51, 52, 53, 51, 46, 42, 38], USUAL_HRV = 52;
+  const hrv = (i) => {
+    if (i >= 0) return HRV[i];
+    const dip = { [-4]: 4, [-3]: 7, [-2]: 8, [-1]: 5 }[i] || 0;
+    const noise = (((i * 37 + 1000003) % 7) + 7) % 7 - 3;
+    return USUAL_HRV + noise - dip - (at(SLEEP, EARLIER.sleep, i) < 6.5 ? 3 : 0);
+  };
   const at = (list, earlier, i) => (i >= 0 ? list[i] : earlier[earlier.length + i]);
   const lastN = (n) => Array.from({ length: n }, (_, k) => NIGHTS.length - n + k); // night numbers, oldest first
 
@@ -41,26 +50,26 @@
   function orders() {
     const o = (i, delta, item, category, extra) => ({ date: iso(dayOffset(i, delta)), item, category, ...extra });
     return [
-      o(0, -60, "Laundry detergent, fragrance-free, 92 loads", "household", { bought_before: true, note: "same product every month for 2 years" }),
-      o(0, -52, "Coffee beans, 2 lb", "grocery", { bought_before: true }),
-      o(0, -45, "Ceramide moisturizing cream, fragrance-free", "personal care", { bought_before: true, note: "repeat purchase, uses daily" }),
-      o(0, -40, "Spiral notebooks, 5 pack", "school", { bought_before: true }),
-      o(0, -33, "Toothpaste, 2 pack", "personal care", { bought_before: true }),
-      o(0, -30, "Laundry detergent, fragrance-free, 92 loads", "household", { bought_before: true, note: "same product every month for 2 years" }),
-      o(0, -24, "USB-C charging cable", "electronics", { bought_before: false }),
-      o(0, -20, "Protein bars, 12 count", "grocery", { bought_before: true }),
-      o(0, -15, "Unscented hand soap refill", "household", { bought_before: true }),
-      o(0, -8, "Graphing calculator batteries", "school", { bought_before: true }),
-      o(0, -5, "Wool sweater", "clothing", { bought_before: false, note: "first wool sweater" }),
-      o(0, -5, "Laundry detergent sample, scented", "household", { bought_before: false, note: "trial size" }),
-      o(2, 0, "Coffee beans, 2 lb", "grocery", { bought_before: true }),
-      o(3, 0, "Laundry detergent, fragrance-free, 92 loads", "household", { bought_before: true, note: "same product every month for 2 years" }),
-      o(5, 0, "Wool socks, 3 pairs", "clothing", { bought_before: false, note: "washed before wearing" }),
-      o(7, 0, "Instant ramen, 24 pack", "grocery", { bought_before: true }),
-      o(BODY_WASH, -1, "Body wash, 18 fl oz", "personal care", { bought_before: false, note: "first time ordering any body wash; delivered next day",
+      o(0, -60, "Tide Free & Clear Liquid Detergent, 92 loads", "household", { bought_before: true, note: "same product every month for 2 years" }),
+      o(0, -52, "Peet's Major Dickason's Coffee Beans, 2 lb", "grocery", { bought_before: true }),
+      o(0, -45, "CeraVe Moisturizing Cream, 16 oz", "personal care", { bought_before: true, note: "repeat purchase, uses daily" }),
+      o(0, -40, "Five Star Spiral Notebooks, 5 pack", "school", { bought_before: true }),
+      o(0, -33, "Colgate Total Toothpaste, 2 pack", "personal care", { bought_before: true }),
+      o(0, -30, "Tide Free & Clear Liquid Detergent, 92 loads", "household", { bought_before: true, note: "same product every month for 2 years" }),
+      o(0, -24, "Anker USB-C Charging Cable, 6 ft", "electronics", { bought_before: false }),
+      o(0, -20, "RXBAR Protein Bars, 12 count", "grocery", { bought_before: true }),
+      o(0, -15, "Method Free + Clear Hand Soap Refill", "household", { bought_before: true }),
+      o(0, -8, "Duracell AAA Batteries, 8 pack", "school", { bought_before: true }),
+      o(0, -5, "Northfield Lambswool Crewneck Sweater", "clothing", { bought_before: false, note: "first wool sweater" }),
+      o(0, -5, "FreshMeadow Spring Bloom Detergent, trial size", "household", { bought_before: false, note: "trial size" }),
+      o(2, 0, "Peet's Major Dickason's Coffee Beans, 2 lb", "grocery", { bought_before: true }),
+      o(3, 0, "Tide Free & Clear Liquid Detergent, 92 loads", "household", { bought_before: true, note: "same product every month for 2 years" }),
+      o(5, 0, "Darn Tough Merino Wool Socks, 3 pairs", "clothing", { bought_before: false, note: "washed before wearing" }),
+      o(7, 0, "Nissin Top Ramen, 24 pack", "grocery", { bought_before: true }),
+      o(BODY_WASH, -1, "Brightwell Ocean Breeze Body Wash, 18 fl oz", "personal care", { bought_before: false, note: "first time ordering any body wash; delivered next day",
         ingredients: BODY_WASH_INGREDIENTS }),
-      o(11, 0, "Desk lamp bulb", "household", { bought_before: true }),
-      o(12, 0, "Protein bars, 12 count", "grocery", { bought_before: true }),
+      o(11, 0, "Philips LED Desk Lamp Bulb", "household", { bought_before: true }),
+      o(12, 0, "RXBAR Protein Bars, 12 count", "grocery", { bought_before: true }),
     ];
   }
 
@@ -92,8 +101,8 @@
       ] };
     },
     sleep_history({ nights } = {}) {
-      return { source: "Apple Health", nights: lastN(clampN(nights, MAX_NIGHTS, 14)).map((i) => ({ night_of: iso(nightDate(i)),
-        hours_asleep: at(SLEEP, EARLIER.sleep, i), wake_ups: at(WAKES, EARLIER.wakes, i) })) };
+      return { source: "Apple Health", usual_hrv_ms: USUAL_HRV, nights: lastN(clampN(nights, MAX_NIGHTS, 14)).map((i) => ({ night_of: iso(nightDate(i)),
+        hours_asleep: at(SLEEP, EARLIER.sleep, i), wake_ups: at(WAKES, EARLIER.wakes, i), hrv_ms: hrv(i) })) };
     },
   };
 
