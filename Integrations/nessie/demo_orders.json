@@ -1,5 +1,5 @@
 {
-  "note": "Demo purchase history for Douglas. Dates are relative: the newest order is placed 2 days before \"today\" when seeding. Amounts are approximate demo prices.",
+  "note": "Demo purchase history for Douglas. Dates are relative: the newest order is placed 2 days before \"today\" when seeding. Amounts are approximate demo prices (Nessie stores whole dollars).",
   "anchor_date": "2026-10-22",
   "orders": [
     {

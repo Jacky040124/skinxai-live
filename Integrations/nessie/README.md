@@ -11,7 +11,7 @@ Nessie gives us **what was bought, where, when and for how much**. It has no ing
 | File | What |
 |---|---|
 | `nessie.py` | `seed` creates the customer, a card account, the merchant and 30 purchases. `orders` reads them back and joins ingredients. |
-| `demo_orders.json` | Douglas's 30 demo orders (dates are shifted so the story ends "today"). Amounts are approximate demo prices. |
+| `demo_orders.json` | Douglas's 30 demo orders (dates are shifted so the story ends "today"). Amounts are approximate demo prices (Nessie stores whole dollars). |
 | `products.json` | Product catalog: category and ingredient list per item. |
 
 ## Run
@@ -22,6 +22,10 @@ python3 nessie.py seed                # one time
 python3 nessie.py orders --days 30    # JSON in the same shape as Claude's order tool
 python3 nessie.py seed --dry-run      # see the API calls without a key
 ```
+
+## Tested
+
+On Oct 25, 2026 we ran `seed` against the live Nessie API (30 purchases created) and then `orders --days 30`. The output is saved in `sample_orders_output.json`: 14 purchases read back from Nessie, with ingredients joined from our catalog and "bought before" worked out from the full history.
 
 ## Next step
 

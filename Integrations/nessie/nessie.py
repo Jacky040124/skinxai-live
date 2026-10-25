@@ -64,7 +64,7 @@ def seed(dry=False):
         "type": "Credit Card", "nickname": "SkinXAI demo card", "rewards": 0, "balance": 0,
     }, dry)["objectCreated"]["_id"]
     merchant = call("POST", "/merchants", {
-        "name": "Amazon", "category": ["online shopping"],
+        "name": "Amazon", "category": "online shopping",
         "address": {"street_number": "410", "street_name": "Terry Ave N", "city": "Seattle",
                     "state": "WA", "zip": "98109"},
         "geocode": {"lat": 47.6223, "lng": -122.3366},
@@ -89,11 +89,13 @@ def orders(days=120):
     catalog = load("products.json")["products"]
     since = dt.date.today() - dt.timedelta(days=days)
     rows = call("GET", f"/accounts/{state['account_id']}/purchases") or []
-    rows = sorted((r for r in rows if dt.date.fromisoformat(r["purchase_date"]) >= since),
-                  key=lambda r: r["purchase_date"])
+    rows = sorted(rows, key=lambda r: r["purchase_date"])
     seen, out = set(), []
     for r in rows:
         item = r.get("description", "")
+        if dt.date.fromisoformat(r["purchase_date"]) < since:
+            seen.add(item)  # older purchases only count for "bought before"
+            continue
         product = catalog.get(item, {})
         entry = {"date": r["purchase_date"], "item": item,
                  "category": product.get("category", "unknown"),
