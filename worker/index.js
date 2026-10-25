@@ -194,9 +194,9 @@ const CHAT_SYSTEM_MI = (today) => `You are Claude, connected to SkinXAI: an app 
 The app has three pages. Summary shows whether last night was normal and lists possible triggers. Trends shows his nights as charts. You are Insight: you find what is really behind his flares, using all of his data, by elimination.
 
 How you write (strict):
-- Each reply is ONE short sentence (at most 15 words), or one short sentence plus a short list (at most 4 items, each a few words).
+- Each reply is ONE short sentence (at most 15 words), or one short sentence plus a short list (at most 4 items, each a few words). The one exception is the sentence in step 6 that names the shared ingredient.
 - Say only what he needs right now. No background lectures, no repeating what a card already shows, no markdown headings.
-- Use exact product names from order_history.
+- Use exact product names from order_history. Write dates like "Sep 27", never 2026-09-27.
 - Never give a diagnosis; you look for patterns in his data and suggest how to confirm them.
 Every reply starts with that short text before any tool call. Until you have called show_conclusion, every reply must also call a tool: if you say you will check or ask something, do it with a tool call in that same reply.
 
@@ -207,9 +207,10 @@ When he asks why his eczema is bad (or about any flare):
 1. Gather ALL the data first: scratch_history with 74 nights, order_history with 120 days, weather_history with 74 days, calendar_events with 120 days, sleep_history with 74 nights (all in one turn).
 2. Find every flare in the whole history, not only the current one, and what was new in the 1-3 days before each.
 3. Test the obvious explanations against ALL flares and all calm nights: a single product, a product type, fragrance, wool, stress (HRV, exams), dry air, travel. An explanation survives only if it is present before every flare and absent (or tolerated) on calm stretches; things he uses every day without flaring are tolerated. Compare ingredient lists across the flare products and the products he tolerates, and treat chemical name variants of the same substance as one.
-4. Call show_timeline once with markers for each flare's new product so he sees the pattern.
-5. Before concluding, look for anything in the data that contradicts your best explanation, for example a product that fits it but was not followed by a flare. The data only shows purchases, not use, so ask him about that exception first (whether he actually used it). Ask at most 2 short questions, one per turn, for what the data can't tell. After each answer, one short sentence on what it rules in or out. Don't conclude before he has answered at least one question.
-6. Call show_product for the most suspicious item if it helps, then show_conclusion exactly once: the most likely cause (it may be an ingredient rather than a product), your confidence, what you ruled out with a reason of a few words each, and a next step (what to avoid, and how to confirm it, e.g. a patch test with a dermatologist while the watch keeps measuring). Then one short closing sentence that only restates the next step; add nothing new.
+4. Call show_timeline once with markers for each flare's new product so he sees the pattern. In that reply, say only that each flare followed a new product. Do NOT name the shared ingredient yet.
+5. Before naming any cause, look for anything in the data that contradicts your best explanation, for example a product that fits it but was not followed by a flare. The data only shows purchases, not use. Say plainly that this product doesn't seem to follow the pattern, then ask whether he actually used it (ask_user, short options such as "Yes, regularly" / "Only once or twice" / "No, never opened"). Still do NOT name the ingredient in this turn. ask_user must be the ONLY tool call in that reply: no cards, no conclusion; stop and wait for his answer.
+6. Your reply right after his answer is text plus ONE card, show_product for the most suspicious item. Its text (never empty) is exactly this form: "You had [N] flares right after buying these [N] different products that share this ingredient: [ingredient]." then a short list of the [N] products, then one short sentence on what his answer about the exception means. No show_conclusion in this reply.
+7. In the next reply, one short sentence, then show_conclusion exactly once: the most likely cause (it may be an ingredient rather than a product), your confidence, what you ruled out with a reason of a few words each, and a next step (what to avoid, and how to confirm it, e.g. a patch test with a dermatologist while the watch keeps measuring). Then one short closing sentence that only restates the next step; add nothing new.
 Never start this process on your own: only when he asks.
 Only use facts returned by the tools. If an answer points somewhere else, take it seriously and say in one sentence what would tell the two apart.`;
 
@@ -269,17 +270,40 @@ async function chat(request, env) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 40000);
   try {
-    const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method: "POST", signal: controller.signal,
-      headers: { authorization: `Bearer ${env.OPENROUTER_KEY}`, "content-type": "application/json" },
-      body: JSON.stringify({ model, temperature: 0.3, max_tokens: 2500, tools: mi ? CHAT_TOOLS_MI : CHAT_TOOLS, tool_choice: "auto",
-        messages: [{ role: "system", content: mi ? CHAT_SYSTEM_MI(today) : CHAT_SYSTEM(today) }, ...messages] }),
-    });
-    const j = await r.json();
-    const msg = j.choices && j.choices[0] && j.choices[0].message;
-    if (!msg) return json({ error: "no reply", status: r.status, detail: JSON.stringify(j).slice(0, 200) }, 502);
-    return json({ model, message: { role: "assistant", content: msg.content || "", tool_calls: msg.tool_calls || [] } });
+    const message = await chatTurn(env.OPENROUTER_KEY, model, today, mi, messages, controller.signal);
+    return json({ model, message });
   } catch (e) {
     return json({ error: "chat failed", detail: String(e).slice(0, 160) }, 502);
   } finally { clearTimeout(timer); }
+}
+
+// One assistant turn. A question ends the turn (anything queued after ask_user waits for his answer).
+// In the "mi" story, the reply right after he answers a question must say something before any card: if the
+// model sends only cards, ask it once more for just the words (no tools) and send them with those cards.
+async function chatTurn(key, model, today, mi, messages, signal) {
+  const ask = async (msgs, toolChoice) => {
+    const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST", signal,
+      headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
+      body: JSON.stringify({ model, temperature: 0.3, max_tokens: 2500, tools: mi ? CHAT_TOOLS_MI : CHAT_TOOLS, tool_choice: toolChoice,
+        messages: [{ role: "system", content: mi ? CHAT_SYSTEM_MI(today) : CHAT_SYSTEM(today) }, ...msgs] }),
+    });
+    const j = await r.json();
+    const msg = j.choices && j.choices[0] && j.choices[0].message;
+    if (!msg) throw new Error(`no reply ${r.status} ${JSON.stringify(j).slice(0, 120)}`);
+    return { content: (msg.content || "").trim(), calls: msg.tool_calls || [] };
+  };
+  const endAtQuestion = (calls) => {
+    const k = calls.findIndex((c) => c && c.function && c.function.name === "ask_user");
+    return k >= 0 ? calls.slice(0, k + 1) : calls;
+  };
+  let { content, calls } = await ask(messages, "auto");
+  const last = messages[messages.length - 1];
+  const prev = [...messages].reverse().find((m) => m.role === "assistant");
+  const afterAnswer = last && last.role === "tool" && prev && (prev.tool_calls || []).some((c) => c.function && c.function.name === "ask_user");
+  if (mi && afterAnswer && !content && calls.length) {
+    const words = await ask(messages, "none").catch(() => null);
+    if (words && words.content) content = words.content;
+  }
+  return { role: "assistant", content, tool_calls: endAtQuestion(calls) };
 }
