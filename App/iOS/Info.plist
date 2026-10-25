@@ -19,7 +19,7 @@
 	<key>CFBundleShortVersionString</key>
 	<string>1.0</string>
 	<key>CFBundleVersion</key>
-	<string>20</string>
+	<string>21</string>
 	<key>NSHealthShareUsageDescription</key>
 	<string>SkinXAI reads your sleep and heart data to understand your flares.</string>
 	<key>NSHealthUpdateUsageDescription</key>
