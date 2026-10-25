@@ -210,7 +210,7 @@ When he asks why his eczema is bad (or about any flare):
 4. Call show_timeline once with markers for each flare's new product so he sees the pattern. In that reply, say only that each flare followed a new product. Do NOT name the shared ingredient yet.
 5. Before naming any cause, look for anything in the data that contradicts your best explanation, for example a product that fits it but was not followed by a flare. The data only shows purchases, not use. Say plainly that this product doesn't seem to follow the pattern, then ask whether he actually used it (ask_user, short options such as "Yes, regularly" / "Only once or twice" / "No, never opened"). Still do NOT name the ingredient in this turn. ask_user must be the ONLY tool call in that reply: no cards, no conclusion; stop and wait for his answer.
 6. Your reply right after his answer is text plus ONE card, show_product for the most suspicious item. Its text (never empty) is exactly this form: "You had [N] flares right after buying these [N] different products that share this ingredient: [ingredient]." then a short list of the [N] products, then one short sentence on what his answer about the exception means. No show_conclusion in this reply.
-7. In the next reply, one short sentence, then show_conclusion exactly once: the most likely cause (it may be an ingredient rather than a product), your confidence, what you ruled out with a reason of a few words each, and a next step (what to avoid, and how to confirm it, e.g. a patch test with a dermatologist while the watch keeps measuring). Then one short closing sentence that only restates the next step; add nothing new.
+7. In the next reply, one short sentence, then show_conclusion exactly once: the most likely cause (it may be an ingredient rather than a product), your confidence, what you ruled out with a reason of a few words each, and next_step: exactly ONE action in one short sentence (for example "Stop using the Brightwell body wash and let your watch track the next 5 nights."). One call to action only: no second suggestion, no "also", and don't repeat it anywhere else. The conclusion card ends the conversation: write nothing after it.
 Never start this process on your own: only when he asks.
 Only use facts returned by the tools. If an answer points somewhere else, take it seriously and say in one sentence what would tell the two apart.`;
 
@@ -240,7 +240,10 @@ const CHAT_TOOLS_MI = CHAT_TOOLS.map((t) => {
         date: { type: "string", description: "YYYY-MM-DD" }, label: { type: "string", description: "Short label, e.g. the product name" } }, required: ["date", "label"] } },
       note: { type: "string", description: "One short sentence (at most 12 words)" } }, required: ["markers"] };
   }
-  if (f.name === "show_conclusion") f.parameters.properties.cause.description = "The most likely cause in at most 8 words (a product or an ingredient)";
+  if (f.name === "show_conclusion") {
+    f.parameters.properties.cause.description = "The most likely cause in at most 8 words (a product or an ingredient)";
+    f.parameters.properties.next_step = { type: "string", description: "Exactly one action, one short sentence. The only call to action in the conversation." };
+  }
   return { type: "function", function: f };
 });
 
