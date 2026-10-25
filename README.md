@@ -46,7 +46,7 @@ iPhone app ──(conversation + tools)──┴──> Claude Opus 5.5
 ```
 
 - **Scratch detection (watchOS):** reads the accelerometer at 50 Hz. A detector scores 3-second windows every 0.5 s for the fast back-and-forth motion of scratching (rate, strength, rhythm) and groups them into episodes.
-- **Live relay:** a Cloudflare Worker with a Durable Object streams the watch data to the phone and to a big-screen web view in real time. Code: [skinxai-live](https://github.com/Jacky040124/skinxai-live).
+- **Live relay:** a Cloudflare Worker with a Durable Object streams the watch data to the phone and to a big-screen web view in real time.
 - **Claude agent:** tools read scratch history, orders with ingredient lists, weather, calendar and sleep/HRV. Other tools draw on screen: mark the timeline, show a product card, ask a multiple-choice question, show the conclusion. The instructions make Claude gather data first, rule causes out one at a time, and use only facts the tools returned.
 
 ## What is real and what is demo data
