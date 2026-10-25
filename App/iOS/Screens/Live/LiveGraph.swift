@@ -51,23 +51,32 @@ final class LiveMotionFeed: @unchecked Sendable {
 struct IntensityMeter {
     static let startAt = 0.75
     static let stopAt = 0.60
-    static let window = 12
-    static let smoothing = 0.15
+    /// TEMPORARY tuning knobs (hidden Advanced card): the RMS window in values (25 a second) and the easing.
+    static let windowKey = "meterWindow", easingKey = "meterEasing"
+    static let defaultWindow = 12, defaultEasing = 0.15, maxWindow = 50
+    static var window: Int {
+        let v = UserDefaults.standard.integer(forKey: windowKey)
+        return v > 0 ? min(max(v, 2), maxWindow) : defaultWindow
+    }
+    static var smoothing: Double {
+        let v = UserDefaults.standard.double(forKey: easingKey)
+        return v > 0 ? min(max(v, 0.01), 1) : defaultEasing
+    }
 
-    private var recent = [Double](repeating: 0, count: 12)
+    private var recent = [Double](repeating: 0, count: 50)
     private var index = 0
-    private var squares = 0.0
     private(set) var level = 0.0
     private(set) var above = false
 
     /// Adds one wrist-motion value; returns true when this value starts a scratch.
     @discardableResult
     mutating func add(_ m: Double) -> Bool {
-        let old = recent[index]
         recent[index] = m
-        index = (index + 1) % Self.window
-        squares = max(0, squares + m * m - old * old)
-        level += Self.smoothing * ((squares / Double(Self.window)).squareRoot() - level)
+        let w = Self.window
+        var squares = 0.0
+        for k in 0..<w { let v = recent[(index - k + Self.maxWindow) % Self.maxWindow]; squares += v * v }
+        index = (index + 1) % Self.maxWindow
+        level += Self.smoothing * ((squares / Double(w)).squareRoot() - level)
         if !above, level >= Self.startAt { above = true; return true }
         if above, level < Self.stopAt { above = false }
         return false

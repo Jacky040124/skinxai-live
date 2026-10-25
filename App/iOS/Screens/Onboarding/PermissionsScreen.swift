@@ -268,6 +268,9 @@ private struct HiddenControls: View {
     let replay: () -> Void
     /// The live monitor's view: "graph" (wrist motion) or "bars" (the watch's decision only).
     @AppStorage("liveView") private var liveView = "graph"
+    // TEMPORARY tuning knobs for the live graph (IntensityMeter).
+    @AppStorage("meterWindow") private var meterWindow = 12
+    @AppStorage("meterEasing") private var meterEasing = 0.15
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -280,6 +283,15 @@ private struct HiddenControls: View {
                 button: liveView == "bars" ? "Use graph" : "Use bars") {
                 liveView = liveView == "bars" ? "graph" : "bars"
             }
+            knob("Smoothing window", value: String(format: "%d values · %.2f s", meterWindow, Double(meterWindow) / 25)) {
+                Slider(value: Binding(get: { Double(meterWindow) }, set: { meterWindow = Int($0.rounded()) }), in: 2...50, step: 1)
+            }
+            knob("Easing (lower = smoother)", value: String(format: "%.2f", meterEasing)) {
+                Slider(value: $meterEasing, in: 0.02...0.5)
+            }
+            Button("Reset knobs") { meterWindow = 12; meterEasing = 0.15 }
+                .font(Twin.Typeface.sans(13, .bold))
+                .padding(.top, 6)
         }
         .padding(Twin.Space.l)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -288,6 +300,19 @@ private struct HiddenControls: View {
             RoundedRectangle(cornerRadius: Twin.Radius.card, style: .continuous)
                 .strokeBorder(Twin.Palette.seam, style: StrokeStyle(lineWidth: Twin.Stroke.ink, dash: [5, 4]))
         )
+    }
+
+    private func knob<S: View>(_ title: String, value: String, @ViewBuilder slider: () -> S) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(title).font(Twin.Typeface.sans(14)).foregroundStyle(Twin.Palette.ink)
+                Spacer()
+                Text(value).font(Twin.Typeface.mono(12)).foregroundStyle(Twin.Palette.inkHint)
+            }
+            slider().tint(Twin.Palette.orange)
+        }
+        .padding(.vertical, 8)
+        .overlay(alignment: .top) { Rectangle().fill(Twin.Palette.hairline).frame(height: 1) }
     }
 
     private func row(_ title: String, button: String, action: @escaping () -> Void) -> some View {
