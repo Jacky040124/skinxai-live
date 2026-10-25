@@ -77,7 +77,7 @@ struct TrendsNightDetail: View {
                     ForEach(night.events) { event in
                         Button { onEvent(event) } label: {
                             HStack(spacing: 5) {
-                                Text(event.emoji).font(.system(size: 11))
+                                TwinIconView(emoji: event.emoji, size: 14)
                                 Text(eventText(event)).font(Twin.Typeface.sans(12, .bold)).lineLimit(1)
                                 Image(systemName: "chevron.right").font(.system(size: 9, weight: .bold))
                             }

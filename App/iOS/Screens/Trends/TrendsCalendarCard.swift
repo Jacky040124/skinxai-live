@@ -121,8 +121,9 @@ struct TrendsCalendarCard: View {
                 .padding(.leading, 4)
                 .padding(.top, 3)
             if !icons.isEmpty {
-                Text(icons.joined())
-                    .font(.system(size: 11))
+                HStack(spacing: 0) {
+                    ForEach(icons, id: \.self) { TwinIconView(emoji: $0, size: 13) }
+                }
                     .fixedSize()
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                     .padding(.trailing, 2)
@@ -177,14 +178,14 @@ struct TrendsCalendarCard: View {
                 Spacer(minLength: 0)
             }
             HStack(spacing: 10) {
-                Text("👕 new sweater")
-                Text("🧺 new detergent")
-                Text("🧴 new wash")
+                legendItem("👕", "new sweater")
+                legendItem("🧺", "new detergent")
+                legendItem("🧴", "new wash")
                 Spacer(minLength: 0)
             }
             HStack(spacing: 10) {
-                Text("📚 exams")
-                Text("💧 dry")
+                legendItem("📚", "exams")
+                legendItem("💧", "dry")
                 Spacer(minLength: 0)
             }
         }
@@ -193,5 +194,12 @@ struct TrendsCalendarCard: View {
         .lineLimit(1)
         .minimumScaleFactor(0.8)
         .accessibilityHidden(true)
+    }
+
+    private func legendItem(_ emoji: String, _ text: String) -> some View {
+        HStack(spacing: 3) {
+            TwinIconView(emoji: emoji, size: 12)
+            Text(text)
+        }
     }
 }

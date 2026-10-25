@@ -23,10 +23,13 @@ private struct CornerSticker: View {
     let text: String
     /// Claude's ✶ in front of the text.
     var claude = false
+    /// An emoji picture in front of the text (drawn icon if there is one).
+    var icon: String? = nil
     let fill: Color
     var body: some View {
         HStack(spacing: 4) {
             if claude { ClaudeMark(size: 10) }
+            if let icon { TwinIconView(emoji: icon, size: 12) }
             Text(text).font(Twin.Typeface.sans(10, .bold)).lineLimit(1)
         }
         .foregroundStyle(Twin.Palette.ink)
@@ -63,8 +66,7 @@ private struct ToolRowView: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            Text(row.icon)
-                .font(.system(size: 13))
+            TwinIconView(emoji: row.icon, size: 17)
                 .frame(width: 26, height: 26)
                 .sticker(Twin.Palette.paper)
             VStack(alignment: .leading, spacing: 1) {
@@ -223,7 +225,7 @@ struct TimelineCardView: View {
                 }
                 .trim(from: 0, to: pinned ? 1 : 0)
                 .stroke(Twin.Palette.seam, style: StrokeStyle(lineWidth: 1.5, dash: [1.5, 3]))
-                CornerSticker(text: pinText, fill: Twin.Palette.pink)
+                CornerSticker(text: card.label, icon: card.emoji, fill: Twin.Palette.pink)
                     .fixedSize()
                     .alignmentGuide(.leading) { d in -min(max(x - d.width / 2, 0), max(0, width - d.width)) }
                     .scaleEffect(pinned || reduceMotion ? 1 : 0.6, anchor: .bottom)
@@ -231,10 +233,6 @@ struct TimelineCardView: View {
             }
         }
         .frame(width: width, height: pinSpace + chartHeight, alignment: .topLeading)
-    }
-
-    private var pinText: String {
-        [card.emoji, card.label].compactMap { $0 }.joined(separator: " ")
     }
 
     @ViewBuilder

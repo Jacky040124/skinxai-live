@@ -36,7 +36,10 @@ struct Sticker: View {
             if let icon {
                 // SF Symbol names are plain ASCII, so anything else is an emoji, including the
                 // text-style ones (🏋️ ✈️ ✳️ 🌡) that would otherwise render as a blank symbol.
-                if icon.unicodeScalars.contains(where: { !$0.isASCII }) {
+                // Emoji with a drawn icon (TwinIcon) show the icon at 14 pt (≈ the 11 pt emoji).
+                if TwinIcon.asset(for: icon) != nil {
+                    TwinIconView(emoji: icon, size: 14)
+                } else if icon.unicodeScalars.contains(where: { !$0.isASCII }) {
                     Text(icon).font(.system(size: 11))
                 } else {
                     Image(systemName: icon).font(.system(size: 10, weight: .bold))

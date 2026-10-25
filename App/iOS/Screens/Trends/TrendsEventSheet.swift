@@ -154,8 +154,7 @@ struct TrendsEventSheet: View {
 
     private var header: some View {
         HStack(alignment: .top, spacing: 12) {
-            Text(detail.event.emoji)
-                .font(.system(size: 26))
+            TwinIconView(emoji: detail.event.emoji, size: 32)
                 .frame(width: 54, height: 54)
                 .sticker(detail.event.isProduct ? Twin.Palette.pink : Twin.Palette.cream, radius: Twin.Radius.control)
             VStack(alignment: .leading, spacing: 4) {

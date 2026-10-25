@@ -370,8 +370,7 @@ struct TimelineChart: View {
                         Circle().fill(Twin.Palette.ink.opacity(0.55)).frame(width: 6, height: 6)
                             .frame(width: m.slot + gap, height: rowHeight)
                     } else {
-                        Text(event.emoji)
-                            .font(.system(size: 11))
+                        TwinIconView(emoji: event.emoji, size: 14)
                             .frame(width: size, height: size)
                             .sticker(event.fill)
                     }

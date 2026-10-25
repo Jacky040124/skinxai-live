@@ -286,8 +286,7 @@ struct SummaryTriggersCard: View {
 
     private func row(_ t: SummaryStory.Trigger) -> some View {
         HStack(alignment: .center, spacing: 12) {
-            Text(t.emoji)
-                .font(.system(size: 17))
+            TwinIconView(emoji: t.emoji, size: 22)
                 .frame(width: 38, height: 38)
                 .sticker(t.earlier ? Twin.Palette.fill : t.fill)
             VStack(alignment: .leading, spacing: 1) {

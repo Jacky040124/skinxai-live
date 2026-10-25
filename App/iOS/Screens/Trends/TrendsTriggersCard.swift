@@ -130,8 +130,7 @@ struct TrendsTriggersCard: View {
     private func row(_ i: StageHistory.Impact, k: Int, scale: Double) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .top, spacing: 10) {
-                Text(Self.emoji(i.factor))
-                    .font(.system(size: 16))
+                TwinIconView(emoji: Self.emoji(i.factor), size: 20)
                     .frame(width: 34, height: 34)
                     .sticker(i.verdict == .strong || i.verdict == .possible ? Twin.Palette.pink : Twin.Palette.paper)
                 VStack(alignment: .leading, spacing: 2) {

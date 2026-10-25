@@ -273,7 +273,7 @@ struct DailyScratchChart: View {
             onMarkerTap?(m)
         } label: {
             HStack(spacing: 3) {
-                Text(m.emoji).font(.system(size: 10))
+                TwinIconView(emoji: m.emoji, size: 12)
                 Text(m.text).font(Twin.Typeface.sans(10, .bold)).lineLimit(1)
             }
             .foregroundStyle(Twin.Palette.ink)
