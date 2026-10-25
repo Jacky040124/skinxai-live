@@ -92,8 +92,8 @@ public enum StageHistory {
     /// `StageStory` orders are on that day.
     public static let earlierSuspectsBoughtNight = -5
     /// The two new things of the earlier flare, as the orders name them.
-    public static let woolSweaterItem = "Wool sweater"
-    public static let sampleDetergentItem = "Laundry detergent sample, scented"
+    public static let woolSweaterItem = "Northfield Lambswool Crewneck Sweater"
+    public static let sampleDetergentItem = "FreshMeadow Spring Bloom Detergent, trial size"
 
     /// The night after a short one (under `shortSleepBelow` hours the night before).
     public static func afterShortSleep(_ i: Int) -> Bool {
@@ -107,7 +107,7 @@ public enum StageHistory {
     public static let clothes: [(item: String, firstNight: Int)] = [
         ("Hoodie, cotton", -43),
         ("T-shirts, 3 pack", -19),
-        ("Wool socks, 3 pairs", 6),
+        ("Darn Tough Merino Wool Socks, 3 pairs", 6),
     ]
 
     // MARK: - Trigger impact

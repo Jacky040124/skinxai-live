@@ -11,7 +11,7 @@ public struct ChatTimeline: Hashable, Sendable {
     public var hot: [Bool]
     /// The marked night, if `marker_date` is one of the 14.
     public var marker: Int?
-    /// Claude's label for the change ("Started new body wash").
+    /// Claude's label for the change ("Started Brightwell body wash").
     public var label: String
     /// A small picture for the label ("🧴" for a body wash), if one fits.
     public var emoji: String?
@@ -59,7 +59,8 @@ public struct ChatProduct: Hashable, Sendable {
         public var flagged: Bool
     }
 
-    /// "Body wash, 18 fl oz" (the order's item when it matches Claude's generic name, else Claude's name).
+    /// "Brightwell Ocean Breeze Body Wash, 18 fl oz": the order's full item name when Claude's name matches it
+    /// (the product name, or just its kind: "Body wash"), else Claude's name.
     public var title: String
     /// He had never bought it before.
     public var firstTime: Bool
@@ -75,8 +76,16 @@ public struct ChatProduct: Hashable, Sendable {
         let key = Self.norm(name.components(separatedBy: ",")[0])
         let purchase = (arguments["purchase_date"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         let orders = StageStory.orders(now: now, calendar: calendar)
+        /// The order's name (before its size) is Claude's name, or has all of its words: "Body wash", "Brightwell
+        /// body wash" and "Ocean Breeze body wash" all name "Brightwell Ocean Breeze Body Wash, 18 fl oz".
+        let words = Self.words(name.components(separatedBy: ",")[0])
+        func named(_ order: StageStory.Order) -> Bool {
+            let item = order.item.components(separatedBy: ",")[0]
+            guard !key.isEmpty else { return false }
+            return Self.norm(item) == key || (!words.isEmpty && words.isSubset(of: Self.words(item)))
+        }
         let order = orders.first { StageStory.iso($0.date, calendar: calendar) == String(purchase.prefix(10)) && $0.category == "personal care" }
-            ?? orders.first { !key.isEmpty && Self.norm($0.item.components(separatedBy: ",")[0]) == key }
+            ?? orders.first(where: named)
 
         let flagged = (arguments["flagged_ingredients"] as? [Any] ?? [])
             .compactMap { ($0 as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -90,12 +99,17 @@ public struct ChatProduct: Hashable, Sendable {
             list.append(Ingredient(name: f, flagged: true))
         }
 
-        title = order.flatMap { Self.norm($0.item.components(separatedBy: ",")[0]) == key ? $0.item : nil } ?? name
+        title = order.flatMap { named($0) ? $0.item : nil } ?? name
         firstTime = order?.boughtBefore == false
         let when = StageStory.date(iso: purchase, calendar: calendar) ?? order?.date
         ordered = when.map { "Ordered \(StageStory.weekday($0, short: true, calendar: calendar)) \(StageStory.monthDay($0, calendar: calendar))" }
         ingredients = list
         note = ChatTimeline.text(arguments["note"])
+    }
+
+    /// The words of a name, each like `norm` ("Wool socks" → wool, sock).
+    static func words(_ text: String) -> Set<String> {
+        Set(text.split(whereSeparator: { !$0.isLetter }).map { norm(String($0)) }.filter { !$0.isEmpty })
     }
 
     /// chat.js `norm`: lowercase letters only, without a final "s" ("Body washes" → "bodywashe").

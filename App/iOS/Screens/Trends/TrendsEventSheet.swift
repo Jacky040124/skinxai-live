@@ -26,7 +26,7 @@ struct TrendsEventDetail {
     let purchase: TrendsPurchase?
     /// "4 NIGHTS · OCT 6–9"
     let afterText: String
-    /// "Bought the same day as the detergent sample (Oct 5)…"
+    /// "Bought the same day as the FreshMeadow Spring Bloom Detergent (Oct 5)…"
     let note: String?
 
     /// Contact allergens lit in the lists.
@@ -62,12 +62,12 @@ struct TrendsEventDetail {
         } ?? ""
         let twin = p?.sameDay.first.flatMap { k in TrendsEvent.all.first { $0.kind == k } }
         note = twin.map {
-            "Bought the same day as the \($0.shortName.lowercased()) (\(span)): same nights after."
+            "Bought the same day as the \($0.name) (\(span)): same nights after."
         }
         switch e.kind {
         case .bodywash:
             let o = StageStory.bodyWashOrder(now: now, calendar: cal)
-            title = "Body wash"
+            title = e.name
             category = "\(o.category) · Amazon order"
             firstTime = !o.boughtBefore
             facts = [.init(label: "Bought", value: ordered(o)),
@@ -76,20 +76,22 @@ struct TrendsEventDetail {
             ingredients = (o.ingredients ?? StageStory.bodyWashIngredients).map { ($0, Self.irritants.contains($0)) }
         case .sweater:
             let o = order(StageHistory.woolSweaterItem)
-            title = "Wool sweater"
+            title = e.name
             category = "\(o?.category ?? "clothing") · Amazon order"
             firstTime = !(o?.boughtBefore ?? false)
             facts = [.init(label: "Bought", value: ordered(o)),
+                     .init(label: "Item", value: o?.item ?? StageHistory.woolSweaterItem),
                      .init(label: "Note", value: "Your first wool sweater")]
             listTitle = "Material"
             ingredients = [("Wool, 100%", true)]
         case .detergent:
             let o = order(StageHistory.sampleDetergentItem)
-            title = "Detergent sample"
+            title = e.name
             category = "\(o?.category ?? "household") · Amazon order"
             firstTime = !(o?.boughtBefore ?? false)
             facts = [.init(label: "Bought", value: ordered(o)),
-                     .init(label: "Item", value: "Scented, trial size")]
+                     .init(label: "Item", value: o?.item ?? StageHistory.sampleDetergentItem),
+                     .init(label: "Note", value: "Scented sample")]
             listTitle = "Ingredients"
             ingredients = Self.detergentIngredients.map { ($0, Self.irritants.contains($0)) }
         case .exams:

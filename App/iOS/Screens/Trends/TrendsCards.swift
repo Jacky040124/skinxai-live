@@ -100,11 +100,13 @@ struct TrendsNightStrip: View {
                 }
             }
             Rectangle().fill(Twin.Palette.ink.opacity(0.12)).frame(height: 1)
-            HStack(alignment: .center, spacing: 8) {
+            // Top-aligned: with two long product names the chips wrap, and BOUGHT stays by the first one.
+            HStack(alignment: .top, spacing: 8) {
                 Text("BOUGHT")
                     .font(Twin.Typeface.mono(9, bold: true))
                     .tracking(0.3)
                     .foregroundStyle(Twin.Palette.ink.opacity(0.6))
+                    .frame(height: 28)
                 if night.purchases.isEmpty {
                     Text("Nothing new")
                         .font(Twin.Typeface.sans(14, .medium))
@@ -125,6 +127,7 @@ struct TrendsNightStrip: View {
                                 .sticker(Twin.Palette.pink)
                             }
                             .buttonStyle(PressableStyle())
+                            .accessibilityLabel(event.name)
                             .accessibilityHint("Shows details")
                         }
                     }

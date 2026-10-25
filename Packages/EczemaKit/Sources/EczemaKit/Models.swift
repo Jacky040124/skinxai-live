@@ -52,7 +52,7 @@ public enum ExposureKind: String, Codable, CaseIterable, Sendable, Hashable {
 public struct Exposure: Codable, Identifiable, Hashable, Sendable {
     public var id: UUID
     public var kind: ExposureKind
-    /// Short user-facing name, e.g. "New scented body wash".
+    /// Short user-facing name, e.g. "Brightwell Ocean Breeze Body Wash".
     public var title: String
     /// Start of the day the exposure happened.
     public var day: Date
@@ -171,7 +171,7 @@ public struct Suspect: Codable, Identifiable, Hashable, Sendable {
 }
 
 public struct ExperimentPlan: Codable, Hashable, Sendable {
-    /// e.g. "Pause the body wash"
+    /// e.g. "Pause the Brightwell body wash"
     public var title: String
     /// One plain sentence telling the user what to do.
     public var instruction: String

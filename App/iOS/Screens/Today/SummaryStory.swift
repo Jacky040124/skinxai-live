@@ -137,14 +137,14 @@ struct SummaryStory {
     /// The first night of the rise (the first flare night in the streak): 11.
     var riseNight: Int { last - max(streak, 1) + 1 }
 
-    /// What changed shortly before (or during) the rise: the new body wash, dry air; the midterms last,
+    /// What changed shortly before (or during) the rise: the new Brightwell body wash, dry air; the midterms last,
     /// greyed, because they came well before it.
     var triggers: [Trigger] {
         guard status == .flare else { return [] }
         var list: [Trigger] = []
         let wash = StageStory.bodyWashNight
         if wash <= last {
-            list.append(Trigger(id: "wash", emoji: "🧴", fill: Twin.Palette.pink, title: "New body wash",
+            list.append(Trigger(id: "wash", emoji: "🧴", fill: Twin.Palette.pink, title: "Brightwell Ocean Breeze Body Wash",
                                 detail: "Bought \(dayText(wash - 1))", when: relative(wash - 1), earlier: false))
         }
         let dry = StageStory.dryAirNight
@@ -190,7 +190,7 @@ struct SummaryStory {
         let accessibility: String
     }
 
-    /// Your usual sleep: the median of the nights before the new body wash.
+    /// Your usual sleep: the median of the nights before the new Brightwell body wash.
     static var usualSleep: Double {
         let before = StageStory.sleepHours.prefix(StageStory.bodyWashNight).sorted()
         guard !before.isEmpty else { return 7 }

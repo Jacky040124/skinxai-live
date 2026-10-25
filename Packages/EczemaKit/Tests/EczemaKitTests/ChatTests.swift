@@ -275,7 +275,7 @@ final class ChatStub: URLProtocol {
     @Test func productMatchesTheOrder() {
         let p = ChatProduct(arguments: ["name": "Body wash", "purchase_date": "2026-10-19",
                                         "flagged_ingredients": ["fragrance", "Methylisothiazolinone (MIT)"]], now: now, calendar: cal)
-        #expect(p.title == "Body wash, 18 fl oz")
+        #expect(p.title == "Brightwell Ocean Breeze Body Wash, 18 fl oz")
         #expect(p.firstTime)
         #expect(p.ordered == "Ordered Mon Oct 19")
         #expect(p.ingredients.map(\.name) == StageStory.bodyWashIngredients)
@@ -285,10 +285,16 @@ final class ChatStub: URLProtocol {
 
     @Test func productByNameAndUnknownFlags() {
         let p = ChatProduct(arguments: ["name": "body wash", "flagged_ingredients": ["Limonene", " "]], now: now, calendar: cal)
-        #expect(p.title == "Body wash, 18 fl oz" && p.firstTime && p.ordered == "Ordered Mon Oct 19")
+        #expect(p.title == "Brightwell Ocean Breeze Body Wash, 18 fl oz" && p.firstTime && p.ordered == "Ordered Mon Oct 19")
         #expect(p.ingredients.last == ChatProduct.Ingredient(name: "Limonene", flagged: true))
         let other = ChatProduct(arguments: ["name": "Scented candle"], now: now, calendar: cal)
         #expect(other.title == "Scented candle" && !other.firstTime && other.ordered == nil && other.ingredients.isEmpty)
+        // The brand, the full name or part of it: the order's full item name.
+        for name in ["Brightwell body wash", "Brightwell Ocean Breeze Body Wash", "Ocean Breeze body wash"] {
+            #expect(ChatProduct(arguments: ["name": name], now: now, calendar: cal).title == StageStory.bodyWashItem)
+        }
+        let socks = ChatProduct(arguments: ["name": "Wool socks"], now: now, calendar: cal)
+        #expect(socks.title == "Darn Tough Merino Wool Socks, 3 pairs" && socks.firstTime)
     }
 
     @Test func question() {
