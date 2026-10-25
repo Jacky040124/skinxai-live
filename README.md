@@ -4,9 +4,11 @@
 
 Built at **Cal Hacks 13.0** (October 2026) · [Devpost](https://devpost.com/software/skinxai)
 
-[![Watch the demo](https://img.youtube.com/vi/1gewQwKMbPc/maxresdefault.jpg)](https://www.youtube.com/watch?v=1gewQwKMbPc)
+## Demo
 
-▶️ **[Watch the demo video](https://www.youtube.com/watch?v=1gewQwKMbPc)**
+https://github.com/user-attachments/assets/89bdd6bd-059b-4931-928e-b351fb59be68
+
+Also on [YouTube](https://www.youtube.com/watch?v=1gewQwKMbPc).
 
 ## Problem
 
