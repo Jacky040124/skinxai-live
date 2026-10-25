@@ -45,12 +45,12 @@ with these **new numbers** (prototype v5):
 - Body wash: first ordered the day before night 10, used from night 10 on (`bodyWashNight = 10`).
   Dry air only on night 13 (humidity 29%). Midterm exams: nights 1–3.
 - `sleepHours`: `[7.4, 7.1, 6.2, 6.0, 6.4, 7.5, 7.3, 7.2, 7.6, 7.0, 6.9, 6.4, 5.6, 5.1]`;
-  `wakeUps`: `[0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 2, 3, 4]`;
+  `wakeUps`: `[0, 1, 1, 1, 0, 0, 1, 0, 0, 1, 1, 1, 2, 2]`;
   `humidity`: `[52, 49, 55, 51, 47, 50, 53, 48, 51, 50, 49, 47, 46, 29]`;
   `highF`: `[64, 66, 63, 61, 65, 67, 66, 64, 63, 65, 66, 64, 63, 68]`;
   `hrvMs`: last night 38, usual 52 (a 14-value array that drops over the last 3 nights is fine).
   Air quality 41 (good), pollen low, location "Berkeley, CA".
-- **Last night**: 11:04 PM → 6:52 AM, 41 min, 23 episodes, 7 intense, woke up 4×, worst 2–4 AM.
+- **Last night**: 11:04 PM → 6:52 AM, 41 min, 23 episodes, 7 intense, woke up 2×, worst 2–4 AM.
   Minutes per clock hour 11 PM…6 AM: `[1, 3, 6, 10, 11, 6, 3, 1]`, split into **32 quarter-hour
   buckets** with a fixed seeded RNG (the prototype's `drawNight()` shows the idea: four random weights
   per hour, a weight < 0.18 becomes 0, normalized so each hour keeps its total). Deterministic.
@@ -107,7 +107,7 @@ the live area; shows nothing unless the watch is tracking) then `UserAvatar()`.
    ink) and the axis "11p 1a 3a 5a 7a".
 2. **Pink CTA** (the existing Claude card style with the shimmer): "Up 3 nights in a row" /
    "Ask Claude what changed" / "→" → `app.select(.insight)`. It must not reveal the answer.
-3. Sleep mini card "5.1 h" + "woke up 4×"; Stress (HRV) "38 ms" + "lower than usual".
+3. Sleep mini card "5.1 h" + "woke up 2×"; Stress (HRV) "38 ms" + "lower than usual".
 4. "Around you · auto" cream card: "💧 Humidity 29% · dry" (orange), "🍃 Air quality 41 · good",
    "🌼 Pollen · low", "🌡 68°F".
 Remove from Today: the logged-today card, the experiment card, anything with "+", episodes sheet if it

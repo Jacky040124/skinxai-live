@@ -5,7 +5,8 @@ import EczemaKit
 
 /// The last two months as calendars (Mon–Sun), each day shaded by its minutes of scratching: white
 /// (calm) → light orange → orange (flare) → red (2.5× usual and up). Today has an ink outline. Small
-/// icons mark exams 📚, the new body wash 🧴, new clothes 👕 and dry days 💧.
+/// icons mark exams 📚, the new body wash 🧴, the day he got the wool sweater 👕 and the detergent
+/// sample 🧺 (both Oct 5, the day before the earlier flare), and dry days 💧.
 struct TrendsCalendarCard: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var shown = false
@@ -44,10 +45,14 @@ struct TrendsCalendarCard: View {
     }
 
     private var takeaway: (String, String) {
-        let wash = StageStory.nightDate(StageStory.bodyWashNight, now: now, calendar: calendar)
-        let calmBefore = StageHistory.beforeBodyWash.allSatisfy { Self.level($0.minutes) <= 1 }
-        return (calmBefore ? "Two calm months." : "Ups and downs.",
-                "Exams, dry days and new clothes came and went. The orange began \(StageStory.monthDay(wash, calendar: calendar)), with the new body wash.")
+        let date = { (i: Int) in StageStory.nightDate(i, now: now, calendar: calendar) }
+        let flare = StageHistory.earlierFlareNights
+        let earlier = StageStory.monthDayRange(date(flare.lowerBound), date(flare.upperBound), calendar: calendar)
+        let bought = StageStory.monthDay(date(StageHistory.earlierSuspectsBoughtNight), calendar: calendar)
+        let wash = StageStory.monthDay(date(StageStory.bodyWashNight), calendar: calendar)
+        let calmElse = StageHistory.typicalNights.allSatisfy { Self.level($0.minutes) <= 1 }
+        return (calmElse ? "Two flares, calm in between." : "Ups and downs.",
+                "\(earlier) came right after the new sweater and detergent (\(bought)). This one began \(wash), with the new body wash.")
     }
 
     var body: some View {
@@ -132,12 +137,13 @@ struct TrendsCalendarCard: View {
         .accessibilityLabel(accessibility(date, n, today: today))
     }
 
-    /// The day's icons (at most two): exams, the first night of the body wash, new clothes, dry air.
+    /// The day's icons (at most two): exams, the first night of the body wash, the day of the sweater
+    /// and the detergent sample, dry air.
     private func icons(_ n: StageHistory.Night) -> [String] {
         var list: [String] = []
+        if n.id == StageHistory.earlierSuspectsBoughtNight { list += ["👕", "🧺"] }
         if n.exams { list.append("📚") }
         if n.id == StageStory.bodyWashNight { list.append("🧴") }
-        if StageHistory.clothes.contains(where: { $0.firstNight == n.id }) { list.append("👕") }
         if n.dry { list.append("💧") }
         return Array(list.prefix(2))
     }
@@ -149,7 +155,7 @@ struct TrendsCalendarCard: View {
         text += ": \(n.minutes) minutes."
         if n.exams { text += " Exams." }
         if n.id == StageStory.bodyWashNight { text += " First night with the new body wash." }
-        if StageHistory.clothes.contains(where: { $0.firstNight == n.id }) { text += " New clothes." }
+        if n.id == StageHistory.earlierSuspectsBoughtNight { text += " New wool sweater and a new detergent sample." }
         if n.dry { text += " Dry air, \(n.humidity)%." }
         return text
     }
@@ -171,9 +177,13 @@ struct TrendsCalendarCard: View {
                 Spacer(minLength: 0)
             }
             HStack(spacing: 10) {
-                Text("📚 exams")
+                Text("👕 new sweater")
+                Text("🧺 new detergent")
                 Text("🧴 new wash")
-                Text("👕 new clothes")
+                Spacer(minLength: 0)
+            }
+            HStack(spacing: 10) {
+                Text("📚 exams")
                 Text("💧 dry")
                 Spacer(minLength: 0)
             }

@@ -9,8 +9,10 @@ import SwiftUI
 ///   night's bar. A `trailing` marker ends at its stem instead of being centered on it, so a marker
 ///   over the last night stays inside the card.
 /// - Under the bars: a hairline, the month, and the day numbers (the last night in bold).
-/// - Under those, a humidity row on the same timeline: one cell per night with its percent; dry
-///   nights are orange with an ink edge and say "dry" under them.
+/// - Under those, the weather on the same timeline: two thin line tracks, humidity and the day's high,
+///   one point per night at its bar's center. Dry days (and hot days) get an orange dot with an ink edge,
+///   a dashed line marks where "dry" (and "hot") begins, and the selected night gets a cyan dot on both
+///   tracks, its values in the track titles. The lines draw in left to right after the bars.
 /// - Tap a night to select it: a cyan outline moves to its bar (matchedGeometryEffect) with a
 ///   selection haptic.
 /// - A shorter range zooms in: the nights before the range slide out to the left and fade while the
@@ -32,10 +34,14 @@ struct NightsChart: View {
         /// The 1st of a month: its month label sits over its day number.
         var startsMonth = false
         var isLast = false
-        /// Humidity that day, percent (nil: no humidity row).
+        /// Humidity that day, percent (nil on every bar: no weather tracks).
         var humidity: Int? = nil
-        /// A dry day (the humidity cell turns orange).
+        /// A dry day (an orange dot on the humidity track).
         var dry = false
+        /// The day's high, °F.
+        var highF: Int? = nil
+        /// A hot day (an orange dot on the temperature track).
+        var hotDay = false
         /// VoiceOver description of the night.
         var accessibility = ""
     }
@@ -51,6 +57,16 @@ struct NightsChart: View {
         var row: Int
         /// The sticker ends at the stem instead of being centered on it.
         var trailing = false
+        /// The sticker starts at the stem instead of being centered on it.
+        var leading = false
+    }
+
+    /// A weather track's scale and its threshold line ("dry" under 35%, "hot" from 85 °F).
+    struct Track: Equatable {
+        var domain: ClosedRange<Double>
+        var threshold: Double
+        /// "DRY UNDER 35%"
+        var key: String
     }
 
     var bars: [Bar]
@@ -71,8 +87,9 @@ struct NightsChart: View {
     var gap: CGFloat = 4
     /// Bars never get wider than this (a short range); they stay centered in their slot.
     var maxBarWidth: CGFloat = 34
-    /// Right end of the humidity row's title, e.g. "DRY · UNDER 35%".
-    var dryLegend: String? = nil
+    /// The humidity and temperature tracks' scales.
+    var humidityTrack = Track(domain: 20...80, threshold: 35, key: "DRY UNDER 35%")
+    var temperatureTrack = Track(domain: 55...95, threshold: 85, key: "HOT 85°F+")
     /// The card's padding: a scrolling chart runs out to the card's edges.
     var sidePad: CGFloat = Twin.Space.l
     var delay: Double = 0.12
@@ -90,17 +107,19 @@ struct NightsChart: View {
     private var rowTops: [CGFloat] { [markerBand - 56, markerBand - 30] }
     private let flagHeight: CGFloat = 18
     private let monthGap: CGFloat = 6, monthHeight: CGFloat = 11, dayGap: CGFloat = 2, dayHeight: CGFloat = 12
-    private let humidityGap: CGFloat = 14, humidityTitleHeight: CGFloat = 11, cellGap: CGFloat = 5
-    private let cellHeight: CGFloat = 20, dryGap: CGFloat = 3, dryHeight: CGFloat = 11
+    private let weatherGap: CGFloat = 16, trackTitleHeight: CGFloat = 11, trackTitleGap: CGFloat = 5
+    private let trackHeight: CGFloat = 24, trackGap: CGFloat = 12
 
-    private var hasHumidity: Bool { bars.contains { $0.humidity != nil } }
+    private var hasWeather: Bool { bars.contains { $0.humidity != nil } }
     private var plotBottom: CGFloat { markerBand + plotHeight }
     private var monthY: CGFloat { plotBottom + Twin.Stroke.hairline + monthGap }
     private var dayY: CGFloat { monthY + monthHeight + dayGap }
-    private var humidityTitleY: CGFloat { dayY + dayHeight + humidityGap }
-    private var cellY: CGFloat { humidityTitleY + humidityTitleHeight + cellGap }
-    private var dryY: CGFloat { cellY + cellHeight + dryGap }
-    private var totalHeight: CGFloat { hasHumidity ? dryY + dryHeight : dayY + dayHeight }
+    /// Top of track `t`'s title (0 = humidity, 1 = temperature), and of its line.
+    private func trackTitleY(_ t: Int) -> CGFloat {
+        dayY + dayHeight + weatherGap + CGFloat(t) * (trackTitleHeight + trackTitleGap + trackHeight + trackGap)
+    }
+    private func trackY(_ t: Int) -> CGFloat { trackTitleY(t) + trackTitleHeight + trackTitleGap }
+    private var totalHeight: CGFloat { hasWeather ? trackY(1) + trackHeight + 4 : dayY + dayHeight }
     private var first: Int { min(max(bars.count - shown, 0), max(bars.count - 1, 0)) }
 
     var body: some View {
@@ -121,10 +140,9 @@ struct NightsChart: View {
                         ForEach(Array(bars.enumerated()), id: \.element.id) { k, bar in
                             labels(bar, k: k, m: m, left: left)
                         }
-                        if hasHumidity {
-                            ForEach(Array(bars.enumerated()), id: \.element.id) { k, bar in
-                                humidityCell(bar, k: k, m: m)
-                            }
+                        if hasWeather {
+                            weatherTrack(0, m: m)
+                            weatherTrack(1, m: m)
                         }
                         // Flags last: they take their own taps above the columns' tap areas.
                         ForEach(markers) { marker in flag(marker, m: m) }
@@ -286,42 +304,71 @@ struct NightsChart: View {
             .accessibilityHidden(true)
     }
 
-    // MARK: Humidity
+    // MARK: Weather tracks
 
-    /// The night's humidity: a small cell under its bar, orange with an ink edge and "dry" under it on
-    /// a dry day.
-    private func humidityCell(_ bar: Bar, k: Int, m: Metrics) -> some View {
-        let visible = isVisible(k)
-        let selected = selection == bar.id
-        let shape = RoundedRectangle(cornerRadius: Twin.Radius.sticker, style: .continuous)
-        return VStack(spacing: dryGap) {
-            Text(bar.humidity.map { "\($0)%" } ?? "")
-                .font(Twin.Typeface.mono(9, bold: bar.dry || selected))
-                .foregroundStyle(bar.dry || selected ? Twin.Palette.ink : Twin.Palette.inkHint)
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-                .frame(width: m.bar, height: cellHeight)
-                .background {
-                    if bar.dry {
-                        shape.fill(Twin.Palette.orange).overlay(shape.strokeBorder(Twin.Palette.ink, lineWidth: 1))
-                    } else {
-                        shape.fill(Twin.Palette.fill)
-                    }
+    private func trackSpec(_ t: Int) -> Track { t == 0 ? humidityTrack : temperatureTrack }
+    private func trackValue(_ bar: Bar, _ t: Int) -> Int? { t == 0 ? bar.humidity : bar.highF }
+    private func trackFlag(_ bar: Bar, _ t: Int) -> Bool { t == 0 ? bar.dry : bar.hotDay }
+
+    /// 0 (bottom) … 1 (top) on track `t`'s scale.
+    private func level(_ value: Double, _ t: Int) -> CGFloat {
+        let d = trackSpec(t).domain
+        return CGFloat(min(max((value - d.lowerBound) / (d.upperBound - d.lowerBound), 0), 1))
+    }
+
+    /// Height of a point on a track: the line keeps 3 pt from the edges, so dots never clip.
+    private func trackPointY(_ value: Double, _ t: Int) -> CGFloat {
+        trackY(t) + 3 + (1 - level(value, t)) * (trackHeight - 6)
+    }
+
+    /// One thin line through every night's value at its bar's center (the line moves with the bars
+    /// when the range changes), the threshold dashed, dots on dry / hot days, and the selected night.
+    private func weatherTrack(_ t: Int, m: Metrics) -> some View {
+        let spec = trackSpec(t)
+        let values = bars.map { trackValue($0, t).map { Double(level(Double($0), t)) } ?? 0.5 }
+        let step = m.slot + gap
+        let origin = m.contentWidth - CGFloat(bars.count) * step + gap + m.slot / 2
+        // The line starts at the first night on the chart (the ones before it slide out to the left).
+        let start = first > 0 ? max(0, m.center(first) - 2) : 0
+        let reveal = bars.count > 1 ? Double(entranceFirst) / Double(bars.count - 1) : 0
+        let selected = index(of: selection).flatMap { k in trackValue(bars[k], t).map { (k, $0) } }
+        return ZStack(alignment: .topLeading) {
+            ChartHLine()
+                .stroke(Twin.Palette.hairline, style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                .frame(width: m.contentWidth - start, height: 1)
+                .offset(x: start, y: trackPointY(spec.threshold, t))
+            TrackLine(values: values, origin: origin, step: step)
+                .trim(from: 0, to: decorated || reduceMotion ? 1 : reveal)
+                .stroke(Twin.Palette.seam, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, lineJoin: .round))
+                .frame(width: m.contentWidth, height: trackHeight - 6)
+                .offset(y: trackY(t) + 3)
+                .mask(alignment: .topLeading) {
+                    Rectangle().frame(width: max(0, m.contentWidth - start), height: totalHeight).offset(x: start)
                 }
-            Text(bar.dry ? "dry" : " ")
-                .font(Twin.Typeface.mono(9, bold: true))
-                .foregroundStyle(Twin.Palette.ink)
-                .fixedSize()
-                .frame(height: dryHeight)
+            ForEach(Array(bars.enumerated()), id: \.element.id) { k, bar in
+                if trackFlag(bar, t), let v = trackValue(bar, t) {
+                    Circle()
+                        .fill(Twin.Palette.orange)
+                        .overlay(Circle().strokeBorder(Twin.Palette.ink, lineWidth: 1))
+                        .frame(width: 7, height: 7)
+                        .scaleEffect(decorated || reduceMotion ? 1 : 0.01)
+                        .animation(reduceMotion ? nil : Twin.Motion.bouncy.delay(decorationDelay + 0.5), value: decorated)
+                        .offset(x: m.center(k) - 3.5, y: trackPointY(Double(v), t) - 3.5)
+                        .opacity(isVisible(k) ? 1 : 0)
+                }
+            }
+            if let selected {
+                Circle()
+                    .fill(Twin.Palette.cyan)
+                    .overlay(Circle().strokeBorder(Twin.Palette.ink, lineWidth: 1.5))
+                    .frame(width: 9, height: 9)
+                    .offset(x: m.center(selected.0) - 4.5, y: trackPointY(Double(selected.1), t) - 4.5)
+                    .opacity(decorated ? 1 : 0)
+                    .animation(.easeOut(duration: 0.3), value: decorated)
+            }
         }
-        .frame(width: m.slot)
-        .scaleEffect(grown || reduceMotion ? 1 : 0.6, anchor: .top)
-        .opacity(grown ? 1 : 0)
-        .animation(reduceMotion ? .easeOut(duration: 0.3).delay(delay) : Twin.Motion.bouncy.delay(beat(k) + 0.15), value: grown)
-        .offset(x: m.slotX(k), y: cellY)
-        .opacity(visible ? 1 : 0)
         .allowsHitTesting(false)
-        .accessibilityHidden(true)   // each bar's own label says the humidity
+        .accessibilityHidden(true)   // each bar's own label says the weather
     }
 
     // MARK: Markers
@@ -344,7 +391,7 @@ struct NightsChart: View {
 
     private func flag(_ marker: Marker, m: Metrics) -> some View {
         let k = index(of: marker.bar) ?? 0
-        let x = marker.trailing ? m.center(k) + 6 : m.center(k)
+        let x = marker.trailing ? m.center(k) + 6 : (marker.leading ? m.center(k) - 6 : m.center(k))
         let visible = isVisible(k)
         return Button { select(marker.bar) } label: {
             HStack(spacing: 3) {
@@ -362,7 +409,7 @@ struct NightsChart: View {
         .scaleEffect(decorated || reduceMotion ? 1 : 0.6, anchor: .bottom)
         .opacity(decorated ? 1 : 0)
         .animation(reduceMotion ? .easeOut(duration: 0.3) : Twin.Motion.bouncy.delay(markerDelay(marker)), value: decorated)
-        .frame(width: 0, alignment: marker.trailing ? .trailing : .center)
+        .frame(width: 0, alignment: marker.trailing ? .trailing : (marker.leading ? .leading : .center))
         .offset(x: x, y: rowTops[min(max(marker.row, 0), rowTops.count - 1)])
         .opacity(visible ? 1 : 0)
         .allowsHitTesting(visible)
@@ -373,7 +420,7 @@ struct NightsChart: View {
 
     /// Labels that stay at the left edge while the chart scrolls: the month of the first night on
     /// screen ("‹ OCT" while older nights hide to the left; left out when a new month begins right
-    /// after it: that month's own label shows), and the humidity row's title.
+    /// after it: that month's own label shows), and the weather tracks' titles.
     private func pinnedLabels(_ m: Metrics, left: Int) -> some View {
         let soon = (left + 1...left + 2).contains { bars.indices.contains($0) && bars[$0].startsMonth }
         let more = m.scrollable && left > 0
@@ -385,32 +432,41 @@ struct NightsChart: View {
                 .foregroundStyle(Twin.Palette.inkHint)
                 .fixedSize()
                 .offset(y: monthY)
-            if hasHumidity {
-                HStack(spacing: 5) {
-                    Text("HUMIDITY")
-                    Spacer(minLength: 8)
-                    if let dryLegend {
-                        RoundedRectangle(cornerRadius: 2, style: .continuous)
-                            .fill(Twin.Palette.orange)
-                            .overlay(RoundedRectangle(cornerRadius: 2, style: .continuous)
-                                .strokeBorder(Twin.Palette.ink, lineWidth: 1))
-                            .frame(width: 9, height: 9)
-                        Text(dryLegend)
-                    }
+            if hasWeather {
+                ForEach(0..<2, id: \.self) { t in
+                    trackTitle(t, m: m)
+                        .offset(y: trackTitleY(t))
                 }
-                .font(Twin.Typeface.mono(9, bold: true))
-                .tracking(0.45)
-                .foregroundStyle(Twin.Palette.inkHint)
-                .lineLimit(1)
-                .frame(width: m.viewport, height: humidityTitleHeight)
-                .offset(y: humidityTitleY)
-                .opacity(grown ? 1 : 0)
-                .animation(.easeOut(duration: 0.4).delay(delay + 0.3), value: grown)
             }
         }
         .frame(width: m.viewport, height: totalHeight, alignment: .topLeading)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+
+    /// "HUMIDITY 29%" (the selected night's value) on the left, "- - DRY UNDER 35%" on the right.
+    private func trackTitle(_ t: Int, m: Metrics) -> some View {
+        let value = index(of: selection).flatMap { trackValue(bars[$0], t) }
+        return HStack(spacing: 5) {
+            Text(t == 0 ? "HUMIDITY" : "HIGH")
+            if let value {
+                Text(t == 0 ? "\(value)%" : "\(value)°F")
+                    .foregroundStyle(Twin.Palette.ink)
+                    .contentTransition(.numericText(value: Double(value)))
+            }
+            Spacer(minLength: 8)
+            ChartHLine()
+                .stroke(Twin.Palette.seam, style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
+                .frame(width: 14, height: 1)
+            Text(trackSpec(t).key)
+        }
+        .font(Twin.Typeface.mono(9, bold: true))
+        .tracking(0.45)
+        .foregroundStyle(Twin.Palette.inkHint)
+        .lineLimit(1)
+        .frame(width: m.viewport, height: trackTitleHeight)
+        .opacity(grown ? 1 : 0)
+        .animation(.easeOut(duration: 0.4).delay(delay + 0.3), value: grown)
     }
 
     /// The day under a bar (and its month on the 1st of a month), and the night's tap area (its column).
@@ -433,7 +489,7 @@ struct NightsChart: View {
                 .fixedSize()
                 .frame(width: m.slot)
                 .offset(x: m.slotX(k), y: dayY)
-            // Tap anywhere in the night's column (bar, empty space above it, labels, humidity).
+            // Tap anywhere in the night's column (bar, empty space above it, labels, weather).
             Color.clear
                 .frame(width: m.slot + gap, height: totalHeight - rowTops[0])
                 .contentShape(Rectangle())
@@ -509,5 +565,27 @@ private struct ScrollSpotReader: ViewModifier {
         } else {
             content
         }
+    }
+}
+
+/// A weather track's line: one point per night, `origin + k × step` across (animatable, so the line
+/// follows the bars when the range changes), `values` (0 … 1, 1 = top) up.
+private struct TrackLine: Shape {
+    var values: [Double]
+    var origin: CGFloat
+    var step: CGFloat
+
+    var animatableData: AnimatablePair<CGFloat, CGFloat> {
+        get { AnimatablePair(origin, step) }
+        set { origin = newValue.first; step = newValue.second }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        var p = Path()
+        for (k, v) in values.enumerated() {
+            let point = CGPoint(x: origin + CGFloat(k) * step, y: rect.minY + CGFloat(1 - v) * rect.height)
+            if k == 0 { p.move(to: point) } else { p.addLine(to: point) }
+        }
+        return p
     }
 }

@@ -226,6 +226,7 @@ final class ChatStub: URLProtocol {
         #expect(ChatTools.row(name: "scratch_history", argumentsJSON: #"{"nights":14}"#).title == "Scratch history · 14 nights")
         #expect(ChatTools.row(name: "scratch_history", argumentsJSON: #"{"nights":1}"#).title == "Scratch history · 1 night")
         #expect(ChatTools.row(name: "scratch_history", argumentsJSON: "{}").title == "Scratch history · 14 nights")
+        #expect(ChatTools.row(name: "scratch_history", argumentsJSON: #"{"nights":30}"#).title == "Scratch history · 30 nights")
         #expect(ChatTools.row(name: "order_history", argumentsJSON: #"{"days":120}"#).title == "Amazon orders · 120 days")
         #expect(ChatTools.row(name: "order_history", argumentsJSON: #"{"days":"30"}"#).title == "Amazon orders · 30 days")
         #expect(ChatTools.row(name: "weather_history", argumentsJSON: "{}").title == "Weather · Berkeley")
@@ -236,10 +237,10 @@ final class ChatStub: URLProtocol {
     @Test func summariesComeFromTheResults() {
         #expect(summary("scratch_history", #"{"nights":14}"#) == "Up 3 nights in a row · last night 41 min (usual 12)")
         #expect(summary("scratch_history", #"{"nights":1}"#) == "Last night 41 min · usual 12")
-        #expect(summary("order_history", #"{"days":120}"#) == "17 orders · 1 personal-care item you never bought before")
+        #expect(summary("order_history", #"{"days":120}"#) == "19 orders · 1 personal-care item you never bought before")
         #expect(summary("weather_history", #"{"days":14}"#) == "Humidity 46–55% most days · 29% last night")
         #expect(summary("calendar_events") == "Midterm exams Oct 11–13 · stressful week")
-        #expect(summary("sleep_history", #"{"nights":7}"#) == "5.1 h last night · woke up 4×")
+        #expect(summary("sleep_history", #"{"nights":7}"#) == "5.1 h last night · woke up 2×")
         #expect(ChatTools.summary(name: "weather_history", resultJSON: #"{"error":"x"}"#) == "Couldn't read this data")
         #expect(ChatTools.summary(name: "order_history", resultJSON: #"{"orders":[]}"#) == "No orders in that time")
     }
