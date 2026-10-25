@@ -20,6 +20,7 @@
 		198CB74A61347DCE1EFF0344 /* RealData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 481F1833102702AFC8CDF5A2 /* RealData.swift */; };
 		20C008F0F3148CC5188759D9 /* TrendsCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C8235AB06029C117D8E8B36 /* TrendsCards.swift */; };
 		21EED874B53BF2CE9BFAAE8D /* ScreenScaffold.swift in Sources */ = {isa = PBXBuildFile; fileRef = 10CB0563BBE0CC1D12498743 /* ScreenScaffold.swift */; };
+		268E502DC7BD2019A1C29ACC /* OverlayBarChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6DFB5BE1CFD7993FDB2CDDA /* OverlayBarChart.swift */; };
 		26C1685BBABC00BA05327816 /* TabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA6FEF26FC09D4CA7D5E7D3E /* TabBar.swift */; };
 		322CD2D0B89ACACA80385057 /* SummaryNightCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72BA9288F92A58719CA032CD /* SummaryNightCard.swift */; };
 		359AE6B20330D10C7AEBF9CF /* WatchStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DDD38B993F1AA1D0BC536CA /* WatchStore.swift */; };
@@ -77,12 +78,11 @@
 		C2C5EC54813E8B22D7D1F26F /* LiveGraph.swift in Sources */ = {isa = PBXBuildFile; fileRef = A05C32B1D057DE4A32192BED /* LiveGraph.swift */; };
 		C58F6EFE338BB4CE2C6A6B20 /* ChatCards.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DDE81F3D6AE5C299424DE60 /* ChatCards.swift */; };
 		D0A78FEA08952544FA30DCCB /* EczemaKit in Frameworks */ = {isa = PBXBuildFile; productRef = D2EA930CC5E12E9FB0AD6085 /* EczemaKit */; };
-		DF8D87221FA1E62332F69D8A /* TimelineChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 547D3F19E3CA99267D92C611 /* TimelineChart.swift */; };
+		D826614D296D25D1EC6F52F9 /* OverlayBarChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6DFB5BE1CFD7993FDB2CDDA /* OverlayBarChart.swift */; };
 		E05B340326EC3216606E365B /* EczemaTwinWatch.app in Embed Dependencies */ = {isa = PBXBuildFile; fileRef = 28A06BF100E5C5473F4637B6 /* EczemaTwinWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		E55B86B8E25DE8774687E072 /* SummaryScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C71ED35D0EF0880F2A6A1F0 /* SummaryScreen.swift */; };
 		E574D0D481A6EFEDCFB60FB4 /* ChatSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = B48969043B79B3104CD06543 /* ChatSession.swift */; };
 		E7784C3DF5F23040BB783975 /* SpaceMono-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = E06B0299ACCBE9F04008DCEE /* SpaceMono-Regular.ttf */; };
-		EF66DAC36A0F1260DF2C505E /* TimelineChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 547D3F19E3CA99267D92C611 /* TimelineChart.swift */; };
 		F30C8F2E8CFA7CE2833457E0 /* WatchModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D76256B4672DD738B542C92E /* WatchModel.swift */; };
 		F33CDDB440F084232959FCA2 /* TrendsEventSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C1E58D8F83E40F3AE8F4941 /* TrendsEventSheet.swift */; };
 		FA881C809B2B0BECE02DB009 /* LiveMonitorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5DACAB9E72DC72192AD47F7 /* LiveMonitorView.swift */; };
@@ -146,7 +146,6 @@
 		4E03FADE1874C4C509264EC8 /* LiveMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveMonitor.swift; sourceTree = "<group>"; };
 		53312E31F08FE80F384BD385 /* MonitorScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MonitorScreen.swift; sourceTree = "<group>"; };
 		533848905591F2813A5E3EA9 /* LiveReplay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveReplay.swift; sourceTree = "<group>"; };
-		547D3F19E3CA99267D92C611 /* TimelineChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimelineChart.swift; sourceTree = "<group>"; };
 		570EC8EF09994F162B38DB16 /* Live.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Live.xcconfig; sourceTree = "<group>"; };
 		5808DD3E3B07C0808DABFD4C /* OFL.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = OFL.txt; sourceTree = "<group>"; };
 		59666E413FAD8FCAACA96F91 /* HourlyScratchChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HourlyScratchChart.swift; sourceTree = "<group>"; };
@@ -179,6 +178,7 @@
 		C4920F844414A5B8042B0564 /* LiveBars.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveBars.swift; sourceTree = "<group>"; };
 		CB1BD32C0370C9BA3147BBF8 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		CDFA3B16DEEAFCB72E81305C /* HealthReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HealthReader.swift; sourceTree = "<group>"; };
+		D6DFB5BE1CFD7993FDB2CDDA /* OverlayBarChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OverlayBarChart.swift; sourceTree = "<group>"; };
 		D76256B4672DD738B542C92E /* WatchModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchModel.swift; sourceTree = "<group>"; };
 		D79954630B15D2F8FC68A0DF /* WatchStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchStyle.swift; sourceTree = "<group>"; };
 		DE35167A82BBFBAF22509A89 /* LivePill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LivePill.swift; sourceTree = "<group>"; };
@@ -373,9 +373,9 @@
 				6B4CF87A7465A89E733C681C /* ChartRangePicker.swift */,
 				C1CF5CD9D03422FC9CECB0A0 /* DailyScratchChart.swift */,
 				59666E413FAD8FCAACA96F91 /* HourlyScratchChart.swift */,
+				D6DFB5BE1CFD7993FDB2CDDA /* OverlayBarChart.swift */,
 				B46BACD158F10E448128766E /* QuarterHourChart.swift */,
 				F4C2E3A3EE2BA5714D4874E1 /* SignalLineChart.swift */,
-				547D3F19E3CA99267D92C611 /* TimelineChart.swift */,
 			);
 			path = Charts;
 			sourceTree = "<group>";
@@ -580,11 +580,11 @@
 				460A0A6955DA3D851D5F5841 /* LiveMonitor.swift in Sources */,
 				48F3E315ABEC5638185AB796 /* LiveStreamer.swift in Sources */,
 				558DF6DCEFC8FDF1D72D9448 /* MonitorScreen.swift in Sources */,
+				268E502DC7BD2019A1C29ACC /* OverlayBarChart.swift in Sources */,
 				FD5C701082C639F24C217B9A /* PhoneLink.swift in Sources */,
 				113E1A6B663B35AC7A91E6C3 /* QuarterHourChart.swift in Sources */,
 				A90000FCDEC8CC5078CD99E6 /* SignalLineChart.swift in Sources */,
 				976E54F3AC11E418205AA68F /* Theme.swift in Sources */,
-				EF66DAC36A0F1260DF2C505E /* TimelineChart.swift in Sources */,
 				B98500EFEC7EF5D8EBEE6E58 /* TwinIcon.swift in Sources */,
 				F30C8F2E8CFA7CE2833457E0 /* WatchModel.swift in Sources */,
 				4CFF2785CF7513EE7129DC52 /* WatchRootView.swift in Sources */,
@@ -623,6 +623,7 @@
 				9D9B9FC68BFEAFB2383B40AC /* LiveSession.swift in Sources */,
 				B6FA149DF727D940229BFB48 /* LiveSimulator.swift in Sources */,
 				48428B69503D7D7EB001E6C7 /* OrientationLock.swift in Sources */,
+				D826614D296D25D1EC6F52F9 /* OverlayBarChart.swift in Sources */,
 				5342282DDF4A954661FA364C /* PermissionCards.swift in Sources */,
 				79D322D18A4F64C1FFE34A10 /* PermissionsScreen.swift in Sources */,
 				63F214BF2D73BD94C75EA70A /* QuarterHourChart.swift in Sources */,
@@ -638,7 +639,6 @@
 				111FA460D673B6A23A03B139 /* SummaryStory.swift in Sources */,
 				26C1685BBABC00BA05327816 /* TabBar.swift in Sources */,
 				6E46972D47205DEEBB367D44 /* Theme.swift in Sources */,
-				DF8D87221FA1E62332F69D8A /* TimelineChart.swift in Sources */,
 				20C008F0F3148CC5188759D9 /* TrendsCards.swift in Sources */,
 				419C301295E5357B8D63267E /* TrendsData.swift in Sources */,
 				F33CDDB440F084232959FCA2 /* TrendsEventSheet.swift in Sources */,

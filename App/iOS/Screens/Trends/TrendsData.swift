@@ -111,25 +111,107 @@ struct TrendsEvent: Identifiable, Hashable {
     static func on(_ i: Int) -> [TrendsEvent] { all.filter { ($0.start...$0.end).contains(i) } }
 }
 
-/// The selected night, as the detail strip under the chart says it.
+/// The overlay drawn over the scratch bars: one factor at a time, on its own axis at the right.
+enum TrendsOverlay: String, CaseIterable, Identifiable, Hashable {
+    case none, sleep, humidity, temp, stress
+    var id: Self { self }
+
+    /// Chip title: "None", "Sleep", "Humidity", "Temp", "Stress".
+    var title: String {
+        switch self {
+        case .none: return "None"
+        case .sleep: return "Sleep"
+        case .humidity: return "Humidity"
+        case .temp: return "Temp"
+        case .stress: return "Stress"
+        }
+    }
+
+    /// The right axis' title: "SLEEP · HOURS", "OUTDOOR HUMIDITY · %", "DAY HIGH · °F", "HRV · MS".
+    var axisTitle: String {
+        switch self {
+        case .none: return ""
+        case .sleep: return "SLEEP · HOURS"
+        case .humidity: return "OUTDOOR HUMIDITY · %"
+        case .temp: return "DAY HIGH · °F"
+        case .stress: return "STRESS · HRV MS"
+        }
+    }
+
+    /// The right axis, bottom to top: six gridlines shared with the minutes (0 … 50).
+    var domain: ClosedRange<Double> {
+        switch self {
+        case .none: return 0...1
+        case .sleep: return 4...9
+        case .humidity: return 0...100
+        case .temp: return 50...100
+        case .stress: return 20...70
+        }
+    }
+
+    /// The night's value.
+    func value(_ i: Int) -> Double? {
+        let n = TrendsStory.night(i)
+        switch self {
+        case .none: return nil
+        case .sleep: return n.sleepHours
+        case .humidity: return Double(n.humidity)
+        case .temp: return Double(n.highF)
+        case .stress: return Double(TrendsStory.hrv(i))
+        }
+    }
+
+    /// "6.9 h", "49%", "66°F", "51 ms".
+    func text(_ v: Double) -> String {
+        switch self {
+        case .none: return ""
+        case .sleep: return String(format: "%.1f h", v)
+        case .humidity: return "\(Int(v.rounded()))%"
+        case .temp: return "\(Int(v.rounded()))°F"
+        case .stress: return "\(Int(v.rounded())) ms"
+        }
+    }
+
+    /// An axis label: "9h", "100%", "90°", "60".
+    func tick(_ v: Double) -> String {
+        let n = Int(v.rounded())
+        switch self {
+        case .none: return ""
+        case .sleep: return "\(n)h"
+        case .humidity: return "\(n)%"
+        case .temp: return "\(n)°"
+        case .stress: return "\(n)"
+        }
+    }
+
+    var chart: OverlayBarChart.Overlay? {
+        guard self != .none else { return nil }
+        let steps = TrendsStory.gridSteps
+        let d = domain
+        let ticks = (0...steps).map { tick(d.lowerBound + (d.upperBound - d.lowerBound) * Double($0) / Double(steps)) }
+        return .init(id: rawValue, title: axisTitle, domain: d, ticks: ticks)
+    }
+}
+
+/// The selected night, as the strip under the chart lists it.
 struct TrendsNight: Equatable {
     struct Metric: Equatable, Identifiable {
         var id: String { label }
+        /// "SLEEP"
         let label: String
+        /// "6.9"
         let value: String
-        /// Out of range (dry air, short sleep, low HRV, a hot day).
-        let flagged: Bool
+        /// "h"
+        let unit: String
     }
 
     let id: Int
     /// "LAST NIGHT · FRI OCT 23", "TUE OCT 20"
     let eyebrow: String
     let minutes: Int
-    let hot: Bool
-    /// "3.4× usual"
-    let ratio: String
     let metrics: [Metric]
-    let events: [TrendsEvent]
+    /// The new things bought that day.
+    let purchases: [TrendsEvent]
 }
 
 /// What the Trends tab shows, all from `StageStory` and its longer history `StageHistory`.
@@ -145,11 +227,6 @@ enum TrendsStory {
     static var nightCount: Int { nightIDs.count }
 
     static func night(_ i: Int) -> StageHistory.Night { StageHistory.night(i) }
-
-    /// A day's high of 85 °F or more.
-    static let hotFromF = 85
-    /// HRV under this is "low" (stress): his usual is 52 ms.
-    static let lowHrvBelow = 45
 
     /// Heart-rate variability on night `i`, ms: `StageStory.hrvMs` for the last 14 nights; before them a
     /// steady value around his usual with small deterministic night-to-night noise, a dip on the nights
@@ -177,106 +254,42 @@ enum TrendsStory {
 
     // MARK: Chart
 
-    /// Minutes at the top of the bars: a little above the worst night.
-    static var scaleTop: Double { (Double(StageHistory.nights.map(\.minutes).max() ?? 1) * 1.1).rounded(.up) }
+    /// Minutes at the top gridline (the worst night is 41) and the steps under it.
+    static let scaleTop: Double = 50
+    static let gridSteps = 5
 
-    /// The thin tracks under the bars, in order.
-    static let tracks: [TimelineChart.Track] = [
-        .init(name: "Sleep", unit: "hours", domain: 4.5...8.5, threshold: StageHistory.shortSleepBelow),
-        .init(name: "Humidity", unit: "outdoor %", domain: 20...80, threshold: Double(StageStory.dryBelowPercent)),
-        .init(name: "Temp", unit: "high °F", domain: 55...95, threshold: Double(hotFromF), flagBelow: false),
-        .init(name: "Stress", unit: "HRV ms", domain: 30...64, threshold: Double(lowHrvBelow)),
-    ]
-
-    /// The event lanes; "New" takes a second row only while the sweater and the sample (same first
-    /// night) are both on the chart.
-    static func lanes(_ range: TrendsRange) -> [TimelineChart.Lane] {
-        let rows = events(range).filter { $0.lane == 0 }.map(\.row).max().map { $0 + 1 } ?? 1
-        return [
-        .init(name: "New", unit: "items", rows: rows),
-        .init(name: "Life", unit: "exams · gym", rows: 1),
-        ]
-    }
-
-    static func nights(_ range: TrendsRange, now: Date = Date()) -> [TimelineChart.Night] {
+    static func nights(_ range: TrendsRange, overlay: TrendsOverlay, now: Date = Date()) -> [OverlayBarChart.Night] {
         let cal = calendar
         return range.ids.map { i in
             let n = night(i)
             let date = StageStory.nightDate(i, now: now, calendar: cal)
-            return TimelineChart.Night(
+            return OverlayBarChart.Night(
                 id: i, minutes: Double(n.minutes), hot: n.flare,
                 day: "\(cal.component(.day, from: date))",
                 month: StageStory.month(date, calendar: cal).uppercased(),
                 startsMonth: cal.component(.day, from: date) == 1,
                 isLast: i == StageStory.lastNightIndex,
-                values: [n.sleepHours, Double(n.humidity), Double(n.highF), Double(hrv(i))],
+                overlay: overlay.value(i),
                 accessibility: accessibility(i, date: date))
         }
     }
 
-    /// The events on the chart's nights (clipped to the range).
-    static func events(_ range: TrendsRange) -> [TimelineChart.Event] {
+    /// The exam weeks on the chart's nights (clipped to the range).
+    static func bands(_ range: TrendsRange) -> [OverlayBarChart.Band] {
         guard let first = range.ids.first, let last = range.ids.last else { return [] }
-        return TrendsEvent.all.compactMap { e in
-            guard e.end >= first, e.start <= last else { return nil }
-            let lane = e.isProduct ? 0 : 1
-            let row = e.kind == .detergent ? 1 : 0
-            return TimelineChart.Event(
-                id: e.id, lane: lane, row: row, start: max(e.start, first), end: min(e.end, last), emoji: e.emoji,
-                fill: e.isProduct ? Twin.Palette.pink : Twin.Palette.paper,
-                span: e.isProduct ? Twin.Palette.pinkSoft : Twin.Palette.fillStrong,
-                dot: e.kind == .gym,
-                accessibility: "\(e.shortName). Opens details.")
+        return examRuns.compactMap { run in
+            guard run.upperBound >= first, run.lowerBound <= last else { return nil }
+            return .init(id: "exams:\(run.lowerBound)", start: max(run.lowerBound, first), end: min(run.upperBound, last),
+                         label: "EXAMS", emoji: "📚")
         }
     }
 
-    // MARK: The reading line
-
-    /// One line over the chart: "Two flares: Oct 6–9 after the new sweater and detergent sample, and
-    /// Oct 20–now after the new body wash. Weather, exams and sleep didn't line up."
-    ///
-    /// Flares are runs of orange nights on the chart. Each is tied to the new things bought in the few
-    /// days before it began (a strong or possible link in `TrendsPurchase`), and dated from the day after
-    /// the purchase; the factors with no link over all 74 nights are named after.
-    static func reading(_ range: TrendsRange, now: Date = Date()) -> (lead: String, rest: String, ruledOut: String) {
-        let cal = calendar
-        let ids = range.ids
-        var runs: [ClosedRange<Int>] = []
-        for i in ids where night(i).flare {
-            if let last = runs.last, last.upperBound == i - 1 { runs[runs.count - 1] = last.lowerBound...i } else { runs.append(i...i) }
+    /// The purchases on the chart's nights; the sweater and the detergent sample (same day) side by side.
+    static func markers(_ range: TrendsRange) -> [OverlayBarChart.Marker] {
+        TrendsEvent.all.filter { $0.isProduct && range.shows($0.start) }.map { e in
+            .init(id: e.id, night: e.start, row: e.kind == .detergent ? 1 : 0, emoji: e.emoji,
+                  fill: Twin.Palette.pink, accessibility: "\(e.shortName), bought \(dayText(night: e.start)). Opens details.")
         }
-        let suspects: [(TrendsEvent.Kind, String)] = [(.sweater, "new sweater"), (.detergent, "detergent sample"),
-                                                      (.bodywash, "new body wash")]
-        let linked: [(bought: Int, name: String)] = suspects.compactMap { k, name in
-            guard let p = TrendsPurchase(k), [.strong, .possible].contains(p.verdict) else { return nil }
-            return (p.bought, name)
-        }
-        let phrases: [String] = runs.map { run in
-            // Bought at most `TrendsPurchase.leadDays` days before the flare's first night.
-            let with = linked.filter { run.lowerBound > $0.bought && run.lowerBound - $0.bought <= TrendsPurchase.leadDays }
-            var start = run.lowerBound
-            for f in with where ids.contains(f.bought + 1) { start = min(start, f.bought + 1) }
-            let a = StageStory.nightDate(start, now: now, calendar: cal)
-            let b = StageStory.nightDate(run.upperBound, now: now, calendar: cal)
-            let when = run.upperBound == StageStory.lastNightIndex ? "\(StageStory.monthDay(a, calendar: cal))–now"
-                : (start == run.upperBound ? StageStory.monthDay(a, calendar: cal) : StageStory.monthDayRange(a, b, calendar: cal))
-            return with.isEmpty ? when : "\(when) after the \(joined(with.map(\.name)))"
-        }
-        let none: [(StageHistory.Factor, String)] = [(.dryAir, "Weather"), (.exams, "exams"), (.shortSleep, "sleep")]
-            .filter { StageHistory.impact($0.0).verdict == .none }
-        let ruledOut = none.isEmpty ? "" : "\(joined(none.map(\.1))) didn't line up."
-        guard !runs.isEmpty else {
-            return ("No flares:", "scratching stayed near your usual \(StageStory.usual) min.", ruledOut)
-        }
-        let count = ["One flare", "Two flares", "Three flares"][min(runs.count, 3) - 1]
-        // Two long clauses read better with a comma before "and".
-        let list = phrases.count == 2 ? phrases.joined(separator: ", and ") : joined(phrases)
-        return ("\(count):", list + ".", ruledOut)
-    }
-
-    /// "a, b and c"
-    static func joined(_ items: [String]) -> String {
-        items.count <= 1 ? (items.first ?? "") : items.dropLast().joined(separator: ", ") + " and " + items.last!
     }
 
     // MARK: The selected night
@@ -286,19 +299,18 @@ enum TrendsStory {
         let n = night(i)
         let date = StageStory.nightDate(i, now: now, calendar: calendar)
         let day = dayText(date).uppercased()
-        let hrv = hrv(i)
         return TrendsNight(
             id: i,
             eyebrow: i == StageStory.lastNightIndex ? "LAST NIGHT · \(day)" : day,
-            minutes: n.minutes, hot: n.flare,
-            ratio: String(format: "%.1f× usual", Double(n.minutes) / Double(StageStory.usual)),
+            minutes: n.minutes,
             metrics: [
-                .init(label: "Sleep", value: String(format: "%.1f h", n.sleepHours), flagged: n.sleepHours < StageHistory.shortSleepBelow),
-                .init(label: "Humidity", value: "\(n.humidity)%", flagged: n.dry),
-                .init(label: "Temp", value: "\(n.highF)°F", flagged: n.highF >= hotFromF),
-                .init(label: "HRV", value: "\(hrv) ms", flagged: hrv < lowHrvBelow),
+                .init(label: "Scratch", value: "\(n.minutes)", unit: "min"),
+                .init(label: "Sleep", value: String(format: "%.1f", n.sleepHours), unit: "h"),
+                .init(label: "Humidity", value: "\(n.humidity)", unit: "%"),
+                .init(label: "Temp", value: "\(n.highF)", unit: "°F"),
+                .init(label: "HRV", value: "\(hrv(i))", unit: "ms"),
             ],
-            events: TrendsEvent.on(i))
+            purchases: TrendsEvent.on(i).filter(\.isProduct))
     }
 
     /// "Tue Oct 20"
@@ -335,9 +347,6 @@ enum TrendsLaunch {
         #endif
     }
 
-    /// `-trendsScrollBack 9`: the scrolling chart moves back so the night 9 nights before last night
-    /// sits at its right edge.
-    static var scrollBack: Int? { string("trendsScrollBack").flatMap(Int.init) }
     /// `-trendsSelect -2`: selects that night after the entrance (read from the raw arguments: a
     /// negative number would look like a flag to `UserDefaults`).
     static var select: Int? {
@@ -351,6 +360,10 @@ enum TrendsLaunch {
     }
     /// `-trendsEvent bodywash|sweater|detergent|exams|gym`: opens that event's sheet.
     static var event: String? { string("trendsEvent") }
+    /// `-trendsOverlay sleep|humidity|temp|stress`: the overlay drawn over the bars at launch.
+    static var overlay: TrendsOverlay? {
+        string("trendsOverlay").flatMap { TrendsOverlay(rawValue: $0 == "hrv" ? "stress" : $0) }
+    }
 }
 
 // MARK: - After a purchase

@@ -62,8 +62,7 @@ struct TrendsEventDetail {
         } ?? ""
         let twin = p?.sameDay.first.flatMap { k in TrendsEvent.all.first { $0.kind == k } }
         note = twin.map {
-            "Bought the same day as the \($0.shortName.lowercased()) (\(span)), so the data can't separate the "
-                + "two. Claude can narrow it down by asking you."
+            "Bought the same day as the \($0.shortName.lowercased()) (\(span)): same nights after."
         }
         switch e.kind {
         case .bodywash:
@@ -113,18 +112,9 @@ struct TrendsEventDetail {
             ingredients = []
         }
     }
-
-    static func verdictText(_ v: StageHistory.Verdict) -> String {
-        switch v {
-        case .strong: return "Strong link"
-        case .possible: return "Possible link · can't separate"
-        case .weak: return "Weak link"
-        case .none: return "No link"
-        }
-    }
 }
 
-/// The sheet behind an event on the timeline.
+/// The sheet behind a purchase icon on the chart (or an event, by launch argument).
 struct TrendsEventSheet: View {
     let detail: TrendsEventDetail
     let onAsk: () -> Void
@@ -286,7 +276,6 @@ struct TrendsEventSheet: View {
                 }
                 .foregroundStyle(Twin.Palette.ink)
                 Spacer(minLength: 6)
-                verdictChip(i.verdict)
             }
             VStack(spacing: 6) {
                 bar("With it", nights: "\(i.withNights) NIGHTS", value: i.withMinutes, scale: scale,
@@ -295,7 +284,7 @@ struct TrendsEventSheet: View {
                 bar("Without", nights: "\(i.withoutNights) NIGHTS", value: i.withoutMinutes, scale: scale,
                     fill: Twin.Palette.ink.opacity(0.15), edged: false, delay: 0.5)
             }
-            Text("Compared on the nights outside the other flares. Association, not proof.")
+            Text("Average minutes per night, on the nights outside the other flares.")
                 .font(Twin.Typeface.mono(10))
                 .foregroundStyle(Twin.Palette.inkHint)
                 .fixedSize(horizontal: false, vertical: true)
@@ -304,7 +293,7 @@ struct TrendsEventSheet: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// A bought item: "4 nights after buying: 25 min vs usual 12", the two bars, the verdict.
+    /// A bought item: "4 nights after buying: 25 min vs usual 12" and the two bars.
     private func afterPurchase(_ p: TrendsPurchase) -> some View {
         let scale = max(30, max(p.afterMinutes, Double(p.usual)).rounded(.up))
         let after = Int(p.afterMinutes.rounded())
@@ -329,7 +318,6 @@ struct TrendsEventSheet: View {
                 }
                 .foregroundStyle(Twin.Palette.ink)
                 Spacer(minLength: 6)
-                verdictChip(p.verdict)
             }
             (Text("\(p.nights.count) nights after buying: ").font(Twin.Typeface.sans(15, .bold))
                 + Text("\(after) min vs usual \(p.usual)").font(Twin.Typeface.sans(15)))
@@ -358,24 +346,13 @@ struct TrendsEventSheet: View {
                 .overlay(RoundedRectangle(cornerRadius: Twin.Radius.chip, style: .continuous)
                     .strokeBorder(Twin.Palette.ink, style: StrokeStyle(lineWidth: 1, dash: [3, 2])))
             }
-            Text("Average of the \(p.nights.count) nights after the order date. Association, not proof.")
+            Text("Average of the \(p.nights.count) nights after the order date.")
                 .font(Twin.Typeface.mono(10))
                 .foregroundStyle(Twin.Palette.inkHint)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .twinCard()
         .accessibilityElement(children: .combine)
-    }
-
-    private func verdictChip(_ v: StageHistory.Verdict) -> some View {
-        Text(TrendsEventDetail.verdictText(v))
-            .font(Twin.Typeface.sans(12, .bold))
-            .foregroundStyle(Twin.Palette.ink)
-            .lineLimit(1)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .sticker(v == .strong ? Twin.Palette.orange : (v == .none ? Twin.Palette.paper : Twin.Palette.orangeSoft))
-            .modifier(TodayStamp(delay: 0.6))
     }
 
     private func bar(_ label: String, nights: String, value: Double, scale: Double, fill: Color, edged: Bool, delay: Double,
