@@ -74,9 +74,6 @@ wrangler secret put INGEST_KEY      # the watch uses this to post data
 wrangler dev                         # or: wrangler deploy
 ```
 
-## What is real and what is demo data
-
-Real: scratch detection on the Apple Watch, the live relay, Claude's reasoning (live model calls), and the Nessie integration. Demo data: the purchase, weather, calendar and sleep history of one scripted person, because weeks of real data can't be collected in a 36-hour hackathon.
 
 ## Team
 

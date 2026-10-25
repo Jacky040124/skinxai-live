@@ -49,10 +49,6 @@ iPhone app ──(conversation + tools)──┴──> Claude Opus 5.5
 - **Live relay:** a Cloudflare Worker with a Durable Object streams the watch data to the phone and to a big-screen web view in real time.
 - **Claude agent:** tools read scratch history, orders with ingredient lists, weather, calendar and sleep/HRV. Other tools draw on screen: mark the timeline, show a product card, ask a multiple-choice question, show the conclusion. The instructions make Claude gather data first, rule causes out one at a time, and use only facts the tools returned.
 
-## What is real and what is demo data
-
-- **Real:** scratch detection on the Apple Watch, the live relay, and Claude's reasoning (live model calls).
-- **Demo data:** the purchases, weather, calendar and sleep history belong to one scripted person (Douglas), because weeks of real data can't be collected in a 36-hour hackathon.
 
 ## Run it
 
