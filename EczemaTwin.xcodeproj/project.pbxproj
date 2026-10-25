@@ -24,6 +24,7 @@
 		26C1685BBABC00BA05327816 /* TabBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA6FEF26FC09D4CA7D5E7D3E /* TabBar.swift */; };
 		322CD2D0B89ACACA80385057 /* SummaryNightCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72BA9288F92A58719CA032CD /* SummaryNightCard.swift */; };
 		359AE6B20330D10C7AEBF9CF /* WatchStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DDD38B993F1AA1D0BC536CA /* WatchStore.swift */; };
+		35D381A4B70778CB4D6359AF /* NessieOrders.swift in Sources */ = {isa = PBXBuildFile; fileRef = F46435E4265D80659F5FDFE1 /* NessieOrders.swift */; };
 		37712494B0D3905517DCDA96 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = DED0BAE1425EE27470E3A238 /* AppState.swift */; };
 		3A51F8AE6065B3E76AAAB512 /* ChatThreadViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FDA7FBEEDDC38AC625DB4D1 /* ChatThreadViews.swift */; };
 		3B7C6E1ADB8ADA307ECD856C /* HourlyScratchChart.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59666E413FAD8FCAACA96F91 /* HourlyScratchChart.swift */; };
@@ -124,7 +125,6 @@
 		14B537D92374DD10C70E95B5 /* ControlPressStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ControlPressStyle.swift; sourceTree = "<group>"; };
 		188F7FF09D624D55923C26C6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		1896AB6DB5F3888888AF15F3 /* WatchRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchRootView.swift; sourceTree = "<group>"; };
-		1B25CA124BB6108D32C81089 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		1C51CCC0F091E681A181E4C7 /* LiveSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveSession.swift; sourceTree = "<group>"; };
 		1D71746025FCD0137A6FD57A /* LiveStreamer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveStreamer.swift; sourceTree = "<group>"; };
 		2041CCD0264F87E0A11694E2 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -186,6 +186,7 @@
 		E06B0299ACCBE9F04008DCEE /* SpaceMono-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "SpaceMono-Regular.ttf"; sourceTree = "<group>"; };
 		E5DACAB9E72DC72192AD47F7 /* LiveMonitorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveMonitorView.swift; sourceTree = "<group>"; };
 		F06FE54F03E23DB9D8E77B2B /* DeviceAccess.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceAccess.swift; sourceTree = "<group>"; };
+		F46435E4265D80659F5FDFE1 /* NessieOrders.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NessieOrders.swift; sourceTree = "<group>"; };
 		F4C2E3A3EE2BA5714D4874E1 /* SignalLineChart.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SignalLineChart.swift; sourceTree = "<group>"; };
 		FF0D84168AA9EA0F518A4E6A /* SummaryStory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SummaryStory.swift; sourceTree = "<group>"; };
 		FF4B2897C6CCC760F580D166 /* HUD.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUD.swift; sourceTree = "<group>"; };
@@ -337,7 +338,6 @@
 				347396144EA7921BA5D444F0 /* EczemaTwinWatchApp.swift */,
 				188F7FF09D624D55923C26C6 /* Info.plist */,
 				570EC8EF09994F162B38DB16 /* Live.xcconfig */,
-				1B25CA124BB6108D32C81089 /* Secrets.xcconfig */,
 				83588CEFBC0B69A2FB905A13 /* Watch.entitlements */,
 				D76256B4672DD738B542C92E /* WatchModel.swift */,
 				E75F4075DE13665B01073360 /* Design */,
@@ -413,6 +413,7 @@
 				B48969043B79B3104CD06543 /* ChatSession.swift */,
 				8FDA7FBEEDDC38AC625DB4D1 /* ChatThreadViews.swift */,
 				2C6F0189F64A4798731B6B1D /* InsightScreen.swift */,
+				F46435E4265D80659F5FDFE1 /* NessieOrders.swift */,
 			);
 			path = Insight;
 			sourceTree = "<group>";
@@ -622,6 +623,7 @@
 				5D8AFA25300C7981940B9159 /* LiveReplay.swift in Sources */,
 				9D9B9FC68BFEAFB2383B40AC /* LiveSession.swift in Sources */,
 				B6FA149DF727D940229BFB48 /* LiveSimulator.swift in Sources */,
+				35D381A4B70778CB4D6359AF /* NessieOrders.swift in Sources */,
 				48428B69503D7D7EB001E6C7 /* OrientationLock.swift in Sources */,
 				D826614D296D25D1EC6F52F9 /* OverlayBarChart.swift in Sources */,
 				5342282DDF4A954661FA364C /* PermissionCards.swift in Sources */,

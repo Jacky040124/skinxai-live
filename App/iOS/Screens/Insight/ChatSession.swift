@@ -59,6 +59,7 @@ struct ChatToolRow: Identifiable, Equatable {
 ///   -chatReplay 1     posts .twinReplayChat when Insight first shows (replays the last saved conversation)
 ///   -chatEndpoint <url>  talks to another /api/chat (to see the failed-request row)
 ///   -chatDraft <text>    starts with this text in the box and the keyboard up
+///   -nessieOrders 1      order_history reads purchases from Capital One Nessie via /api/orders (NessieOrders)
 @MainActor
 final class ChatSession: ObservableObject {
     static let shared = ChatSession()
@@ -334,7 +335,9 @@ final class ChatSession: ObservableObject {
             add(.tools([row]))
         }
         let started = Date()
-        let result = recorded ?? StageStory.runToolJSON(name: call.name, argumentsJSON: call.arguments, now: startedAt ?? Date())
+        var live: String? = nil
+        if recorded == nil { live = await NessieOrders.result(for: call) }   // -nessieOrders 1: orders from Capital One Nessie
+        let result = recorded ?? live ?? StageStory.runToolJSON(name: call.name, argumentsJSON: call.arguments, now: startedAt ?? Date())
         await Self.pause(Self.toolMinimum - Date().timeIntervalSince(started))
         let line = ChatTools.summary(name: call.name, resultJSON: result)
         if let owner = items.first(where: { if case .tools(let rows) = $0.kind { rows.contains { $0.id == row.id } } else { false } }),
