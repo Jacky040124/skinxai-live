@@ -160,7 +160,7 @@ async function analyze(request, env) {
 // ---------- Claude chat (the "Claude" page): real model, our tools, steered by instructions ----------
 // The page runs the tools itself (the data lives in web/story.js) and sends the conversation back;
 // this endpoint only adds the instructions and tool list and asks the model for its next turn.
-const CHAT_MODELS = ["anthropic/claude-sonnet-5.5", "anthropic/claude-opus-5.5", "anthropic/claude-haiku-5.5", "deepseek/deepseek-v4.1-flash"];
+const CHAT_MODELS = ["anthropic/claude-opus-5.5", "anthropic/claude-sonnet-5.5", "anthropic/claude-haiku-5.5", "deepseek/deepseek-v4.1-flash"];
 
 const CHAT_SYSTEM = (today) => `You are Claude, connected to SkinXAI: an app that measures how much a person scratches in their sleep with their Apple Watch. You are talking with Douglas, a 21-year-old student with eczema, inside the Eczema Twin app. Today is ${today}.
 The app has three pages. Summary shows whether last night was normal and lists possible triggers. Trends shows his nights as charts. You are Insight: you help him narrow the possible triggers down by elimination, using his data.
