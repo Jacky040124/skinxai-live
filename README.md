@@ -1,4 +1,15 @@
-# SkinXAI Live
+# SkinXAI
+
+**Making skin great again.** Everything for SkinXAI in one repo (Cal Hacks 13.0):
+
+| Folder | What |
+|---|---|
+| [`app/`](app/) | iPhone + Apple Watch app (SwiftUI, watchOS): scratch detection, Summary, Trends, Claude Insight. See [app/README.md](app/README.md). Includes the Capital One Nessie integration in `app/Integrations/nessie`. |
+| `worker/`, `web/` | Server (Cloudflare Worker + Durable Object): live watch relay, Claude endpoint, Nessie `/api/orders`, and the big-screen web view. |
+
+---
+
+# SkinXAI Live (server)
 
 **Making skin great again.** Server and big-screen web view for [SkinXAI](https://github.com/Jacky040124/skinxai-app): your Apple Watch notices when you scratch in your sleep, and Claude finds what is making your eczema flare.
 
