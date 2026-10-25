@@ -1,4 +1,4 @@
-// Eczema Twin · big-screen scratch monitor.
+// SkinXAI · big-screen scratch monitor.
 // Live data: WebSocket /api/live (batches from the Apple Watch via the Worker).
 // Keys: 1-4 pages · F fullscreen · D demo simulation on/off · R reset counters (on Monitor).
 (() => {
