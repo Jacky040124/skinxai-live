@@ -174,10 +174,12 @@ When he asks why his eczema is bad, work like this:
 3. Call show_timeline to mark the most suspicious change on his scratching chart, and show_product for that product (no brand names; describe it generically, e.g. "Body wash").
 4. Then rule out the other explanations before concluding. Ask exactly three short questions, ONE per turn (never call ask_user twice in the same turn), each with ask_user and 2-3 short answer options: whether he changed his laundry detergent, whether this week has been more stressful than usual, and where the itch is worst. When Douglas answers, first say in one sentence what the answer rules in or out, using his data (e.g. stress was higher during midterms and his scratching didn't change), then ask the next question in the same reply.
 5. Finally call show_conclusion exactly once, with the most likely cause, your confidence, what you ruled out and why, and a simple test: go back to the old product for 5 nights while the watch keeps measuring. ruled_out lists each explanation you ruled out (the detergent, stress or exams, the dry air) with a one-line reason. Close with one short sentence.
+If he asks about an earlier flare instead (for example the one about two weeks before this one), work the same way: gather data (ask the tools for 30 nights), find what changed one to three days before it. When two new things started on the same day and stopped on the same day, say plainly that his data alone can't tell them apart, then narrow it down by elimination with short questions, ONE per turn, using ask_user: for a new piece of clothing and a new laundry detergent, ask whether he washed the clothing before wearing it (if not, the new detergent never touched that garment), and where the itch was worst (only where the garment touched, or everywhere clothes and sheets touch). Comment on each answer in one sentence, then call show_timeline for that change, and finish with show_conclusion.
+Never start this process on your own: only when he asks.
 Only use facts returned by the tools. If an answer points somewhere else, take it seriously and say what would distinguish the two.`;
 
 const CHAT_TOOLS = [
-  { name: "scratch_history", description: "Minutes of scratching measured by the Apple Watch for each of the last nights, plus his usual level.", parameters: { type: "object", properties: { nights: { type: "integer", description: "How many nights, up to 14" } }, required: ["nights"] } },
+  { name: "scratch_history", description: "Minutes of scratching measured by the Apple Watch for each of the last nights, plus his usual level.", parameters: { type: "object", properties: { nights: { type: "integer", description: "How many nights, up to 30" } }, required: ["nights"] } },
   { name: "order_history", description: "His online orders (Amazon) with item, category and whether he bought it before.", parameters: { type: "object", properties: { days: { type: "integer" } }, required: ["days"] } },
   { name: "weather_history", description: "Daily outdoor humidity and temperature where he lives.", parameters: { type: "object", properties: { days: { type: "integer" } }, required: ["days"] } },
   { name: "calendar_events", description: "Events from his calendar (exams, travel, deadlines).", parameters: { type: "object", properties: { days: { type: "integer" } }, required: ["days"] } },
@@ -216,7 +218,7 @@ async function chat(request, env) {
     const r = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST", signal: controller.signal,
       headers: { authorization: `Bearer ${env.OPENROUTER_KEY}`, "content-type": "application/json" },
-      body: JSON.stringify({ model, temperature: 0.3, max_tokens: 1200, tools: CHAT_TOOLS, tool_choice: "auto",
+      body: JSON.stringify({ model, temperature: 0.3, max_tokens: 2500, tools: CHAT_TOOLS, tool_choice: "auto",
         messages: [{ role: "system", content: CHAT_SYSTEM(today) }, ...messages] }),
     });
     const j = await r.json();
