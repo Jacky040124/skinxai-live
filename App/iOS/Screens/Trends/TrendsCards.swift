@@ -100,10 +100,9 @@ struct TrendsNightDetail: View {
             .strokeBorder(Twin.Palette.hairline, lineWidth: Twin.Stroke.hairline))
     }
 
-    /// "New body wash · night 4", "Wool sweater · night 1", "Exams", "Late gym".
+    /// "New body wash · bought", "Exams", "Late gym".
     private func eventText(_ e: TrendsEvent) -> String {
-        guard e.isProduct else { return e.shortName }
-        return "\(e.shortName) · night \(night.id - e.start + 1)"
+        e.isProduct ? "\(e.shortName) · bought" : e.shortName
     }
 }
 
@@ -141,53 +140,6 @@ struct TrendsLegend: View {
         .lineLimit(1)
         .minimumScaleFactor(0.8)
         .accessibilityElement(children: .combine)
-    }
-}
-
-// MARK: - More charts
-
-/// "More charts" disclosure row: tap to show the pattern cards under it.
-struct TrendsMoreHeader: View {
-    @Binding var open: Bool
-
-    var body: some View {
-        Button {
-            withAnimation(Twin.Motion.spring) { open.toggle() }
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: "square.grid.2x2.fill")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Twin.Palette.ink)
-                    .frame(width: 34, height: 34)
-                    .sticker(Twin.Palette.cream)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("More charts")
-                        .font(Twin.Typeface.sans(16, .bold))
-                        .foregroundStyle(Twin.Palette.ink)
-                    Text("CALENDAR · TRIGGERS · SLEEP · WEEKDAYS")
-                        .font(Twin.Typeface.mono(9, bold: true))
-                        .tracking(0.3)
-                        .foregroundStyle(Twin.Palette.inkHint)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.8)
-                }
-                Spacer(minLength: 8)
-                Image(systemName: "chevron.down")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(Twin.Palette.ink)
-                    .rotationEffect(.degrees(open ? 180 : 0))
-            }
-            .padding(.horizontal, Twin.Space.l)
-            .padding(.vertical, 12)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Twin.Palette.paper, in: RoundedRectangle(cornerRadius: Twin.Radius.card, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: Twin.Radius.card, style: .continuous)
-                .strokeBorder(Twin.Palette.hairline, lineWidth: Twin.Stroke.hairline))
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(PressableStyle())
-        .accessibilityLabel("More charts")
-        .accessibilityValue(open ? "expanded" : "collapsed")
     }
 }
 

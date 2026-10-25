@@ -1,8 +1,10 @@
 import SwiftUI
 import EczemaKit
 
-/// What the event sheet says about one event: the item, its dates, the ingredient (or material) list
-/// with the common contact allergens lit, and how scratching compared with and without it.
+/// What the event sheet says about one event: the item, its purchase date, the ingredient (or material)
+/// list with the common contact allergens lit, and how scratching went in the 4 nights after the
+/// purchase against his usual. Only what the app can read: the order (date, item, ingredients), not
+/// when he used it. Exams and late workouts (calendar, Apple Health) compare nights with and without.
 struct TrendsEventDetail {
     struct Fact: Identifiable {
         var id: String { label }
@@ -20,7 +22,11 @@ struct TrendsEventDetail {
     let listTitle: String
     let ingredients: [(name: String, flagged: Bool)]
     let impact: StageHistory.Impact
-    /// "Same 4 nights as the detergent sample (Oct 6–9)…"
+    /// A bought item: the nights after its order date against his usual (instead of `impact`).
+    let purchase: TrendsPurchase?
+    /// "4 NIGHTS · OCT 6–9"
+    let afterText: String
+    /// "Bought the same day as the detergent sample (Oct 5)…"
     let note: String?
 
     /// Contact allergens lit in the lists.
@@ -41,16 +47,23 @@ struct TrendsEventDetail {
         }()
         let nights = e.end - e.start + 1
         let orders = StageStory.orders(now: now, calendar: cal)
+        let p = TrendsPurchase(e.kind)
         func order(_ item: String) -> StageStory.Order? { orders.first { $0.item == item } }
         func ordered(_ o: StageStory.Order?) -> String {
             o.map { "\(StageStory.weekday($0.date, short: true, calendar: cal)) \(StageStory.monthDay($0.date, calendar: cal))" } ?? "—"
         }
         event = e
         impact = StageHistory.impact(e.factor)
-        let twin = impact.sameNightsAs.flatMap { f in TrendsEvent.all.first { $0.factor == f } }
+        purchase = p
+        afterText = p.map { p in
+            let a = StageStory.nightDate(p.nights.lowerBound, now: now, calendar: cal)
+            let b = StageStory.nightDate(p.nights.upperBound, now: now, calendar: cal)
+            return "\(p.nights.count) NIGHTS · \(StageStory.monthDayRange(a, b, calendar: cal).uppercased())"
+        } ?? ""
+        let twin = p?.sameDay.first.flatMap { k in TrendsEvent.all.first { $0.kind == k } }
         note = twin.map {
-            "Used on exactly the same \(nights) nights (\(span)) as the \($0.shortName.lowercased()), so the data can't "
-                + "separate the two. Claude can narrow it down by asking you."
+            "Bought the same day as the \($0.shortName.lowercased()) (\(span)), so the data can't separate the "
+                + "two. Claude can narrow it down by asking you."
         }
         switch e.kind {
         case .bodywash:
@@ -58,9 +71,7 @@ struct TrendsEventDetail {
             title = "Body wash"
             category = "\(o.category) · Amazon order"
             firstTime = !o.boughtBefore
-            facts = [.init(label: "Ordered", value: ordered(o)),
-                     .init(label: "First used", value: day(e.start)),
-                     .init(label: "In use", value: "\(nights) nights · \(span)"),
+            facts = [.init(label: "Bought", value: ordered(o)),
                      .init(label: "Item", value: o.item)]
             listTitle = "Ingredients"
             ingredients = (o.ingredients ?? StageStory.bodyWashIngredients).map { ($0, Self.irritants.contains($0)) }
@@ -69,9 +80,7 @@ struct TrendsEventDetail {
             title = "Wool sweater"
             category = "\(o?.category ?? "clothing") · Amazon order"
             firstTime = !(o?.boughtBefore ?? false)
-            facts = [.init(label: "Ordered", value: ordered(o)),
-                     .init(label: "First worn", value: day(e.start)),
-                     .init(label: "Worn", value: "\(nights) nights · \(span)"),
+            facts = [.init(label: "Bought", value: ordered(o)),
                      .init(label: "Note", value: "Your first wool sweater")]
             listTitle = "Material"
             ingredients = [("Wool, 100%", true)]
@@ -80,9 +89,7 @@ struct TrendsEventDetail {
             title = "Detergent sample"
             category = "\(o?.category ?? "household") · Amazon order"
             firstTime = !(o?.boughtBefore ?? false)
-            facts = [.init(label: "Ordered", value: ordered(o)),
-                     .init(label: "First wash", value: day(e.start)),
-                     .init(label: "In use", value: "\(nights) nights · \(span)"),
+            facts = [.init(label: "Bought", value: ordered(o)),
                      .init(label: "Item", value: "Scented, trial size")]
             listTitle = "Ingredients"
             ingredients = Self.detergentIngredients.map { ($0, Self.irritants.contains($0)) }
@@ -107,8 +114,8 @@ struct TrendsEventDetail {
         }
     }
 
-    static func verdictText(_ i: StageHistory.Impact) -> String {
-        switch i.verdict {
+    static func verdictText(_ v: StageHistory.Verdict) -> String {
+        switch v {
         case .strong: return "Strong link"
         case .possible: return "Possible link · can't separate"
         case .weak: return "Weak link"
@@ -134,7 +141,10 @@ struct TrendsEventSheet: View {
                 if !detail.ingredients.isEmpty {
                     ingredients.riseIn(0.19, distance: reduceMotion ? 0 : 12)
                 }
-                impact.riseIn(0.26, distance: reduceMotion ? 0 : 12)
+                Group {
+                    if let p = detail.purchase { afterPurchase(p) } else { impact }
+                }
+                .riseIn(0.26, distance: reduceMotion ? 0 : 12)
                 ask.riseIn(0.33, distance: reduceMotion ? 0 : 12)
             }
             .padding(.horizontal, Twin.Space.screen)
@@ -276,22 +286,61 @@ struct TrendsEventSheet: View {
                 }
                 .foregroundStyle(Twin.Palette.ink)
                 Spacer(minLength: 6)
-                Text(TrendsEventDetail.verdictText(i))
-                    .font(Twin.Typeface.sans(12, .bold))
-                    .foregroundStyle(Twin.Palette.ink)
-                    .lineLimit(1)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .sticker(i.verdict == .strong ? Twin.Palette.orange
-                             : (i.verdict == .none ? Twin.Palette.paper : Twin.Palette.orangeSoft))
-                    .modifier(TodayStamp(delay: 0.6))
+                verdictChip(i.verdict)
             }
             VStack(spacing: 6) {
-                bar("With it", nights: i.withNights, value: i.withMinutes, scale: scale,
+                bar("With it", nights: "\(i.withNights) NIGHTS", value: i.withMinutes, scale: scale,
                     fill: strongish ? Twin.Palette.orange : (i.verdict == .weak ? Twin.Palette.orangeSoft : Twin.Palette.ink.opacity(0.32)),
                     edged: i.verdict != .none, delay: 0.4)
-                bar("Without", nights: i.withoutNights, value: i.withoutMinutes, scale: scale,
+                bar("Without", nights: "\(i.withoutNights) NIGHTS", value: i.withoutMinutes, scale: scale,
                     fill: Twin.Palette.ink.opacity(0.15), edged: false, delay: 0.5)
+            }
+            Text("Compared on the nights outside the other flares. Association, not proof.")
+                .font(Twin.Typeface.mono(10))
+                .foregroundStyle(Twin.Palette.inkHint)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .twinCard()
+        .accessibilityElement(children: .combine)
+    }
+
+    /// A bought item: "4 nights after buying: 25 min vs usual 12", the two bars, the verdict.
+    private func afterPurchase(_ p: TrendsPurchase) -> some View {
+        let scale = max(30, max(p.afterMinutes, Double(p.usual)).rounded(.up))
+        let after = Int(p.afterMinutes.rounded())
+        let strongish = p.verdict == .strong || p.verdict == .possible
+        return VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .firstTextBaseline) {
+                Eyebrow(text: "After buying it")
+                Spacer()
+                Text("MIN / NIGHT")
+                    .font(Twin.Typeface.meta)
+                    .foregroundStyle(Twin.Palette.inkHint)
+            }
+            HStack(alignment: .center, spacing: 10) {
+                HStack(alignment: .lastTextBaseline, spacing: 3) {
+                    Text(signed(p.difference))
+                        .font(Twin.Typeface.sans(40, .bold))
+                        .tracking(-1.5)
+                        .monospacedDigit()
+                    Text("min")
+                        .font(Twin.Typeface.sans(15, .medium))
+                        .foregroundStyle(Twin.Palette.inkMuted)
+                }
+                .foregroundStyle(Twin.Palette.ink)
+                Spacer(minLength: 6)
+                verdictChip(p.verdict)
+            }
+            (Text("\(p.nights.count) nights after buying: ").font(Twin.Typeface.sans(15, .bold))
+                + Text("\(after) min vs usual \(p.usual)").font(Twin.Typeface.sans(15)))
+                .foregroundStyle(Twin.Palette.ink)
+                .fixedSize(horizontal: false, vertical: true)
+            VStack(spacing: 6) {
+                bar("After", nights: detail.afterText, value: p.afterMinutes, scale: scale,
+                    fill: strongish ? Twin.Palette.orange : (p.verdict == .weak ? Twin.Palette.orangeSoft : Twin.Palette.ink.opacity(0.32)),
+                    edged: p.verdict != .none, delay: 0.4, labelWidth: 112)
+                bar("Usual", nights: "YOUR NORMAL", value: Double(p.usual), scale: scale,
+                    fill: Twin.Palette.ink.opacity(0.15), edged: false, delay: 0.5, labelWidth: 112)
             }
             if let note = detail.note {
                 HStack(alignment: .top, spacing: 8) {
@@ -309,7 +358,7 @@ struct TrendsEventSheet: View {
                 .overlay(RoundedRectangle(cornerRadius: Twin.Radius.chip, style: .continuous)
                     .strokeBorder(Twin.Palette.ink, style: StrokeStyle(lineWidth: 1, dash: [3, 2])))
             }
-            Text("Compared on the nights outside the other flares. Association, not proof.")
+            Text("Average of the \(p.nights.count) nights after the order date. Association, not proof.")
                 .font(Twin.Typeface.mono(10))
                 .foregroundStyle(Twin.Palette.inkHint)
                 .fixedSize(horizontal: false, vertical: true)
@@ -318,17 +367,31 @@ struct TrendsEventSheet: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func bar(_ label: String, nights: Int, value: Double, scale: Double, fill: Color, edged: Bool, delay: Double) -> some View {
+    private func verdictChip(_ v: StageHistory.Verdict) -> some View {
+        Text(TrendsEventDetail.verdictText(v))
+            .font(Twin.Typeface.sans(12, .bold))
+            .foregroundStyle(Twin.Palette.ink)
+            .lineLimit(1)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .sticker(v == .strong ? Twin.Palette.orange : (v == .none ? Twin.Palette.paper : Twin.Palette.orangeSoft))
+            .modifier(TodayStamp(delay: 0.6))
+    }
+
+    private func bar(_ label: String, nights: String, value: Double, scale: Double, fill: Color, edged: Bool, delay: Double,
+                     labelWidth: CGFloat = 66) -> some View {
         HStack(spacing: 10) {
             VStack(alignment: .leading, spacing: 0) {
                 Text(label)
                     .font(Twin.Typeface.sans(13, .bold))
                     .foregroundStyle(Twin.Palette.ink)
-                Text("\(nights) NIGHTS")
+                Text(nights)
                     .font(Twin.Typeface.mono(9))
                     .foregroundStyle(Twin.Palette.inkHint)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
             }
-            .frame(width: 66, alignment: .leading)
+            .frame(width: labelWidth, alignment: .leading)
             GeometryReader { g in
                 let shape = UnevenRoundedRectangle(bottomTrailingRadius: 2, topTrailingRadius: 2, style: .continuous)
                 HStack(spacing: 6) {

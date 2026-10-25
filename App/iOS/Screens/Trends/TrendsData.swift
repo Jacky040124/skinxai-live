@@ -19,14 +19,15 @@ enum TrendsRange: String, CaseIterable, Identifiable, Hashable {
     var ids: [Int] { Array(TrendsStory.nightIDs.suffix(nights)) }
 }
 
-/// Something on the timeline's event lanes: a new product in use, an exam week, a late workout.
+/// Something on the timeline's event lanes: a new item he bought (on its order date: all the app can
+/// read is the order, not when he used it), an exam week, a late workout.
 struct TrendsEvent: Identifiable, Hashable {
     enum Kind: String, CaseIterable {
         case bodywash, sweater, detergent, exams, gym
     }
 
     let kind: Kind
-    /// First and last night.
+    /// First and last night (a bought item: the night of its order date, both).
     let start: Int
     let end: Int
 
@@ -73,12 +74,21 @@ struct TrendsEvent: Identifiable, Hashable {
         }
     }
 
-    /// Every event, oldest first.
+    /// The night of the day he ordered it (a bought item): the body wash the day before night 10
+    /// (Oct 19), the sweater and the detergent sample on the day of night −5 (Oct 5).
+    static func purchaseNight(_ kind: Kind) -> Int? {
+        switch kind {
+        case .bodywash: return StageStory.bodyWashNight - 1
+        case .sweater, .detergent: return StageHistory.earlierSuspectsBoughtNight
+        case .exams, .gym: return nil
+        }
+    }
+
+    /// Every event, oldest first. Bought items sit on their order date only.
     static var all: [TrendsEvent] {
-        let wash = TrendsEvent(kind: .bodywash, start: StageStory.bodyWashNight, end: StageStory.lastNightIndex)
-        let f = StageHistory.earlierFlareNights
-        var list = [TrendsEvent(kind: .sweater, start: f.lowerBound, end: f.upperBound),
-                    TrendsEvent(kind: .detergent, start: f.lowerBound, end: f.upperBound), wash]
+        var list = [TrendsEvent.Kind.sweater, .detergent, .bodywash].compactMap { k in
+            purchaseNight(k).map { TrendsEvent(kind: k, start: $0, end: $0) }
+        }
         list += TrendsStory.examRuns.map { TrendsEvent(kind: .exams, start: $0.lowerBound, end: $0.upperBound) }
         list += StageHistory.nights.filter(\.gym).map { TrendsEvent(kind: .gym, start: $0.id, end: $0.id) }
         return list.sorted { $0.start < $1.start }
@@ -225,9 +235,9 @@ enum TrendsStory {
     /// One line over the chart: "Two flares: Oct 6–9 after the new sweater and detergent sample, and
     /// Oct 20–now after the new body wash. Weather, exams and sleep didn't line up."
     ///
-    /// Flares are runs of orange nights on the chart. Each is tied to the new things in use on its
-    /// nights (a strong or possible link in `StageHistory`), and dated from the first night they were in
-    /// use; the factors with no link over all 74 nights are named after.
+    /// Flares are runs of orange nights on the chart. Each is tied to the new things bought in the few
+    /// days before it began (a strong or possible link in `TrendsPurchase`), and dated from the day after
+    /// the purchase; the factors with no link over all 74 nights are named after.
     static func reading(_ range: TrendsRange, now: Date = Date()) -> (lead: String, rest: String, ruledOut: String) {
         let cal = calendar
         let ids = range.ids
@@ -235,23 +245,22 @@ enum TrendsStory {
         for i in ids where night(i).flare {
             if let last = runs.last, last.upperBound == i - 1 { runs[runs.count - 1] = last.lowerBound...i } else { runs.append(i...i) }
         }
-        let suspects: [(StageHistory.Factor, String)] = [(.woolSweater, "new sweater"), (.sampleDetergent, "detergent sample"),
-                                                         (.bodyWash, "new body wash")]
-        let linked = suspects.filter { [.strong, .possible].contains(StageHistory.impact($0.0).verdict) }
+        let suspects: [(TrendsEvent.Kind, String)] = [(.sweater, "new sweater"), (.detergent, "detergent sample"),
+                                                      (.bodywash, "new body wash")]
+        let linked: [(bought: Int, name: String)] = suspects.compactMap { k, name in
+            guard let p = TrendsPurchase(k), [.strong, .possible].contains(p.verdict) else { return nil }
+            return (p.bought, name)
+        }
         let phrases: [String] = runs.map { run in
-            let with = linked.filter { f in run.contains { f.0.applies(to: night($0)) } }
+            // Bought at most `TrendsPurchase.leadDays` days before the flare's first night.
+            let with = linked.filter { run.lowerBound > $0.bought && run.lowerBound - $0.bought <= TrendsPurchase.leadDays }
             var start = run.lowerBound
-            for f in with {
-                if let first = StageHistory.nights.first(where: { f.0.applies(to: $0) && $0.id <= run.lowerBound })?.id,
-                   ids.contains(first) {
-                    start = min(start, first)
-                }
-            }
+            for f in with where ids.contains(f.bought + 1) { start = min(start, f.bought + 1) }
             let a = StageStory.nightDate(start, now: now, calendar: cal)
             let b = StageStory.nightDate(run.upperBound, now: now, calendar: cal)
             let when = run.upperBound == StageStory.lastNightIndex ? "\(StageStory.monthDay(a, calendar: cal))–now"
                 : (start == run.upperBound ? StageStory.monthDay(a, calendar: cal) : StageStory.monthDayRange(a, b, calendar: cal))
-            return with.isEmpty ? when : "\(when) after the \(joined(with.map(\.1)))"
+            return with.isEmpty ? when : "\(when) after the \(joined(with.map(\.name)))"
         }
         let none: [(StageHistory.Factor, String)] = [(.dryAir, "Weather"), (.exams, "exams"), (.shortSleep, "sleep")]
             .filter { StageHistory.impact($0.0).verdict == .none }
@@ -342,6 +351,49 @@ enum TrendsLaunch {
     }
     /// `-trendsEvent bodywash|sweater|detergent|exams|gym`: opens that event's sheet.
     static var event: String? { string("trendsEvent") }
-    /// `-trendsMore 1`: "More charts" opens expanded.
-    static var more: Bool { string("trendsMore") == "1" }
+}
+
+// MARK: - After a purchase
+
+/// How scratching went right after he bought a new item, from what the app can read (the order date
+/// and the nightly minutes; not when he used it): the average of the 4 nights after the order date
+/// against his usual 12 min. Items bought the same day share those nights, so the data can't
+/// separate them (the sweater and the detergent sample, Oct 5).
+struct TrendsPurchase {
+    /// Nights after the order date that are compared.
+    static let nightsAfter = 4
+    /// A flare that starts at most this many days after an order is read as "after" it.
+    static let leadDays = 3
+
+    let kind: TrendsEvent.Kind
+    /// The night of the order date.
+    let bought: Int
+    /// The nights compared (up to 4, ending at last night at the latest).
+    let nights: ClosedRange<Int>
+    /// Average minutes on those nights.
+    let afterMinutes: Double
+    let usual: Int
+    /// Other new items bought the same day.
+    let sameDay: [TrendsEvent.Kind]
+
+    init?(_ kind: TrendsEvent.Kind) {
+        guard let b = TrendsEvent.purchaseNight(kind), b < StageStory.lastNightIndex else { return nil }
+        self.kind = kind
+        bought = b
+        nights = (b + 1)...min(b + Self.nightsAfter, StageStory.lastNightIndex)
+        afterMinutes = Double(nights.map { StageHistory.night($0).minutes }.reduce(0, +)) / Double(nights.count)
+        usual = StageStory.usual
+        sameDay = TrendsEvent.Kind.allCases.filter { $0 != kind && TrendsEvent.purchaseNight($0) == b }
+    }
+
+    /// after − usual, rounded.
+    var difference: Int { Int((afterMinutes - Double(usual)).rounded()) }
+
+    /// 5+ min above usual: strong (possible when another new item was bought the same day); 1.5–5: weak.
+    var verdict: StageHistory.Verdict {
+        let d = afterMinutes - Double(usual)
+        if d >= StageHistory.strongLinkMinutes { return sameDay.isEmpty ? .strong : .possible }
+        if d >= StageHistory.weakLinkMinutes { return .weak }
+        return .none
+    }
 }

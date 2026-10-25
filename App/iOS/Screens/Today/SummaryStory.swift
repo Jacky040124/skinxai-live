@@ -126,7 +126,7 @@ struct SummaryStory {
         let emoji: String
         let fill: Color
         let title: String
-        /// "First used Tue Oct 20"
+        /// "Bought Mon Oct 19"
         let detail: String
         /// "1 DAY BEFORE", "LAST NIGHT", "EARLIER"
         let when: String
@@ -145,7 +145,7 @@ struct SummaryStory {
         let wash = StageStory.bodyWashNight
         if wash <= last {
             list.append(Trigger(id: "wash", emoji: "🧴", fill: Twin.Palette.pink, title: "New body wash",
-                                detail: "First used \(dayText(wash))", when: relative(wash), earlier: false))
+                                detail: "Bought \(dayText(wash - 1))", when: relative(wash - 1), earlier: false))
         }
         let dry = StageStory.dryAirNight
         if dry <= last {

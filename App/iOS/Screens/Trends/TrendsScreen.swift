@@ -6,11 +6,10 @@ import EczemaKit
 ///
 /// - Range picker (7 nights · All time) and one computed reading line ("Two flares: …").
 /// - One stacked timeline: scratching per night (bars), sleep, humidity, temperature and stress (HRV)
-///   as thin tracks, and the events (new products in use, exams, late gym) on lanes under them, all on
-///   the same night axis and scrolling together. Tap a night → a cyan band across every track and the
-///   night's detail strip. Tap an event → its sheet (item, dates, ingredients, with-vs-without, verdict,
-///   "Ask Claude about this").
-/// - "More charts" (collapsed): the calendar, trigger impact, last night's sleep and weekday cards.
+///   as thin tracks, and the events (new items on their purchase date, exams, late gym) on lanes under
+///   them, all on the same night axis and scrolling together. Tap a night → a cyan band across every
+///   track and the night's detail strip. Tap an event → its sheet (item, purchase date, ingredients,
+///   the 4 nights after buying vs usual, verdict, "Ask Claude about this").
 struct TrendsScreen: View {
     @EnvironmentObject var app: AppState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -22,7 +21,6 @@ struct TrendsScreen: View {
     @State private var focus: Int?
     /// The event whose sheet is open.
     @State private var openEvent: TrendsEvent?
-    @State private var more = TrendsLaunch.more
     /// Night dates are relative to now; moves on at midnight while the app stays open.
     @State private var now = Date()
 
@@ -37,17 +35,6 @@ struct TrendsScreen: View {
                     }
                     section(1) { timelineCard(now) }
                         .id("trends-chart")
-                    section(2) { TrendsMoreHeader(open: $more) }
-                        .id("trends-more")
-                    if more {
-                        Group {
-                            TrendsCalendarCard().id("trends-calendar")
-                            TrendsTriggersCard { app.select(.insight) }.id("trends-triggers")
-                            TrendsSleepCard().id("trends-sleep")
-                            TrendsWeekdayCard().id("trends-weekday")
-                        }
-                        .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
                     Color.clear.frame(height: 1).id("trends-bottom")
                 }
                 .onAppear { TodayTrendsLaunch.scrollForScreenshot(proxy, bottomID: "trends-bottom") }

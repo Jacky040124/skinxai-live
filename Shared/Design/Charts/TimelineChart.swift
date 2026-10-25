@@ -7,8 +7,9 @@ import SwiftUI
 ///   ink) and a dashed "your usual" line.
 /// - Under it, thin line tracks (sleep, humidity, temperature, HRV…): a line with a light area, the
 ///   threshold dashed, and an orange dot with an ink edge on every out-of-range night.
-/// - Then event lanes: a sticker with the event's emoji on its first night and a bar across the nights
-///   it lasted (a new product in use, an exam week), or a small dot (a late workout). Tap one → `onEvent`.
+/// - Then event lanes: a sticker with the event's icon on its first night and a bar across the nights
+///   it lasted (an exam week; a one-day event, like a purchase, is the sticker alone), or a small dot
+///   (a late workout). Tap one → `onEvent`.
 /// - Month and day labels once at the bottom. A label gutter on the left names each track.
 /// - Tap a night anywhere in its column: a cyan band highlights it across every track.
 /// - More than `window` nights scroll sideways; the chart opens on the newest night (right edge). The
