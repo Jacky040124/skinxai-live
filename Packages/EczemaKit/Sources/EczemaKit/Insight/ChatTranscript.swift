@@ -112,13 +112,13 @@ public struct ChatTranscript: Codable, Hashable, Sendable {
         return results
     }
 
-    /// Claude showed everything a full answer has: the timeline, the product, at least two questions, and a
+    /// Claude showed everything a full answer has: the timeline, the product, at least one question, and a
     /// conclusion with at least two things it ruled out.
     public var isComplete: Bool {
         let calls = messages.flatMap(\.toolCalls)
         let names = Set(calls.map(\.name))
         guard names.isSuperset(of: [ChatTools.timeline, ChatTools.product, ChatTools.conclusion]),
-              calls.filter({ $0.name == ChatTools.question }).count >= 2,
+              calls.filter({ $0.name == ChatTools.question }).count >= 1,
               let conclusion = calls.last(where: { $0.name == ChatTools.conclusion }) else { return false }
         return ChatConclusion(arguments: conclusion.argumentsObject).ruledOut.count >= 2
     }
